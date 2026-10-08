@@ -31,7 +31,6 @@ buildNpmPackage {
       !(lib.hasPrefix "/packages/app/android" relPath)
       && !(lib.hasPrefix "/packages/app/ios" relPath)
       # Website is unrelated to the desktop app
-      && !(lib.hasPrefix "/packages/website" relPath)
       # Documentation, CI definitions and agent/editor configuration. None of
       # these reach the build, but every one of them is part of `src`, so a
       # docs-only or workflow-only commit currently invalidates the whole

@@ -125,9 +125,8 @@ selection is unavailable for registry installs; install an explicit source to se
 
 Registry overviews are untrusted author content, even before installation. Render them with
 `@kivotos/protocol/plugin-overview`: no raw HTML, HTTPS-only links and images, no relative
-URLs, and isolated external links. The website adapter and corpus tests live in
-`packages/website/src/plugins/overview.tsx` and `overview.test.tsx`; the reusable corpus is
-`packages/protocol/tests/fixtures/plugin-overview.json`. A future app overview must share
+URLs, and isolated external links. The reusable corpus is
+`packages/protocol/tests/fixtures/plugin-overview.json`. Any overview surface must share
 this policy. Installed-plugin descriptions in the app remain plain text.
 
 Use `host/owner/slug` for a registry at `https://host`, or set
@@ -250,8 +249,8 @@ Classify every SDK export before adding it. All client entry points and implemen
 Zod schemas, and functions that run in both runtimes. A type-only import is still an architectural
 dependency; shared types must not refer to React components, hooks, Node APIs, or server contexts.
 
-| Entry                                                | Owns                                                                       | May depend on          |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
+| Entry                                               | Owns                                                                       | May depend on          |
+| --------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
 | `@kivotos/plugin`                                   | Shared data, schemas, RPC/settings definitions, runtime-neutral helpers    | Shared code only       |
 | `@kivotos/plugin/server`                            | Server contexts, lifecycle contracts, and CLI process launch               | Shared and server code |
 | `@kivotos/plugin/server/provider`, `/server/acp`    | Server provider contracts and adapters                                     | Shared and server code |

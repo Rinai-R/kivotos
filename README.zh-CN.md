@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Kivotos logo">
+  <img src="assets/kivotos-logo.svg" width="64" height="64" alt="Kivotos logo">
 </p>
 
 <h1 align="center">Kivotos</h1>
@@ -142,7 +142,6 @@ npm run dev
 npm run dev:server
 npm run dev:app
 npm run dev:desktop
-npm run dev:website
 
 # 构建 server stack
 npm run build:server
@@ -155,7 +154,7 @@ npm run typecheck
 
 Kivotos 由一个人开发，靠使用它的人来资助。你可以通过 [GitHub Sponsors](https://github.com/sponsors/boudra) 支持这项工作。公司也可以按月[赞助 Kivotos](https://paseo.sh/sponsor#spot)，logo 会展示在这里和 paseo.sh 首页上。
 
-<!-- Sponsor logos go here, in the same order as packages/website/src/data/sponsors.ts -->
+<!-- Sponsor logos go here -->
 
 ## 相关项目
 

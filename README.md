@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Kivotos logo">
+  <img src="assets/kivotos-logo.svg" width="64" height="64" alt="Kivotos logo">
 </p>
 
 <h1 align="center">Kivotos</h1>
@@ -186,7 +186,6 @@ Quick monorepo package map:
 - `packages/cli`: `kivotos` CLI for daemon and agent workflows
 - `packages/desktop`: Electron desktop app
 - `packages/relay`: Relay transport and encryption used by the daemon and clients
-- `packages/website`: Marketing site and documentation (`paseo.sh`)
 
 Common commands:
 
@@ -198,7 +197,6 @@ npm run dev
 npm run dev:server
 npm run dev:app
 npm run dev:desktop
-npm run dev:website
 
 # build the server stack
 npm run build:server
@@ -211,7 +209,7 @@ npm run typecheck
 
 Kivotos is an independent project used by tens of thousands of developers daily, built by one person and funded by the people who use it. Support the work on [GitHub Sponsors](https://github.com/sponsors/boudra). Companies can [sponsor Kivotos](https://paseo.sh/sponsor#spot) monthly and have their logo shown here and on the paseo.sh homepage.
 
-<!-- Sponsor logos go here, in the same order as packages/website/src/data/sponsors.ts -->
+<!-- Sponsor logos go here -->
 
 ## Related projects
 

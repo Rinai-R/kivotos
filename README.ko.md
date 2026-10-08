@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Kivotos 로고">
+  <img src="assets/kivotos-logo.svg" width="64" height="64" alt="Kivotos 로고">
 </p>
 
 <h1 align="center">Kivotos</h1>
@@ -140,7 +140,6 @@ npx skills add getpaseo/paseo
 - `packages/cli`: `kivotos` CLI(데몬과 에이전트 워크플로)
 - `packages/desktop`: Electron 데스크톱 앱
 - `packages/relay`: 데몬과 클라이언트가 쓰는 릴레이 전송 및 암호화 패키지
-- `packages/website`: 마케팅 사이트 및 문서(`paseo.sh`)
 
 자주 쓰는 명령:
 
@@ -152,7 +151,6 @@ npm run dev
 npm run dev:server
 npm run dev:app
 npm run dev:desktop
-npm run dev:website
 
 # 서버 스택 빌드
 npm run build:server
@@ -165,7 +163,7 @@ npm run typecheck
 
 Kivotos는 한 사람이 개발하며, 사용하는 분들의 후원으로 운영됩니다. [GitHub Sponsors](https://github.com/sponsors/boudra)로 후원할 수 있습니다. 회사는 매월 [Kivotos를 후원](https://paseo.sh/sponsor#spot)하고 로고를 이곳과 paseo.sh 홈페이지에 게재할 수 있습니다.
 
-<!-- Sponsor logos go here, in the same order as packages/website/src/data/sponsors.ts -->
+<!-- Sponsor logos go here -->
 
 ## 관련 프로젝트
 

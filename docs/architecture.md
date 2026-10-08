@@ -220,10 +220,6 @@ Agent browser_keypress -> guest sendInputEvent(skipIfUnhandled)
   `-- guest does not handle ----> stop; never redispatch to the host window
 ```
 
-### `packages/website` — Marketing site
-
-TanStack Router + Cloudflare Workers. Serves paseo.sh.
-
 ## WebSocket protocol
 
 All clients speak the same WebSocket protocol over a single connection that mixes JSON text frames and a small binary framing for terminal streams. Schemas live in `packages/protocol/src/messages.ts`.

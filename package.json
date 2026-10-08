@@ -30,7 +30,6 @@
     "packages/server",
     "packages/app",
     "packages/relay",
-    "packages/website",
     "packages/desktop",
     "packages/cli"
   ],
@@ -43,7 +42,6 @@
     "dev:app": "cross-env KIVOTOS_LISTEN=127.0.0.1:6768 EXPO_PORT=8081 ./scripts/dev-app.sh",
     "test:e2e:mobile": "./scripts/test-mobile-agent-device.sh",
     "test:e2e:composer-keyboard:android": "./packages/app/e2e/mobile/composer-keyboard/android.sh",
-    "dev:website": "npm run dev --workspace=@kivotos/website",
     "postinstall": "node scripts/postinstall-patches.mjs",
     "prepare": "lefthook install --force",
     "build": "npm run build --workspaces --if-present",
