@@ -1,0 +1,205 @@
+#!/usr/bin/env npx tsx
+
+/**
+ * Phase 3: LS Command Tests
+ *
+ * Tests the ls command - listing agents (top-level command).
+ * Since daemon may not be running, we test both:
+ * - Help and argument parsing
+ * - Graceful error handling when daemon not running
+ * - JSON output format
+ *
+ * Tests:
+ * - paseo --help shows ls command
+ * - paseo ls --help shows options
+ * - paseo ls returns empty list or error when no daemon
+ * - paseo ls --json returns valid JSON (or error)
+ * - paseo ls -a flag is accepted
+ * - paseo ls -g flag is accepted
+ * - paseo ls does not support --ui
+ */
+
+import assert from "node:assert";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { getAvailablePort } from "./helpers/network.ts";
+import { runLocalPaseo } from "./helpers/local-cli.ts";
+
+console.log("=== LS Command Tests ===\n");
+
+// Allocate an unused endpoint for connection-error and argument-validation checks.
+const port = await getAvailablePort();
+const paseoHome = await mkdtemp(join(tmpdir(), "paseo-test-home-"));
+
+try {
+  // Test 1: paseo --help shows ls command
+  {
+    console.log("Test 1: paseo --help shows ls command");
+    const result = await runLocalPaseo(["--help"]);
+    assert.strictEqual(result.exitCode, 0, "paseo --help should exit 0");
+    assert(result.stdout.includes("ls"), "help should mention ls command");
+    console.log("✓ paseo --help shows ls command\n");
+  }
+
+  // Test 2: paseo ls --help shows options
+  {
+    console.log("Test 2: paseo ls --help shows options");
+    const result = await runLocalPaseo(["ls", "--help"]);
+    assert.strictEqual(result.exitCode, 0, "paseo ls --help should exit 0");
+    assert(result.stdout.includes("-a"), "help should mention -a flag");
+    assert(result.stdout.includes("--all"), "help should mention --all flag");
+    assert(result.stdout.includes("-g"), "help should mention -g flag");
+    assert(result.stdout.includes("--global"), "help should mention --global flag");
+    assert(result.stdout.includes("across all directories"), "help should describe global scope");
+    assert(!result.stdout.includes("Legacy no-op"), "help should not describe -g as a no-op");
+    assert(result.stdout.includes("--host"), "help should mention --host option");
+    assert(!result.stdout.includes("--ui"), "help should not mention --ui");
+    console.log("✓ paseo ls --help shows options\n");
+  }
+
+  // Test 3: paseo ls returns error when no daemon running
+  {
+    console.log("Test 3: paseo ls handles daemon not running");
+    const result = await runLocalPaseo(["ls"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    // Should fail because daemon not running
+    assert.notStrictEqual(result.exitCode, 0, "should fail when daemon not running");
+    const output = result.stdout + result.stderr;
+    const hasError =
+      output.toLowerCase().includes("daemon") ||
+      output.toLowerCase().includes("connect") ||
+      output.toLowerCase().includes("cannot");
+    assert(hasError, "error message should mention connection issue");
+    assert.match(
+      output,
+      /Check the selected endpoint and credentials/,
+      "the recovery message should explain how to check the selected endpoint",
+    );
+    console.log("✓ paseo ls handles daemon not running\n");
+  }
+
+  // Test 4: paseo ls --json returns valid JSON error
+  {
+    console.log("Test 4: paseo ls --json handles errors");
+    const result = await runLocalPaseo(["ls", "--json"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    // Should still fail (daemon not running)
+    assert.notStrictEqual(result.exitCode, 0, "should fail when daemon not running");
+    // But output should be valid JSON if present
+    const output = result.stdout.trim();
+    if (output.length > 0) {
+      try {
+        JSON.parse(output);
+        console.log("✓ paseo ls --json outputs valid JSON error\n");
+      } catch {
+        // Empty or stderr-only output is acceptable
+        console.log("✓ paseo ls --json handled error (output may be in stderr)\n");
+      }
+    } else {
+      console.log("✓ paseo ls --json handled error gracefully\n");
+    }
+  }
+
+  // Test 5: paseo ls -a flag is accepted
+  {
+    console.log("Test 5: paseo ls -a flag is accepted");
+    const result = await runLocalPaseo(["ls", "-a"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    // Will fail due to no daemon, but flag should be parsed without error
+    // (no "unknown option" error)
+    const output = result.stdout + result.stderr;
+    assert(!output.includes("unknown option"), "should accept -a flag");
+    assert(!output.includes("error: option"), "should not have option parsing error");
+    console.log("✓ paseo ls -a flag is accepted\n");
+  }
+
+  // Test 6: paseo ls -g flag is accepted
+  {
+    console.log("Test 6: paseo ls -g flag is accepted");
+    const result = await runLocalPaseo(["ls", "-g"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    const output = result.stdout + result.stderr;
+    assert(!output.includes("unknown option"), "should accept -g flag");
+    assert(!output.includes("error: option"), "should not have option parsing error");
+    console.log("✓ paseo ls -g flag is accepted\n");
+  }
+
+  // Test 7: paseo ls -ag combined flags are accepted
+  {
+    console.log("Test 7: paseo ls -ag combined flags are accepted");
+    const result = await runLocalPaseo(["ls", "-ag"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    const output = result.stdout + result.stderr;
+    assert(!output.includes("unknown option"), "should accept -ag flags");
+    assert(!output.includes("error: option"), "should not have option parsing error");
+    console.log("✓ paseo ls -ag combined flags are accepted\n");
+  }
+
+  // Test 8: -q (quiet) flag is accepted globally
+  {
+    console.log("Test 8: -q (quiet) flag is accepted");
+    const result = await runLocalPaseo(["-q", "ls"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    const output = result.stdout + result.stderr;
+    assert(!output.includes("unknown option"), "should accept -q flag");
+    assert(!output.includes("error: option"), "should not have option parsing error");
+    console.log("✓ -q (quiet) flag is accepted\n");
+  }
+
+  // Test 9: paseo ls --ui is rejected (flag removed)
+  {
+    console.log("Test 9: paseo ls --ui is rejected");
+    const result = await runLocalPaseo(["ls", "--ui"], {
+      PASEO_HOST: `localhost:${port}`,
+    });
+    assert.notStrictEqual(result.exitCode, 0, "should fail for removed --ui flag");
+    const output = result.stdout + result.stderr;
+    assert(output.includes("unknown option"), "should report unknown option for --ui");
+    console.log("✓ paseo ls --ui is rejected\n");
+  }
+
+  // Test 10: global --host reaches the command handler
+  {
+    console.log("Test 10: global --host targets the requested daemon");
+    const host = `localhost:${port}`;
+    const result = await runLocalPaseo(["--host", host, "ls"], {
+      PASEO_HOST: "localhost:1",
+      PASEO_HOME: paseoHome,
+    });
+    const output = result.stdout + result.stderr;
+    assert.notStrictEqual(result.exitCode, 0, "should fail when the selected daemon is absent");
+    assert(output.includes(host), "connection error should name the global host");
+    console.log("✓ global --host targets the requested daemon\n");
+  }
+
+  // Test 11: conflicting explicit --host selectors are rejected
+  {
+    console.log("Test 11: conflicting explicit --host selectors are rejected");
+    const firstHost = `localhost:${port}`;
+    const lastHost = `localhost:${await getAvailablePort()}`;
+    const result = await runLocalPaseo(["--host", firstHost, "ls", "--host", lastHost]);
+    const output = result.stdout + result.stderr;
+    assert.notStrictEqual(result.exitCode, 0, "should reject conflicting explicit selectors");
+    assert(
+      output.includes("Conflicting duplicate --host selectors."),
+      "should report the selector conflict",
+    );
+    assert(
+      !output.includes("Cannot connect"),
+      "must reject the selectors before attempting a connection",
+    );
+    console.log("✓ conflicting explicit --host selectors are rejected\n");
+  }
+} finally {
+  // Clean up temp directory
+  await rm(paseoHome, { recursive: true, force: true });
+}
+
+console.log("=== All ls tests passed ===");

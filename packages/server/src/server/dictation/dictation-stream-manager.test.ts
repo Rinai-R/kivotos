@@ -1,0 +1,587 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
+import pino from "pino";
+
+import { DictationStreamManager } from "./dictation-stream-manager.js";
+import { PersistedConfigSchema } from "../persisted-config.js";
+import { resolveSpeechConfig } from "../speech/speech-config-resolver.js";
+import type {
+  SpeechToTextProvider,
+  StreamingTranscriptionSession,
+} from "../speech/speech-provider.js";
+
+class FakeRealtimeSession extends EventEmitter implements StreamingTranscriptionSession {
+  connected = false;
+  appended: Buffer[] = [];
+  commitCalls = 0;
+  clearCalls = 0;
+  closed = false;
+  requiredSampleRate = 24000;
+
+  async connect(): Promise<void> {
+    this.connected = true;
+  }
+
+  appendPcm16(pcm16le: Buffer): void {
+    this.appended.push(pcm16le);
+  }
+
+  commit(): void {
+    this.commitCalls += 1;
+  }
+
+  clear(): void {
+    this.clearCalls += 1;
+  }
+
+  close(): void {
+    this.closed = true;
+  }
+
+  emitCommitted(segmentId: string): void {
+    this.emit("committed", { segmentId, previousSegmentId: null });
+  }
+
+  emitTranscript(segmentId: string, transcript: string, isFinal: boolean): void {
+    this.emit("transcript", { segmentId, transcript, isFinal });
+  }
+
+  emitError(message: string): void {
+    this.emit("error", new Error(message));
+  }
+}
+
+class FakeSttProvider implements SpeechToTextProvider {
+  public readonly id = "fake";
+  public lastLanguage?: string;
+  constructor(private readonly session: FakeRealtimeSession) {}
+  createSession(
+    params: Parameters<SpeechToTextProvider["createSession"]>[0],
+  ): StreamingTranscriptionSession {
+    this.lastLanguage = params.language;
+    return this.session;
+  }
+}
+
+const buildPcmBase64 = (sampleValue: number, sampleCount: number): string => {
+  const samples = new Int16Array(sampleCount);
+  samples.fill(sampleValue);
+  return Buffer.from(samples.buffer).toString("base64");
+};
+
+const tick = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+describe("DictationStreamManager (finish buffer-too-small tolerance)", () => {
+  const env = {
+    dictationDebug: process.env.PASEO_DICTATION_DEBUG,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    process.env.PASEO_DICTATION_DEBUG = "false";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.PASEO_DICTATION_DEBUG = env.dictationDebug;
+  });
+
+  it("treats buffer-too-small as benign and finalizes with existing transcripts", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (msg) => emitted.push(msg),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      finalTimeoutMs: 5000,
+    });
+
+    await manager.handleStart("d1", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d1",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 2400),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+
+    session.emitTranscript("seg-1", "hello world", true);
+
+    await manager.handleFinish("d1", 0);
+    await tick();
+
+    session.emitError(
+      "Error committing input audio buffer: buffer too small. Expected at least 100ms of audio, but buffer only has 0.00ms of audio.",
+    );
+    await tick();
+
+    const final = emitted.find((msg) => msg.type === "dictation_stream_final");
+    const error = emitted.find((msg) => msg.type === "dictation_stream_error");
+    expect(error).toBeUndefined();
+    expect((final?.payload as { text?: string } | undefined)?.text).toBe("hello world");
+    expect(session.closed).toBe(true);
+  });
+});
+
+describe("DictationStreamManager (provider-agnostic provider)", () => {
+  function resolveDictationLanguage(params: {
+    env?: NodeJS.ProcessEnv;
+    persisted?: unknown;
+  }): string {
+    const result = resolveSpeechConfig({
+      paseoHome: "/tmp/paseo-home",
+      env: params.env ?? ({} as NodeJS.ProcessEnv),
+      persisted: PersistedConfigSchema.parse(params.persisted ?? {}),
+    });
+    return result.speech.sttLanguages.dictation;
+  }
+
+  async function startWithResolvedDictationLanguage(params: {
+    env?: NodeJS.ProcessEnv;
+    persisted?: unknown;
+  }): Promise<FakeSttProvider> {
+    const session = new FakeRealtimeSession();
+    const sttProvider = new FakeSttProvider(session);
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: () => {},
+      sessionId: "s1",
+      stt: sttProvider,
+      language: resolveDictationLanguage(params),
+    });
+
+    await manager.handleStart("d-lang", "audio/pcm;rate=24000;bits=16");
+    return sttProvider;
+  }
+
+  it("defaults to English when dictation language config is unset", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({});
+
+    expect(sttProvider.lastLanguage).toBe("en");
+  });
+
+  it("uses PASEO_DICTATION_LANGUAGE when set", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({
+      env: {
+        PASEO_DICTATION_LANGUAGE: "pt",
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(sttProvider.lastLanguage).toBe("pt");
+  });
+
+  it("treats empty PASEO_DICTATION_LANGUAGE as unset", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({
+      env: {
+        PASEO_DICTATION_LANGUAGE: "  ",
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(sttProvider.lastLanguage).toBe("en");
+  });
+
+  it("uses settings dictation STT language when env var is unset", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({
+      persisted: {
+        features: {
+          dictation: {
+            stt: {
+              language: "fr",
+            },
+          },
+        },
+      },
+    });
+
+    expect(sttProvider.lastLanguage).toBe("fr");
+  });
+
+  it("uses env dictation language over settings dictation STT language", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({
+      env: {
+        PASEO_DICTATION_LANGUAGE: "pt",
+      } as NodeJS.ProcessEnv,
+      persisted: {
+        features: {
+          dictation: {
+            stt: {
+              language: "fr",
+            },
+          },
+        },
+      },
+    });
+
+    expect(sttProvider.lastLanguage).toBe("pt");
+  });
+
+  it("does not require OPENAI_API_KEY", async () => {
+    const original = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const session = new FakeRealtimeSession();
+      const emitted: Array<{ type: string; payload: unknown }> = [];
+      const manager = new DictationStreamManager({
+        logger: pino({ level: "silent" }),
+        emit: (msg) => emitted.push(msg),
+        sessionId: "s1",
+        stt: new FakeSttProvider(session),
+      });
+
+      await manager.handleStart("d-local", "audio/pcm;rate=16000;bits=16");
+
+      expect(session.connected).toBe(true);
+      expect(emitted.find((msg) => msg.type === "dictation_stream_error")).toBeUndefined();
+    } finally {
+      if (original !== undefined) {
+        process.env.OPENAI_API_KEY = original;
+      } else {
+        delete process.env.OPENAI_API_KEY;
+      }
+    }
+  });
+
+  it("auto-commits while streaming and assembles final transcript in segment order", async () => {
+    const originalDebug = process.env.PASEO_DICTATION_DEBUG;
+    process.env.PASEO_DICTATION_DEBUG = "false";
+
+    try {
+      const session = new FakeRealtimeSession();
+      const emitted: Array<{ type: string; payload: unknown }> = [];
+      const manager = new DictationStreamManager({
+        logger: pino({ level: "silent" }),
+        emit: (msg) => emitted.push(msg),
+        sessionId: "s1",
+        stt: new FakeSttProvider(session),
+        autoCommitSeconds: 1,
+      });
+
+      await manager.handleStart("d-segmented", "audio/pcm;rate=24000;bits=16");
+
+      await manager.handleChunk({
+        dictationId: "d-segmented",
+        seq: 0,
+        audioBase64: buildPcmBase64(2000, 24000),
+        format: "audio/pcm;rate=24000;bits=16",
+      });
+      expect(session.commitCalls).toBe(1);
+
+      session.emitCommitted("seg-1");
+      session.emitTranscript("seg-1", "hello", true);
+
+      await manager.handleChunk({
+        dictationId: "d-segmented",
+        seq: 1,
+        audioBase64: buildPcmBase64(2000, 12000),
+        format: "audio/pcm;rate=24000;bits=16",
+      });
+
+      await manager.handleFinish("d-segmented", 1);
+      expect(session.commitCalls).toBe(2);
+
+      session.emitCommitted("seg-2");
+      session.emitTranscript("seg-2", "world", true);
+      await tick();
+
+      const final = emitted.find((msg) => msg.type === "dictation_stream_final");
+      expect((final?.payload as { text?: string } | undefined)?.text).toBe("hello world");
+    } finally {
+      if (originalDebug === undefined) {
+        delete process.env.PASEO_DICTATION_DEBUG;
+      } else {
+        process.env.PASEO_DICTATION_DEBUG = originalDebug;
+      }
+    }
+  });
+
+  it("waits for an in-flight auto-commit before finalizing", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (message) => emitted.push(message),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      autoCommitSeconds: 1,
+    });
+
+    await manager.handleStart("d-delayed-auto-commit", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d-delayed-auto-commit",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 24000),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+    expect(session.commitCalls).toBe(1);
+
+    await manager.handleFinish("d-delayed-auto-commit", 0);
+    await tick();
+
+    expect(emitted.find((message) => message.type === "dictation_stream_final")).toBeUndefined();
+    expect(session.closed).toBe(false);
+
+    session.emitCommitted("seg-tail");
+    session.emitTranscript("seg-tail", "the final words", true);
+    await tick();
+
+    const final = emitted.find((message) => message.type === "dictation_stream_final");
+    expect((final?.payload as { text?: string } | undefined)?.text).toBe("the final words");
+    expect(session.closed).toBe(true);
+  });
+
+  it("commits tail audio appended while an auto-commit is in flight", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (message) => emitted.push(message),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      autoCommitSeconds: 1,
+    });
+
+    await manager.handleStart("d-tail-during-commit", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d-tail-during-commit",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 24000),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+    await manager.handleChunk({
+      dictationId: "d-tail-during-commit",
+      seq: 1,
+      audioBase64: buildPcmBase64(2000, 2400),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+
+    session.emitCommitted("seg-first");
+    session.emitTranscript("seg-first", "the beginning", true);
+    await manager.handleFinish("d-tail-during-commit", 1);
+
+    expect(session.commitCalls).toBe(2);
+
+    session.emitCommitted("seg-tail");
+    session.emitTranscript("seg-tail", "the final words", true);
+    await tick();
+
+    const final = emitted.find((message) => message.type === "dictation_stream_final");
+    expect((final?.payload as { text?: string } | undefined)?.text).toBe(
+      "the beginning the final words",
+    );
+  });
+
+  it("does not wait for an abandoned partial after clearing mid-stream silence", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (message) => emitted.push(message),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      autoCommitSeconds: 1,
+    });
+
+    await manager.handleStart("d-cleared-partial", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d-cleared-partial",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 24000),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+    session.emitCommitted("seg-first");
+    session.emitTranscript("seg-first", "the beginning", true);
+
+    session.emitTranscript("seg-abandoned", "quiet partial", false);
+    await manager.handleChunk({
+      dictationId: "d-cleared-partial",
+      seq: 1,
+      audioBase64: buildPcmBase64(0, 24000),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+    expect(session.clearCalls).toBe(1);
+
+    await manager.handleChunk({
+      dictationId: "d-cleared-partial",
+      seq: 2,
+      audioBase64: buildPcmBase64(2000, 2400),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+    await manager.handleFinish("d-cleared-partial", 2);
+    session.emitCommitted("seg-final");
+    session.emitTranscript("seg-final", "the final words", true);
+    await tick();
+
+    const final = emitted.find((message) => message.type === "dictation_stream_final");
+    expect((final?.payload as { text?: string } | undefined)?.text).toBe(
+      "the beginning the final words",
+    );
+    expect(session.closed).toBe(true);
+  });
+
+  it("adapts finish timeout based on pending committed segments", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (msg) => emitted.push(msg),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      finalTimeoutMs: 5000,
+    });
+
+    await manager.handleStart("d-timeout", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d-timeout",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 2400),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+
+    // Simulate a committed segment whose final transcript is still pending.
+    session.emitCommitted("seg-pending");
+
+    await manager.handleFinish("d-timeout", 0);
+
+    const finishAccepted = emitted.find((msg) => msg.type === "dictation_stream_finish_accepted");
+    expect(finishAccepted).toBeDefined();
+    expect(
+      (finishAccepted?.payload as { timeoutMs?: number } | undefined)?.timeoutMs,
+    ).toBeGreaterThan(5000);
+  });
+
+  it("does not extend the finish timeout for abandoned non-final transcripts", async () => {
+    const session = new FakeRealtimeSession();
+    const emitted: Array<{ type: string; payload: unknown }> = [];
+    const manager = new DictationStreamManager({
+      logger: pino({ level: "silent" }),
+      emit: (msg) => emitted.push(msg),
+      sessionId: "s1",
+      stt: new FakeSttProvider(session),
+      finalTimeoutMs: 5000,
+    });
+
+    await manager.handleStart("d-uncommitted-timeout", "audio/pcm;rate=24000;bits=16");
+    await manager.handleChunk({
+      dictationId: "d-uncommitted-timeout",
+      seq: 0,
+      audioBase64: buildPcmBase64(2000, 2400),
+      format: "audio/pcm;rate=24000;bits=16",
+    });
+
+    session.emitCommitted("seg-1");
+    session.emitTranscript("seg-1", "hello", true);
+    session.emitTranscript("seg-dangling", "hel", false);
+
+    await manager.handleFinish("d-uncommitted-timeout", 0);
+
+    const finishAccepted = emitted.find((msg) => msg.type === "dictation_stream_finish_accepted");
+    expect(finishAccepted).toBeDefined();
+    expect((finishAccepted?.payload as { timeoutMs?: number } | undefined)?.timeoutMs).toBe(20_000);
+  });
+
+  it("drops dangling uncommitted non-final transcripts when finishing after silence tail clear", async () => {
+    vi.useFakeTimers();
+    const previousDebug = process.env.PASEO_DICTATION_DEBUG;
+    process.env.PASEO_DICTATION_DEBUG = "false";
+    try {
+      const session = new FakeRealtimeSession();
+      const emitted: Array<{ type: string; payload: unknown }> = [];
+      const manager = new DictationStreamManager({
+        logger: pino({ level: "silent" }),
+        emit: (msg) => emitted.push(msg),
+        sessionId: "s1",
+        stt: new FakeSttProvider(session),
+        finalTimeoutMs: 5000,
+        autoCommitSeconds: 1,
+      });
+
+      await manager.handleStart("d-clear-tail", "audio/pcm;rate=24000;bits=16");
+      await manager.handleChunk({
+        dictationId: "d-clear-tail",
+        seq: 0,
+        audioBase64: buildPcmBase64(2000, 24000),
+        format: "audio/pcm;rate=24000;bits=16",
+      });
+
+      session.emitCommitted("seg-1");
+      session.emitTranscript("seg-1", "hello", true);
+
+      await manager.handleChunk({
+        dictationId: "d-clear-tail",
+        seq: 1,
+        audioBase64: buildPcmBase64(0, 2400),
+        format: "audio/pcm;rate=24000;bits=16",
+      });
+      session.emitTranscript("seg-dangling", "", false);
+
+      await manager.handleFinish("d-clear-tail", 1);
+      await tick();
+      await vi.advanceTimersByTimeAsync(5_100);
+      await tick();
+
+      const final = emitted.find((msg) => msg.type === "dictation_stream_final");
+      const error = emitted.find((msg) => msg.type === "dictation_stream_error");
+      expect(session.clearCalls).toBeGreaterThan(0);
+      expect(error).toBeUndefined();
+      expect((final?.payload as { text?: string } | undefined)?.text).toBe("hello");
+    } finally {
+      process.env.PASEO_DICTATION_DEBUG = previousDebug;
+      vi.useRealTimers();
+    }
+  });
+});
+
+it("cancellation during STT bootstrap closes the producer and never acknowledges a late connection", async () => {
+  let connected!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    connected = resolve;
+  });
+  class ConnectingSession extends FakeRealtimeSession {
+    override async connect(): Promise<void> {
+      await gate;
+    }
+  }
+  const session = new ConnectingSession();
+  const messages: Array<{ type: string }> = [];
+  const manager = new DictationStreamManager({
+    logger: pino({ level: "silent" }),
+    emit: (message) => messages.push(message),
+    sessionId: "cancel-bootstrap",
+    stt: new FakeSttProvider(session),
+  });
+  const starting = manager.handleStart("dictation", "audio/pcm;rate=24000;bits=16");
+  manager.handleCancel("dictation");
+  expect(session.closed).toBe(true);
+  connected();
+  await starting;
+  expect(messages).toEqual([]);
+  manager.cleanupAll();
+});
+
+it("closes every dictation stream when one provider cleanup fails", async () => {
+  class FailingCloseSession extends FakeRealtimeSession {
+    override close(): void {
+      super.close();
+      throw new Error("provider cleanup failed");
+    }
+  }
+  const first = new FailingCloseSession();
+  const second = new FakeRealtimeSession();
+  const sessions = [first, second];
+  const manager = new DictationStreamManager({
+    logger: pino({ level: "silent" }),
+    sessionId: "cleanup-failure",
+    emit: () => {},
+    stt: { id: "controlled", createSession: () => sessions.shift()! },
+  });
+  await manager.handleStart("first", "audio/pcm;rate=24000;bits=16");
+  await manager.handleStart("second", "audio/pcm;rate=24000;bits=16");
+  expect(() => manager.cleanupAll()).toThrow();
+  expect(first.closed).toBe(true);
+  expect(second.closed).toBe(true);
+  expect(manager.hasDemand).toBe(false);
+});

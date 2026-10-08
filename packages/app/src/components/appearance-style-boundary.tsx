@@ -1,0 +1,79 @@
+import { Fragment, type ReactNode } from "react";
+import { withUnistyles } from "react-native-unistyles";
+import type { Theme } from "@/styles/theme";
+
+interface AppearanceStyleBoundaryProps {
+  appearanceKey?: string;
+  children: ReactNode;
+}
+
+// Remounts its children when an appearance token changes. Memoized and parsed content bakes
+// tokens in, and on web numeric tokens (font sizes, line heights) are baked into generated
+// classes that only a re-render refreshes. Native tracked styles update in place.
+// Keep native gesture hosts outside these keys too: shared gesture refs can outlive detached
+// dependent views until passive cleanup. It must sit below every native navigator: remounting
+// a navigator while settings hydrate
+// detaches its screen container inside a FragmentManager transaction and crashes Android.
+// `ThemedStack` places one per screen; the app shell places them around the chrome outside the
+// navigators.
+function AppearanceStyleBoundaryBase({ appearanceKey, children }: AppearanceStyleBoundaryProps) {
+  return <Fragment key={appearanceKey}>{children}</Fragment>;
+}
+
+export function appearanceStyleBoundaryKey(theme: Theme): string {
+  return [
+    theme.fontFamily.ui,
+    theme.fontFamily.mono,
+    theme.fontSize.sm,
+    theme.fontSize.base,
+    theme.fontSize.lg,
+    theme.fontSize.xl,
+    theme.fontSize["2xl"],
+    theme.fontSize["3xl"],
+    theme.fontSize["4xl"],
+    theme.fontSize.content,
+    theme.fontSize.code,
+    theme.lineHeight.diff,
+    theme.colors.foreground,
+    theme.colors.foregroundMuted,
+    theme.colors.mutedForeground,
+    theme.colors.surface1,
+    theme.colors.surface2,
+    theme.colors.border,
+    theme.colors.accentBright,
+    theme.colors.syntax.keyword,
+    theme.colors.syntax.comment,
+    theme.colors.syntax.string,
+    theme.colors.syntax.number,
+    theme.colors.syntax.literal,
+    theme.colors.syntax.function,
+    theme.colors.syntax.definition,
+    theme.colors.syntax.class,
+    theme.colors.syntax.type,
+    theme.colors.syntax.tag,
+    theme.colors.syntax.attribute,
+    theme.colors.syntax.property,
+    theme.colors.syntax.variable,
+    theme.colors.syntax.operator,
+    theme.colors.syntax.punctuation,
+    theme.colors.syntax.regexp,
+    theme.colors.syntax.escape,
+    theme.colors.syntax.meta,
+    theme.colors.syntax.heading,
+    theme.colors.syntax.link,
+  ].join("\u0000");
+}
+
+function appearanceStyleBoundaryMapping(theme: Theme): Partial<AppearanceStyleBoundaryProps> {
+  return { appearanceKey: appearanceStyleBoundaryKey(theme) };
+}
+
+const ThemedAppearanceStyleBoundary = withUnistyles(AppearanceStyleBoundaryBase);
+
+export function AppearanceStyleBoundary({ children }: { children: ReactNode }) {
+  return (
+    <ThemedAppearanceStyleBoundary uniProps={appearanceStyleBoundaryMapping}>
+      {children}
+    </ThemedAppearanceStyleBoundary>
+  );
+}

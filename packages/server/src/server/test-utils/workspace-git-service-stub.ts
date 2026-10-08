@@ -1,0 +1,121 @@
+import type { CheckoutDiffResult } from "../../utils/checkout-git.js";
+import { deriveProjectSlug } from "../workspace-git-metadata.js";
+import type { WorkspaceGitRuntimeSnapshot, WorkspaceGitService } from "../workspace-git-service.js";
+
+export function createNoGitWorkspaceRuntimeSnapshot(cwd: string): WorkspaceGitRuntimeSnapshot {
+  return {
+    cwd,
+    git: {
+      isGit: false,
+      repoRoot: null,
+      mainRepoRoot: null,
+      currentBranch: null,
+      remoteUrl: null,
+      isPaseoOwnedWorktree: false,
+      isDirty: null,
+      baseRef: null,
+      aheadBehind: null,
+      aheadOfOrigin: null,
+      behindOfOrigin: null,
+      hasRemote: false,
+      diffStat: null,
+    },
+    forge: {
+      featuresEnabled: false,
+      pullRequest: null,
+      error: null,
+    },
+  };
+}
+
+export function createNoopWorkspaceGitService(
+  overrides: Partial<WorkspaceGitService> = {},
+): WorkspaceGitService {
+  const service: WorkspaceGitService = {
+    registerWorkspace: () => ({
+      unsubscribe: () => {},
+    }),
+    onSnapshotUpdated: () => ({
+      unsubscribe: () => {},
+    }),
+    peekSnapshot: () => null,
+    getCheckout: async (cwd: string) => ({
+      cwd,
+      isGit: false,
+      currentBranch: null,
+      remoteUrl: null,
+      worktreeRoot: null,
+      isPaseoOwnedWorktree: false,
+      mainRepoRoot: null,
+    }),
+    getSnapshot: async (cwd: string) => createNoGitWorkspaceRuntimeSnapshot(cwd),
+    getCheckoutDiff: async (): Promise<CheckoutDiffResult> => ({ diff: "" }),
+    validateBranchRef: async () => ({ kind: "not-found" }),
+    hasLocalBranch: async () => false,
+    suggestBranchesForCwd: async () => [],
+    listStashes: async () => [],
+    listWorktrees: async () => [],
+    getProjectSlug: async (cwd: string) => {
+      const snapshot = createNoGitWorkspaceRuntimeSnapshot(cwd);
+      return deriveProjectSlug(cwd, snapshot.git.isGit ? snapshot.git.remoteUrl : null);
+    },
+    resolveForge: async () => null,
+    resolveRepoRoot: async (cwd: string) => cwd,
+    resolveDefaultBranch: async () => "main",
+    resolveRepoRemoteUrl: async () => null,
+    refresh: async () => {},
+    requestWorkingTreeWatch: async () => ({
+      repoRoot: null,
+      unsubscribe: () => {},
+    }),
+    scheduleRefreshForCwd: () => {},
+    onWorkspaceStateMayHaveChanged: () => {},
+    invalidateForge: () => {},
+    getMetrics: () => ({
+      workspaceTargetCount: 0,
+      workspaceListenerCount: 0,
+      repositoryTargetCount: 0,
+      repositoryWorkspaceLinkCount: 0,
+      workingTreeWatchTargetCount: 0,
+      workingTreeWatchListenerCount: 0,
+      workspaceObservationSetupInFlightCount: 0,
+      workingTreeWatchSetupInFlightCount: 0,
+      workspaceRefreshInFlightCount: 0,
+      workspaceRefreshQueuedCount: 0,
+      workspaceRefreshAdmissionActiveCount: 0,
+      workspaceRefreshAdmissionPendingCount: 0,
+      workspaceObservationSetupAdmissionActiveCount: 0,
+      workspaceObservationSetupAdmissionPendingCount: 0,
+      fetchInFlightCount: 0,
+      snapshotUpdatedListenerCount: 0,
+      watcherErrorCallbackCount: 0,
+      fileObserver: {
+        activeObservationCount: 0,
+        nativeHandleCount: 0,
+        nativeTrackedFileCount: 0,
+        pendingEventCount: 0,
+        pendingReconciliationWorkCount: 0,
+        pendingClassificationCount: 0,
+        reconciliationInFlightCount: 0,
+        reconciliationCount: 0,
+        scopedReconciliationCount: 0,
+        fullReconciliationCount: 0,
+        reconciliationFailureCount: 0,
+        observerFailureCount: 0,
+        directoryLimitFailureCount: 0,
+        nativeEventCount: 0,
+        nativeChangeEventCount: 0,
+        nativeRenameEventCount: 0,
+        nativePathlessEventCount: 0,
+        nativeClassificationCount: 0,
+        nativeShallowScanCount: 0,
+        lastReconciliationDurationMs: 0,
+        maxReconciliationDurationMs: 0,
+      },
+    }),
+    dispose: async () => {},
+    ...overrides,
+  };
+
+  return service;
+}
