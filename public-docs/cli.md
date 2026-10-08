@@ -320,47 +320,11 @@ Every daemon-connected CLI command accepts global `--home` or `--host`, before o
 | `--home`                                   | That local home, overriding both environment selectors |
 | `--host`                                   | That endpoint, overriding both environment selectors   |
 | Both flags, or conflicting duplicate flags | `TARGET_AMBIGUOUS`                                     |
-| Only `KIVOTOS_HOME` or only `KIVOTOS_HOST`     | The corresponding target                               |
+| Only `KIVOTOS_HOME` or only `KIVOTOS_HOST` | The corresponding target                               |
 | Both environment selectors, without a flag | `TARGET_AMBIGUOUS`                                     |
-| Neither                                    | Default local home, `~/.kivotos`                         |
+| Neither                                    | Default local home, `~/.kivotos`                       |
 
 Local-only `start`, `daemon run`, `config`, `onboard`, and `set-password` reject explicit `--host` and ignore `KIVOTOS_HOST`. Endpoint operations retain TCP, Unix socket, Windows pipe, SSH, and pairing-offer transports. A host-side CLI controlling a container needs `--host` or `KIVOTOS_HOST`.
-
-## Hub
-
-```bash
-kivotos hub login [url]          # Approve and store organization-scoped CLI access
-kivotos hub init                 # Create and optionally deploy a starter trigger here
-kivotos hub connect [url]        # Enroll this daemon using CLI access
-kivotos hub projects             # List legacy projects in the authenticated organization
-kivotos hub status               # Show the current Hub relationship
-kivotos hub permissions list     # Show what this Hub may do on this daemon
-kivotos hub permissions grant hub.execute    # Let Hub automations run agents here
-kivotos hub permissions revoke hub.execute   # Take it back
-kivotos hub disconnect           # End it
-kivotos hub deploy               # Validate and install .kivotos/triggers/*.yml
-kivotos hub deploy --dry-run     # Validate without installing
-kivotos hub deploy -p <project>   # Deploy an existing legacy project bundle
-kivotos hub logout               # Remove the active stored CLI login
-```
-
-Run deploy from the repository root. By default it reads every direct `.kivotos/triggers/*.yml` file in deterministic path order. It validates all triggers before installing them one at a time. If an installation fails after earlier ones succeeded, the error lists the installed files. `--dry-run` only validates; it does not create or activate revisions.
-
-Pass `-p, --project <slug>` for an existing legacy bundle: `.kivotos/hub.yml`, direct `.kivotos/workflows/*.yml` files, and referenced workflow partials. See [Deploy from the CLI](/docs/hub/configuration#deploy-from-the-cli).
-
-`login` opens the Hub approval page and stores a durable organization-scoped CLI credential under `KIVOTOS_HOME`. In an interactive terminal it offers to connect this daemon, then separately asks whether to allow Hub automations to run agents. Connection defaults to yes; execution permission defaults to no. It then links to Hub's **Triggers** page and prints `kivotos hub init` for setup as code. `--json` and non-TTY login remain login-only and never prompt. The stored login is separate from the daemon relationship created by `connect`.
-
-`init` requires a TTY. It signs in and connects the daemon as needed, then lists the organization's app connections that can back a starter trigger. One usable connection is selected automatically; with several, you choose a **Trigger connection**. If none is ready, setup sends you to **Hub → Apps** and stops before selecting an agent or writing files.
-
-Setup asks which agent provider, model, and mode to run. Providers must be enabled and expose both a selectable model and an execution mode. Suggested model and mode entries are the daemon's defaults; a mode is still selected explicitly when there is no default. Hub validates the choice against the daemon before deploying, and accepts only Claude, Codex, and OpenCode for its unattended runs. `deploy` applies the same checks, so it needs the named daemon connected. Setup then asks for the identity allowed to trigger the bot: a GitHub username, Slack member ID, or Discord user ID. It validates the trigger, writes `.kivotos/triggers/<provider>-help.yml`, and asks whether to deploy. Replacing that file requires confirmation; existing legacy bundles and other trigger files are preserved. See the [generated starter trigger](/docs/hub/configuration#generated-starter-trigger).
-
-Interactive logout checks the same-origin daemon relationship and asks whether to disconnect before deleting the login. Declining removes only the login. JSON and noninteractive logout never prompt or disconnect implicitly; `--disconnect-daemon` is the explicit automation path, and `--force` applies to that daemon disconnection. If a requested disconnection fails, the login is preserved.
-
-Every command resolves and normalizes its destination before Hub or daemon work. Origin precedence is an explicit command origin or `--hub`, then `KIVOTOS_HUB_URL`, then the active stored login origin, then the hosted default `https://hub.paseo.sh`. The hosted default never overrides an active login. Credential precedence is `--api-key <secret>`, then `KIVOTOS_HUB_API_KEY`, then a stored login for the exact resolved origin. A stored credential is never sent to a different origin. API keys passed through flags or the environment are not stored.
-
-Human output reports the resolved destination before each action. JSON output keeps stdout machine-readable and includes the normalized Hub origin. Bundle diagnostics identify paths without printing configuration contents or credentials.
-
-See [Daemons in Hub](/docs/hub/daemons), [Hub configuration](/docs/hub/configuration), and the [Hub public API](/docs/hub/api).
 
 ## Connecting to a remote daemon
 

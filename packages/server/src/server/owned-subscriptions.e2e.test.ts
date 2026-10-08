@@ -5,8 +5,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "vitest";
 import type { z } from "zod";
-import { WebSocket, WebSocketServer } from "ws";
-import { createServer } from "node:http";
 import {
   decodeTerminalStreamFrame,
   encodeFileTransferFrame,
@@ -1259,116 +1257,6 @@ test("archive and delete replies retain their historical names and reach only th
     for (const peer of peers) peer.close();
     await admin.close();
     await daemon.close();
-  }
-});
-
-test("Hub bootstrap sends its server ID before the producer's synchronous snapshot", async () => {
-  const daemon = await createTestKivotosDaemon({ mcpEnabled: false });
-  const admin = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
-  const frames: WSOutboundMessage[] = [];
-  const hub = createServer(async (request, response) => {
-    let body = "";
-    for await (const chunk of request) body += chunk;
-    response.setHeader("content-type", "application/json");
-    if (request.url !== "/api/daemons/enroll") {
-      response.end("{}");
-      return;
-    }
-    const enrollment = JSON.parse(body);
-    const address = hub.address();
-    if (!address || typeof address === "string") throw new Error("Missing local Hub address");
-    response.end(
-      JSON.stringify({
-        daemonId: enrollment.daemonId,
-        permissions: enrollment.permissions,
-        webSocketUrl: `ws://127.0.0.1:${address.port}/socket`,
-      }),
-    );
-  });
-  const wss = new WebSocketServer({ server: hub });
-  wss.on("headers", (headers) => headers.push("x-kivotos-session-protocol: 1"));
-  const connected = new Promise<WebSocket>((resolve) =>
-    wss.once("connection", (socket) => {
-      socket.on("message", (data) => frames.push(JSON.parse(data.toString())));
-      resolve(socket);
-    }),
-  );
-  let socket: WebSocket | undefined;
-  try {
-    await new Promise<void>((resolve) => hub.listen(0, "127.0.0.1", resolve));
-    const address = hub.address();
-    if (!address || typeof address === "string") throw new Error("Missing local Hub address");
-    await admin.connect();
-    await admin.connectHub(`http://127.0.0.1:${address.port}`, "local-fixture-token", [
-      "hub.execute",
-    ]);
-    socket = await connected;
-    socket.send(
-      JSON.stringify({
-        type: "hello",
-        clientId: "local-hub",
-        clientType: "hub",
-        protocolVersion: 1,
-        capabilities: { owned_subscriptions: true },
-      }),
-    );
-    await expect.poll(() => frames.length).toBeGreaterThan(0);
-    socket.send(
-      JSON.stringify({
-        type: "session",
-        message: {
-          type: "hub.execution.agent.create.request",
-          requestId: "create",
-          executionId: "bootstrap",
-          provider: "codex",
-          cwd: daemon.staticDir,
-          prompt: "hello",
-        },
-      }),
-    );
-    await expect
-      .poll(() =>
-        frames.some(
-          (frame) =>
-            frame.type === "session" &&
-            frame.message.type === "hub.execution.agent.create.response" &&
-            frame.message.payload.success,
-        ),
-      )
-      .toBe(true);
-    frames.length = 0;
-    socket.send(
-      JSON.stringify({
-        type: "session",
-        message: {
-          type: "session.events.set_subscription.request",
-          requestId: "observe",
-          events: ["hub.execution.agent.update"],
-        },
-      }),
-    );
-    await expect
-      .poll(() =>
-        frames.some(
-          (frame) =>
-            frame.type === "session" && frame.message.type === "hub.execution.agent.update",
-        ),
-      )
-      .toBe(true);
-    expect(frames[0]).toMatchObject({
-      type: "session",
-      message: {
-        type: "session.events.set_subscription.response",
-        payload: { requestId: "observe", subscriptionId: expect.any(String) },
-      },
-    });
-  } finally {
-    await admin.disconnectHub(true).catch(() => {});
-    socket?.terminate();
-    await admin.close();
-    await daemon.close();
-    await new Promise<void>((resolve) => wss.close(() => resolve()));
-    await new Promise<void>((resolve) => hub.close(() => resolve()));
   }
 });
 

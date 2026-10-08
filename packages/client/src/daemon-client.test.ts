@@ -454,25 +454,6 @@ test.each(["agent", "workspace"] as const)(
   },
 );
 
-test("Hub management requires daemon support before dispatching requests", async () => {
-  const mock = createMockTransport();
-  const client = new DaemonClient({
-    url: "ws://test",
-    clientId: "hub_feature_gate_unit_test",
-    transportFactory: () => mock.transport,
-    reconnect: { enabled: false },
-  });
-  clients.push(client);
-  const connecting = client.connect();
-  mock.triggerOpen();
-  await connecting;
-
-  await expect(client.getHubStatus()).rejects.toThrow(
-    "Update the host to use Hub relationship management.",
-  );
-  expect(mock.sent).toEqual([]);
-});
-
 test("timeline observation consumes broadcasts from a host without selective delivery", async () => {
   const mock = createMockTransport();
   const client = new DaemonClient({

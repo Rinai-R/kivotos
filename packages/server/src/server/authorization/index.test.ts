@@ -9,7 +9,6 @@ import {
   DAEMON_PERMISSIONS,
   OWNER_PERMISSIONS,
   SessionAuthorization,
-  permissionsForLegacyHubScopes,
   parseDaemonPermissions,
 } from "./index.js";
 
@@ -47,94 +46,19 @@ describe("SessionAuthorization", () => {
   });
 
   test("semantic permissions authorize operations instead of RPC namespaces", () => {
-    const authorization = new SessionAuthorization(["hub.execute"]);
+    const authorization = new SessionAuthorization(["workspace.read"]);
 
-    expect(authorization.allowsInbound(inboundMessage("hub.execution.agent.create.request"))).toBe(
-      true,
-    );
-    expect(authorization.allowsOutbound(outboundMessage("hub.execution.agent.update"))).toBe(true);
-    expect(authorization.allowsInbound(inboundMessage("get_providers_snapshot_request"))).toBe(
-      true,
-    );
-    expect(authorization.allowsInbound(inboundMessage("refresh_providers_snapshot_request"))).toBe(
-      true,
-    );
-    expect(authorization.allowsOutbound(outboundMessage("get_providers_snapshot_response"))).toBe(
-      true,
-    );
-    expect(authorization.allowsOutbound(outboundMessage("providers_snapshot_update"))).toBe(true);
-    expect(
-      authorization.allowsOutbound(outboundMessage("refresh_providers_snapshot_response")),
-    ).toBe(true);
+    expect(authorization.allowsInbound(inboundMessage("fetch_agents_request"))).toBe(true);
+    expect(authorization.allowsOutbound(outboundMessage("agent_update"))).toBe(true);
     expect(authorization.allowsInbound(inboundMessage("get_daemon_config_request"))).toBe(false);
     expect(authorization.allowsInbound(inboundMessage("provider_diagnostic_request"))).toBe(false);
     expect(authorization.allowsInbound(inboundMessage("ping"))).toBe(false);
-    expect(
-      authorization.allowsInbound(inboundMessage("hub.management.daemon.get_status.request")),
-    ).toBe(false);
-  });
-
-  test("Hub can operate ordinary agents and recover workspaces without daemon administration", () => {
-    const authorization = new SessionAuthorization(["hub.execute"]);
-    for (const type of [
-      "create_agent_request",
-      "workspace.title.set.request",
-      "fetch_agents_request",
-      "fetch_agent_request",
-      "agent.timeline.set_subscription.request",
-      "send_agent_message_request",
-      "workspace.recovery.inspect.request",
-      "workspace.recovery.restore.request",
-      "archive_workspace_request",
-      "cancel_agent_request",
-    ] as const) {
-      expect(authorization.allowsInbound(inboundMessage(type))).toBe(true);
-    }
-    for (const type of [
-      "status",
-      "agent_update",
-      "agent_stream",
-      "workspace_update",
-      "rpc_error",
-      "workspace.title.set.response",
-      "fetch_agents_response",
-      "fetch_agent_response",
-      "agent.timeline.set_subscription.response",
-      "send_agent_message_response",
-      "workspace.recovery.inspect.response",
-      "workspace.recovery.restore.response",
-      "archive_workspace_response",
-      "cancel_agent_response",
-    ] as const) {
-      expect(authorization.allowsOutbound(outboundMessage(type))).toBe(true);
-    }
-    for (const type of [
-      "restart_server_request",
-      "terminal_input",
-      "hub.management.daemon.permissions.update.request",
-    ] as const) {
-      expect(authorization.allowsInbound(inboundMessage(type))).toBe(false);
-    }
-    expect(
-      authorization.allowsOutbound({
-        type: "status",
-        payload: { status: "shutdown_requested", clientId: "owner", requestId: "shutdown" },
-      }),
-    ).toBe(false);
-    authorization.replacePermissions([]);
-    expect(authorization.allowsInbound(inboundMessage("send_agent_message_request"))).toBe(false);
-    expect(authorization.allowsOutbound(outboundMessage("agent_update"))).toBe(false);
   });
 
   test("correlated authorization errors can always be emitted", () => {
     const authorization = new SessionAuthorization([]);
 
     expect(authorization.allowsOutbound(outboundMessage("rpc_error"))).toBe(true);
-  });
-
-  test("legacy Hub authority is translated at one compatibility boundary", () => {
-    expect(permissionsForLegacyHubScopes(["hub.execution.*"])).toEqual(["hub.execute"]);
-    expect(permissionsForLegacyHubScopes(["*"])).toEqual([]);
   });
 
   test("permission names are semantic", () => {
@@ -146,7 +70,7 @@ describe("SessionAuthorization", () => {
   });
 
   test("permission parsing validates against the shared registry and removes duplicates", () => {
-    expect(parseDaemonPermissions(["hub.execute", "hub.execute"])).toEqual(["hub.execute"]);
-    expect(() => parseDaemonPermissions(["hub.execution.*"])).toThrow("Invalid daemon permission");
+    expect(parseDaemonPermissions(["daemon.read", "daemon.read"])).toEqual(["daemon.read"]);
+    expect(() => parseDaemonPermissions(["daemon.manage.*"])).toThrow("Invalid daemon permission");
   });
 });

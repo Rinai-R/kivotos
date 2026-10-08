@@ -65,7 +65,7 @@ ${agents}
 - [Kivotos Hub](${SITE_URL}/hub): Connect daemons and run GitHub, Slack, Discord, and Linear workflows through the hosted service or your own deployment.
 - [Blog](${SITE_URL}/blog): Updates and technical posts from the Kivotos team.
 - [Privacy](${SITE_URL}/privacy): Privacy policy.
-- [Terms](${SITE_URL}/terms): Terms for the official relay and hosted Hub.
+- [Terms](${SITE_URL}/terms): Terms for the official relay.
 - [GitHub](https://github.com/getpaseo/paseo): Source code, issues, and releases.
 `;
 }

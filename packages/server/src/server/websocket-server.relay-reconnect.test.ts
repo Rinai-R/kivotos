@@ -819,22 +819,22 @@ describe("relay external socket reconnect behavior", () => {
     const server = createServer();
     const clientId = "shared-client-id";
     const ownerSocket = new MockSocket();
-    const hubSocket = new MockSocket();
+    const secondSocket = new MockSocket();
 
     const ownerInfo = await attachRelayAndHello({ server, socket: ownerSocket, clientId });
     await server.attachExternalSocket(
-      hubSocket,
-      { transport: "hub", hubDaemonId: "daemon-1" },
-      { principalId: "hub:daemon-1", permissions: ["hub.execute"] },
+      secondSocket,
+      { transport: "relay", relayConnectionId: "conn-2" },
+      { principalId: "principal-2", permissions: ["workspace.read"] },
     );
-    hubSocket.emit("message", JSON.stringify(createHelloMessage(clientId)));
-    await vi.waitFor(() => expect(hubSocket.sent.length).toBeGreaterThan(0));
-    const hubEnvelope = parseSentEnvelope(hubSocket.sent[0]);
-    const hubInfo = parseServerInfoStatusPayload(hubEnvelope.message?.payload);
+    secondSocket.emit("message", JSON.stringify(createHelloMessage(clientId)));
+    await vi.waitFor(() => expect(secondSocket.sent.length).toBeGreaterThan(0));
+    const secondEnvelope = parseSentEnvelope(secondSocket.sent[0]);
+    const secondInfo = parseServerInfoStatusPayload(secondEnvelope.message?.payload);
 
     expect(sessionMock.instances).toHaveLength(2);
     expect(ownerInfo.permissions).toEqual(DAEMON_PERMISSIONS);
-    expect(hubInfo?.permissions).toEqual(["hub.execute"]);
+    expect(secondInfo?.permissions).toEqual(["workspace.read"]);
     await server.close();
   });
 

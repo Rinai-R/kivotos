@@ -6,7 +6,7 @@ export const Route = createFileRoute("/privacy")({
   head: () =>
     pageMeta(
       "Privacy Policy - Kivotos",
-      "What stays on your machines, what the encrypted relay can see, and what Kivotos Hub stores.",
+      "What stays on your machines, and what the encrypted relay can see.",
       "/privacy",
     ),
   component: Privacy,
@@ -18,8 +18,7 @@ function Privacy() {
       <p>
         Kivotos is local-first. Installing or using the open-source software does not send us your
         code, prompts, files, terminal output, or agent conversations. This policy explains the
-        separate data boundaries for local Kivotos, the optional official relay, the hosted Kivotos Hub,
-        and paseo.sh.
+        separate data boundaries for local Kivotos and the optional official relay.
       </p>
 
       <section>
@@ -27,8 +26,8 @@ function Privacy() {
         <KivotosLegalIdentity />
         <p>
           Mohamed Boudra Ziani is the data controller for personal data processed through the
-          official Kivotos website, relay, and hosted Hub. Independently self-hosted daemons, Hubs,
-          and relays are controlled by their operators and are not covered by this policy.
+          official Kivotos website and relay. Independently self-hosted daemons and relays are
+          controlled by their operators and are not covered by this policy.
         </p>
       </section>
 
@@ -44,7 +43,8 @@ function Privacy() {
         </p>
         <p>
           Agents such as Claude Code, Codex, and OpenCode communicate with their providers using
-          credentials on your machine. Kivotos does not manage or intercept those provider API calls.
+          credentials on your machine. Kivotos does not manage or intercept those provider API
+          calls.
         </p>
       </section>
 
@@ -67,43 +67,10 @@ function Privacy() {
       </section>
 
       <section>
-        <h2>Kivotos Hub</h2>
-        <p>When you create or use a hosted Hub account, we process:</p>
-        <ul>
-          <li>Your name, email, account credentials, sessions, IP address, and user agent</li>
-          <li>Your organization, members, roles, invitations, and daemon registrations</li>
-          <li>Identifiers and credentials for services you connect</li>
-          <li>
-            Webhook events, messages, comments, attachment metadata, and related context received
-            from those services
-          </li>
-          <li>
-            Workflow configurations, trigger inputs, outputs, execution state, activity, and audit
-            records
-          </li>
-          <li>Stripe customer identifiers and subscription information needed to provide access</li>
-        </ul>
-        <p>
-          Your repositories, local files, and agent-provider credentials remain on your
-          infrastructure unless a workflow explicitly sends information to Hub or a connected
-          service. Hub does not provide AI inference.
-        </p>
-      </section>
-
-      <section>
-        <h2>Who controls workflow data</h2>
-        <p>
-          Kivotos controls account, billing, security, and service-operation data. When an
-          organization uses Hub to process personal data in its workflows, that organization decides
-          why the data is processed and Kivotos processes it on the organization&apos;s behalf.
-        </p>
-      </section>
-
-      <section>
         <h2>Why we process data</h2>
         <p>We process data to:</p>
         <ul>
-          <li>Provide accounts, Hub workflows, relay connectivity, billing, and support</li>
+          <li>Provide relay connectivity and support</li>
           <li>Authenticate users, daemons, and connected services</li>
           <li>Prevent abuse and protect the services</li>
           <li>Maintain operational and audit records</li>
@@ -148,10 +115,7 @@ function Privacy() {
 
       <section>
         <h2>Cookies</h2>
-        <p>
-          The marketing website does not use analytics or advertising cookies. Hub uses only the
-          session and security cookies needed to sign you in and operate your account.
-        </p>
+        <p>The marketing website does not use analytics or advertising cookies.</p>
       </section>
 
       <section>

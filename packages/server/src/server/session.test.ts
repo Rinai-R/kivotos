@@ -317,7 +317,6 @@ interface SessionForTestOptions {
   getDaemonTcpPort?: () => number | null;
   getDaemonTcpHost?: () => string | null;
   providerSnapshotManager?: ProviderSnapshotManager;
-  hubExecutionAgents?: SessionOptions["hubExecutionAgents"];
   stt?: SessionOptions["stt"];
   voice?: SessionOptions["voice"];
   kivotosHome?: string;
@@ -430,7 +429,6 @@ function createSessionForTest(options: SessionForTestOptions = {}): Session {
     terminalManager: options.terminalManager ?? null,
     providerSnapshotManager:
       options.providerSnapshotManager ?? createProviderSnapshotManagerStub().manager,
-    hubExecutionAgents: options.hubExecutionAgents,
     serviceProxy: options.serviceProxy,
     scriptRuntimeStore: options.scriptRuntimeStore,
     getDaemonTcpPort: options.getDaemonTcpPort,
@@ -747,48 +745,10 @@ describe("workspace label editing", () => {
 });
 
 describe("session authorization permissions", () => {
-  test("routes named-agent validation through the session source", async () => {
-    const messages: SessionOutboundMessage[] = [];
-    const providers = createProviderSnapshotManagerStub();
-    providers.validateAgentConfiguration.mockResolvedValue([
-      { path: ["model"], message: "Model is unavailable" },
-    ]);
-    const session = createSessionForTest({
-      messages,
-      providerSnapshotManager: providers.manager,
-      hubExecutionAgents: {
-        create: vi.fn(),
-        control: vi.fn(),
-        subscribe: vi.fn(() => () => undefined),
-        invalidateAuthority: vi.fn(),
-      },
-    });
-
-    await session.handleMessage({
-      type: "hub.execution.agent.validate.request",
-      requestId: "validate-agent",
-      provider: "codex",
-      model: "missing",
-    });
-
-    expect(providers.validateAgentConfiguration).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "codex", model: "missing" }),
-    );
-    expect(messages).toContainEqual({
-      type: "hub.execution.agent.validate.response",
-      payload: {
-        requestId: "validate-agent",
-        valid: false,
-        issues: [{ path: ["model"], message: "Model is unavailable" }],
-        error: null,
-      },
-    });
-  });
-
   test("rejects an operation without its semantic permission", async () => {
     const messages: SessionOutboundMessage[] = [];
     const session = createSessionForTest({
-      permissions: ["hub.execute"],
+      permissions: ["workspace.read"],
       messages,
     });
 
@@ -809,7 +769,7 @@ describe("session authorization permissions", () => {
 
   test("replaces a session's permissions without reconstructing the session", async () => {
     const messages: SessionOutboundMessage[] = [];
-    const session = createSessionForTest({ permissions: ["hub.execute"], messages });
+    const session = createSessionForTest({ permissions: ["workspace.read"], messages });
 
     await session.handleMessage({
       type: "ping",

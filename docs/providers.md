@@ -31,7 +31,7 @@ for defaults and merge rules, and the [SDK guide](../public-docs/sdk/provider-op
 for native keys and examples.
 
 Exact MCP preapproval is a separate daemon-owned contract. A new provider must fail
-closed for Hub unattended execution until it can approve one exact injected MCP
+closed for unattended execution until it can approve one exact injected MCP
 server and tool identity without approving native tools.
 
 ## Core adapter patterns

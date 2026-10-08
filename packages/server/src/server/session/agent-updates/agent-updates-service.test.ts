@@ -353,9 +353,9 @@ describe("forwardLiveAgent", () => {
     h.useProjectedPayload();
     const agent = h.managed("a");
     agent.config.mcpServers = {
-      hub: {
+      injected: {
         type: "http",
-        url: "https://hub.test/mcp/executions/execution-1",
+        url: "https://injected.test/mcp/executions/execution-1",
         headers: { Authorization: "Bearer execution-secret" },
       },
     };
@@ -370,9 +370,9 @@ describe("forwardLiveAgent", () => {
     expect(agent.config).toMatchObject({
       provider: "codex",
       mcpServers: {
-        hub: {
+        injected: {
           type: "http",
-          url: "https://hub.test/mcp/executions/execution-1",
+          url: "https://injected.test/mcp/executions/execution-1",
           headers: { Authorization: "Bearer execution-secret" },
         },
       },

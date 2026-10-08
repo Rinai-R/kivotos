@@ -3052,7 +3052,7 @@ test("createAgent closes and rejects a provider session that cannot honor MCP se
           provider: "codex",
           cwd: workdir,
           mcpServers: {
-            hub: {
+            injected: {
               type: "http",
               url: "http://127.0.0.1:3000/api/executions/test/mcp",
             },
@@ -3102,7 +3102,7 @@ test("resumeAgentFromPersistence closes and rejects a session that cannot honor 
         {
           cwd: workdir,
           mcpServers: {
-            hub: { type: "http", url: "https://hub.test/mcp/executions/resume" },
+            injected: { type: "http", url: "https://injected.test/mcp/executions/resume" },
           },
         },
         agentId,
@@ -3151,7 +3151,7 @@ test("reloadAgentSession preserves the live session when its replacement cannot 
     await expect(
       manager.reloadAgentSession(created.id, {
         mcpServers: {
-          hub: { type: "http", url: "https://hub.test/mcp/executions/reload" },
+          injected: { type: "http", url: "https://injected.test/mcp/executions/reload" },
         },
       }),
     ).rejects.toThrow("Provider 'codex' does not support MCP servers");

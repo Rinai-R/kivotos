@@ -164,9 +164,6 @@ export interface ProviderSnapshotManagerSpies {
   >;
   listProviders: ReturnType<typeof vi.fn<ProviderSnapshotManager["listProviders"]>>;
   getProvider: ReturnType<typeof vi.fn<ProviderSnapshotManager["getProvider"]>>;
-  validateAgentConfiguration: ReturnType<
-    typeof vi.fn<ProviderSnapshotManager["validateAgentConfiguration"]>
-  >;
   listModels: ReturnType<typeof vi.fn<ProviderSnapshotManager["listModels"]>>;
   listModes: ReturnType<typeof vi.fn<ProviderSnapshotManager["listModes"]>>;
   resolveCreateConfig: ReturnType<typeof vi.fn<ProviderSnapshotManager["resolveCreateConfig"]>>;
@@ -214,9 +211,6 @@ export function createProviderSnapshotManagerStub(): {
   const getProvider = vi.fn<ProviderSnapshotManager["getProvider"]>(async () => {
     throw new Error("createProviderSnapshotManagerStub: getProvider not stubbed");
   });
-  const validateAgentConfiguration = vi.fn<ProviderSnapshotManager["validateAgentConfiguration"]>(
-    async () => [],
-  );
   const listModels = vi.fn<ProviderSnapshotManager["listModels"]>(async () => []);
   const listModes = vi.fn<ProviderSnapshotManager["listModes"]>(async () => []);
   const resolveCreateConfig = vi.fn<ProviderSnapshotManager["resolveCreateConfig"]>(async () => ({
@@ -249,7 +243,6 @@ export function createProviderSnapshotManagerStub(): {
     getAgentManagerProviderState,
     listProviders,
     getProvider,
-    validateAgentConfiguration,
     listModels,
     listModes,
     resolveCreateConfig,
@@ -275,7 +268,6 @@ export function createProviderSnapshotManagerStub(): {
     getAgentManagerProviderState,
     listProviders,
     getProvider,
-    validateAgentConfiguration,
     listModels,
     listModes,
     resolveCreateConfig,

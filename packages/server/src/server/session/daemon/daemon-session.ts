@@ -10,7 +10,6 @@ import {
 import { DaemonSelfUpdateSessionController } from "./daemon-self-update-session-controller.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
 import type { PersistedProjectRecord, PersistedWorkspaceRecord } from "../../workspace-registry.js";
-import type { HubRelationshipManagement } from "../../hub/relationship-controller.js";
 import type { DaemonConfigReloadResult } from "../../daemon-config-store.js";
 
 export interface DaemonRuntimeConfig {
@@ -51,7 +50,6 @@ export interface DaemonSessionOptions {
   getWebSocketRuntimeMetrics?: () => DaemonWebSocketRuntimeDiagnosticSnapshot | null;
   getObservationMetrics?: () => Record<string, number>;
   logger: pino.Logger;
-  hubRelationships?: HubRelationshipManagement;
   reloadConfig: () => DaemonConfigReloadResult;
 }
 
@@ -77,7 +75,6 @@ export class DaemonSession {
   private readonly getObservationMetrics: DaemonSessionOptions["getObservationMetrics"];
   private readonly logger: pino.Logger;
   private readonly selfUpdate: DaemonSelfUpdateSessionController;
-  private readonly hubRelationships: HubRelationshipManagement | null;
   private readonly reloadConfig: () => DaemonConfigReloadResult;
 
   constructor(options: DaemonSessionOptions) {
@@ -94,7 +91,6 @@ export class DaemonSession {
     this.getWebSocketRuntimeMetrics = options.getWebSocketRuntimeMetrics ?? (() => null);
     this.getObservationMetrics = options.getObservationMetrics;
     this.logger = options.logger;
-    this.hubRelationships = options.hubRelationships ?? null;
     this.reloadConfig = options.reloadConfig;
     this.selfUpdate = new DaemonSelfUpdateSessionController({
       clientId: this.clientId,
@@ -105,70 +101,6 @@ export class DaemonSession {
       sessionLogger: this.logger,
     });
   }
-
-  async handleHubRelationshipRequest(
-    msg: Extract<
-      SessionInboundMessage,
-      {
-        type:
-          | "hub.management.daemon.connect.request"
-          | "hub.management.daemon.get_status.request"
-          | "hub.management.daemon.disconnect.request"
-          | "hub.management.daemon.permissions.update.request";
-      }
-    >,
-  ): Promise<void> {
-    try {
-      if (!this.hubRelationships) throw new Error("Hub relationship management is unavailable");
-      if (msg.type === "hub.management.daemon.connect.request") {
-        const status = await this.hubRelationships.connect({
-          hubUrl: msg.hubUrl,
-          token: msg.token,
-          permissions: msg.permissions,
-        });
-        this.host.emit({
-          type: "hub.management.daemon.connect.response",
-          payload: { requestId: msg.requestId, status },
-        });
-        return;
-      }
-      if (msg.type === "hub.management.daemon.permissions.update.request") {
-        const status = await this.hubRelationships.updatePermissions({
-          grant: msg.grant,
-          revoke: msg.revoke,
-        });
-        this.host.emit({
-          type: "hub.management.daemon.permissions.update.response",
-          payload: { requestId: msg.requestId, status },
-        });
-        return;
-      }
-      if (msg.type === "hub.management.daemon.disconnect.request") {
-        const result = await this.hubRelationships.disconnect({ force: msg.force ?? false });
-        this.host.emit({
-          type: "hub.management.daemon.disconnect.response",
-          payload: { requestId: msg.requestId, ...result },
-        });
-        return;
-      }
-      this.host.emit({
-        type: "hub.management.daemon.get_status.response",
-        payload: { requestId: msg.requestId, status: this.hubRelationships.status() },
-      });
-    } catch (error) {
-      this.logger.error({ err: error }, "Failed to handle Hub relationship request");
-      this.host.emit({
-        type: "rpc_error",
-        payload: {
-          requestId: msg.requestId,
-          requestType: msg.type,
-          error: error instanceof Error ? error.message : String(error),
-          code: "handler_error",
-        },
-      });
-    }
-  }
-
   async handleGetStatusRequest(
     msg: Extract<SessionInboundMessage, { type: "daemon.get_status.request" }>,
   ): Promise<void> {

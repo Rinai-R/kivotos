@@ -17,7 +17,6 @@ import {
   Puzzle,
   Smartphone,
   Terminal,
-  Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -498,14 +497,6 @@ function TurnkeySection() {
               description="Run Kivotos on a home lab, or a cloud machine"
               ctaHref="/docs#server--cli"
               ctaLabel="Docs"
-            />
-            <TurnkeyExtensionCard
-              icon={Users}
-              title="Teams and triggers"
-              description="Share access or start work from GitHub, Slack, and Discord"
-              ctaHref="/hub"
-              ctaLabel="Kivotos Hub"
-              showIntegrationIcons
             />
           </div>
         </div>
@@ -1211,17 +1202,17 @@ function FAQ() {
           if you configure them.
         </FAQItem>
         <FAQItem question="Does my code leave my machine?">
-          Kivotos doesn&apos;t send your code anywhere. Agents run locally and talk to their own APIs
-          as they normally would. For remote access, you can use the optional{" "}
+          Kivotos doesn&apos;t send your code anywhere. Agents run locally and talk to their own
+          APIs as they normally would. For remote access, you can use the optional{" "}
           <a href="/docs/security" className="underline hover:text-white/80">
             end-to-end encrypted relay
           </a>
           , connect directly over your local network, or use your own tunnel.
         </FAQItem>
         <FAQItem question="What agents does it support?">
-          Kivotos supports many providers. It has custom implementations for Claude, Codex, OpenCode,
-          Pi, OMP, Antigravity, and Muse Code, and supports many more via ACP. See the full list
-          here:{" "}
+          Kivotos supports many providers. It has custom implementations for Claude, Codex,
+          OpenCode, Pi, OMP, Antigravity, and Muse Code, and supports many more via ACP. See the
+          full list here:{" "}
           <a href="/agents" className="underline hover:text-white/80">
             all supported providers
           </a>
@@ -1232,8 +1223,8 @@ function FAQ() {
           .
         </FAQItem>
         <FAQItem question="How does Kivotos run providers?">
-          Kivotos runs the providers installed on your machine as you&apos;d normally run them. Kivotos
-          doesn&apos;t modify or change their behavior.
+          Kivotos runs the providers installed on your machine as you&apos;d normally run them.
+          Kivotos doesn&apos;t modify or change their behavior.
         </FAQItem>
         <FAQItem question="Do I need the desktop app?">
           No. You can run the daemon headless and use any client to connect. The desktop app just
@@ -1258,8 +1249,8 @@ function FAQ() {
           .
         </FAQItem>
         <FAQItem question="Do I need git or GitHub?">
-          No. Kivotos works in any directory. Worktrees are optional and only relevant if you use git.
-          You can run agents anywhere you&apos;d normally work.
+          No. Kivotos works in any directory. Worktrees are optional and only relevant if you use
+          git. You can run agents anywhere you&apos;d normally work.
         </FAQItem>
         <FAQItem question="Can I get banned for using Kivotos?">
           Kivotos is designed to use each provider&apos;s officially supported integration and does

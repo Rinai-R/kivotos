@@ -38,6 +38,6 @@ Use Kivotos entirely on your laptop, or connect to another machine when you need
 
 Give agents [Kivotos tools](/docs/orchestration) to create worktrees, launch other agents, send prompts, and collect results. Use the [CLI](/docs/cli) or [TypeScript SDK](/docs/sdk) to automate agent and workspace operations.
 
-[Plugins](/docs/plugins) add providers, workspace panels, commands, and workflows. [Hub](/docs/hub) connects external events to agents running on your machines.
+[Plugins](/docs/plugins) add providers, workspace panels, commands, and workflows.
 
 Kivotos is open source under Apache-2.0, with no telemetry, tracking, or required Kivotos account.

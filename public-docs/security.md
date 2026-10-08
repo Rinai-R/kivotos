@@ -131,16 +131,6 @@ Kivotos wraps agent CLIs (Claude Code, Codex, OpenCode, Muse Code) but does not 
 
 Kivotos never stores or transmits provider API keys. Agents run in your user context with your existing credentials.
 
-## Hub identities and credentials
-
-Hub CLI login and daemon enrollment are separate identities. `kivotos hub login [origin]` stores a durable organization-scoped human credential in a private file under `KIVOTOS_HOME`, keyed by the normalized Hub origin. A stored credential is never sent to another origin. Protect `KIVOTOS_HOME` as sensitive local state.
-
-Hub CLI credentials are bearer secrets. Remote Hub origins must use HTTPS; cleartext HTTP is accepted only for loopback development origins (`localhost`, `127.0.0.1`, and `[::1]`).
-
-`kivotos hub connect [origin]` uses that credential, or an explicit API key, only to request a short-lived one-time enrollment token. The daemon exchanges the token and retains its own independently generated relationship credential. Logging out of the CLI does not silently remove daemon authority. Interactive logout completes any accepted same-origin daemon disconnection before deleting the login. In JSON and noninteractive use, `logout` never prompts or disconnects; pass `--disconnect-daemon` only when automation intends to remove both identities.
-
-`--api-key` and `KIVOTOS_HUB_API_KEY` override stored login without being persisted. Prefer environment or secret-manager injection for automation, and avoid command-line flags when local process listings or shell history are visible to other users.
-
 ## Recommendations
 
 - **Use the relay** for mobile access, it's the simplest option and all traffic is end-to-end encrypted
@@ -149,4 +139,3 @@ Hub CLI credentials are bearer secrets. Remote Hub origins must use HTTPS; clear
 - **Never bind to 0.0.0.0 without a password**, without one, any device on your network can connect
 - **Scope Docker mounts tightly**, agents can access mounted workspaces and provider credentials
 - **Keep your daemon updated**, security improvements are released regularly
-- **Protect the Hub configuration branch**, push access to the `.kivotos` bundle controls what that project can reach, see [How Hub works](/docs/hub/concepts)

@@ -28,7 +28,8 @@ import type {
 const openaiApiKey = process.env.OPENAI_API_KEY ?? null;
 
 const localModelsDir =
-  process.env.KIVOTOS_LOCAL_MODELS_DIR ?? path.join(homedir(), ".kivotos", "models", "local-speech");
+  process.env.KIVOTOS_LOCAL_MODELS_DIR ??
+  path.join(homedir(), ".kivotos", "models", "local-speech");
 const testFileDir = path.dirname(fileURLToPath(import.meta.url));
 const appE2eFixturesDir = path.resolve(testFileDir, "../../../app/e2e/support/fixtures");
 
@@ -975,15 +976,15 @@ test("resume_agent rehydrates the newest private MCP config from a redacted pers
   const bearerA = "durable-resume-bearer-a";
   const bearerB = "durable-resume-bearer-b";
   const externalMcpA = {
-    hub: {
+    injected: {
       type: "http" as const,
-      url: "https://hub.test/mcp/executions/durable-resume",
+      url: "https://injected.test/mcp/executions/durable-resume",
       headers: { Authorization: `Bearer ${bearerA}` },
     },
   };
   const externalMcpB = {
-    hub: {
-      ...externalMcpA.hub,
+    injected: {
+      ...externalMcpA.injected,
       headers: { Authorization: `Bearer ${bearerB}` },
     },
   };
@@ -1011,7 +1012,7 @@ test("resume_agent rehydrates the newest private MCP config from a redacted pers
     if (!newestProjectedHandle) {
       throw new Error("Expected a projected persistence handle after resume");
     }
-    expect(provider.resumeOverrides[0]?.mcpServers?.hub).toEqual(externalMcpB.hub);
+    expect(provider.resumeOverrides[0]?.mcpServers?.injected).toEqual(externalMcpB.injected);
     expect(JSON.stringify(resumedWithOverride)).not.toContain(bearerA);
     expect(JSON.stringify(resumedWithOverride)).not.toContain(bearerB);
 
@@ -1019,8 +1020,8 @@ test("resume_agent rehydrates the newest private MCP config from a redacted pers
     const resumedNewest = await localCtx.client.resumeAgent(newestProjectedHandle);
 
     expect(provider.resumeOverrides).toHaveLength(2);
-    expect(provider.resumeOverrides[1]?.mcpServers?.hub).toEqual(externalMcpB.hub);
-    expect(provider.resumeOverrides[1]?.mcpServers?.hub).not.toEqual(externalMcpA.hub);
+    expect(provider.resumeOverrides[1]?.mcpServers?.injected).toEqual(externalMcpB.injected);
+    expect(provider.resumeOverrides[1]?.mcpServers?.injected).not.toEqual(externalMcpA.injected);
     expect(resumedNewest.persistence?.metadata).not.toHaveProperty("mcpServers");
     expect(JSON.stringify(resumedNewest)).not.toContain(bearerA);
     expect(JSON.stringify(resumedNewest)).not.toContain(bearerB);
@@ -1043,9 +1044,9 @@ test("resume_agent restores archive state when an MCP-capable provider returns a
         provider: "codex",
         cwd,
         mcpServers: {
-          hub: {
+          injected: {
             type: "http",
-            url: "https://hub.test/mcp/executions/rejected-resume",
+            url: "https://injected.test/mcp/executions/rejected-resume",
             headers: { Authorization: "Bearer rejected-resume-secret" },
           },
         },
@@ -1258,7 +1259,6 @@ test("receives server_info on websocket connect", async () => {
   expect(serverInfo).not.toBeNull();
   expect(serverInfo?.serverId.length).toBeGreaterThan(0);
   expect(serverInfo?.features?.["terminal-restore-modes"]).toBe(true);
-  expect(serverInfo?.features?.hubRelationship).toBe(true);
   expect(serverInfo?.features?.commitsList).toBe(true);
   expect(serverInfo?.features?.commitBaseClassification).toBe(true);
   expect(serverInfo?.desktopManaged).toBe(false);

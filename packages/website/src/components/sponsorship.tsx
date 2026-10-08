@@ -64,11 +64,8 @@ export function FounderNote() {
         monetize, and that pressure changes what gets built.
       </p>
       <p>
-        Kivotos is self-funded: the work is paid for by sponsorship and by{" "}
-        <a href="/hub" className="underline hover:text-white/90">
-          Kivotos Hub
-        </a>
-        , an optional hosted service. Your support is what lets me keep working on it.
+        Kivotos is self-funded: the work is paid for by sponsorship. Your support is what lets me
+        keep working on it.
       </p>
       <p className="text-white/50">{MAINTAINER_LINK}, maintainer</p>
     </div>
@@ -240,11 +237,8 @@ export function SponsorSection() {
             monetize.
           </p>
           <p>
-            Kivotos is self-funded through sponsorship and{" "}
-            <a href="/hub" className="underline hover:text-white/90">
-              Kivotos Hub
-            </a>
-            . Your support is what lets me keep working on it.
+            Kivotos is self-funded through sponsorship. Your support is what lets me keep working on
+            it.
           </p>
           <p className="text-white/50">{MAINTAINER_LINK}, maintainer</p>
         </div>

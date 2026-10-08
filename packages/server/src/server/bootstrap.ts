@@ -220,18 +220,6 @@ import {
   createAgentCommand,
   type CreateAgentCommandDependencies,
 } from "./agent/create-agent/create.js";
-import { archiveAgentCommand, cancelAgentRunCommand } from "./agent/lifecycle-command.js";
-import { CreateAgentLifecycleDispatch } from "./agent/create-agent-lifecycle-dispatch.js";
-import {
-  HubRelationshipController,
-  type HubRelationshipClock,
-  type HubRelationshipRetryPolicy,
-} from "./hub/relationship-controller.js";
-import {
-  DirectHubRelationshipRemote,
-  type HubRelationshipRemote,
-} from "./hub/relationship-remote.js";
-import { DaemonExecutions } from "./hub/daemon-executions.js";
 import { PluginService } from "./plugins/index.js";
 import { BuiltinPluginLoader } from "./plugins/builtin/index.js";
 import { ManagedPluginSources } from "./plugins/managed-source.js";
@@ -482,10 +470,6 @@ export interface KivotosDaemon {
 
 export interface KivotosDaemonDependencies {
   builtinPlugins?: BuiltinPluginLoader;
-  hubRelationshipRemote?: HubRelationshipRemote;
-  hubRelationshipClock?: HubRelationshipClock;
-  hubRelationshipRetryPolicy?: HubRelationshipRetryPolicy;
-  createHubDaemonId?: () => string;
   serverFeatureOverrides?: {
     daemonStatusRpc?: boolean;
     relayConfig?: boolean;
@@ -596,23 +580,28 @@ export async function createKivotosDaemon(
   const elapsed = () => `${(performance.now() - bootstrapStart).toFixed(0)}ms`;
   const daemonVersion = config.daemonVersion ?? resolveDaemonVersion(import.meta.url);
   const initialMutableConfig = createInitialMutableDaemonConfig(config);
-  const daemonConfigStore = new DaemonConfigStore(config.kivotosHome, initialMutableConfig, logger, {
-    relayEnabledMutable: config.relayEnabledMutable ?? true,
-    startupPersisted: config.configReload?.startupPersisted,
-    reloadSource: {
-      resolve: (persisted) => {
-        const reloaded = resolveConfigFromPersisted(config.kivotosHome, persisted, {
-          env: config.configReload?.env ?? process.env,
-          cli: config.configReload?.cli,
-          relayEnabledFallback: config.configReload?.relayEnabledFallback,
-        });
-        return {
-          mutable: createInitialMutableDaemonConfig(reloaded),
-          overrideControlledPaths: reloaded.configReload?.overrideControlledPaths ?? [],
-        };
+  const daemonConfigStore = new DaemonConfigStore(
+    config.kivotosHome,
+    initialMutableConfig,
+    logger,
+    {
+      relayEnabledMutable: config.relayEnabledMutable ?? true,
+      startupPersisted: config.configReload?.startupPersisted,
+      reloadSource: {
+        resolve: (persisted) => {
+          const reloaded = resolveConfigFromPersisted(config.kivotosHome, persisted, {
+            env: config.configReload?.env ?? process.env,
+            cli: config.configReload?.cli,
+            relayEnabledFallback: config.configReload?.relayEnabledFallback,
+          });
+          return {
+            mutable: createInitialMutableDaemonConfig(reloaded),
+            overrideControlledPaths: reloaded.configReload?.overrideControlledPaths ?? [],
+          };
+        },
       },
     },
-  });
+  );
   const orchestrationSkills = createOrchestrationSkills(daemonConfigStore);
   void orchestrationSkills.autoUpdate().catch((error) => {
     logger.error({ err: error }, "Failed to maintain orchestration skills at startup");
@@ -1195,99 +1184,6 @@ export async function createKivotosDaemon(
   };
   const createAgent = (input: Parameters<typeof createAgentCommand>[1]) =>
     createAgentCommand(createAgentCommandDependencies, input);
-  const archiveWorkspaceByIdExternal = (workspaceId: string, requestId: string) =>
-    archiveByScope(
-      {
-        kivotosHome: config.kivotosHome,
-        kivotosWorktreesBaseRoot: config.worktreesRoot,
-        github,
-        workspaceGitService,
-        agentManager,
-        agentStorage,
-        findWorkspaceIdForCwd: findWorkspaceIdForCwdExternal,
-        listActiveWorkspaces: listActiveWorkspacesExternal,
-        getWorkspace: (workspaceIdToGet) => workspaceRegistry.get(workspaceIdToGet),
-        archiveWorkspaceRecord: archiveWorkspaceRecordExternal,
-        emitWorkspaceUpdatesForWorkspaceIds: emitWorkspaceUpdatesExternal,
-        markWorkspaceArchiving: markWorkspaceArchivingExternal,
-        clearWorkspaceArchiving: clearWorkspaceArchivingExternal,
-        killTerminalsForWorkspace: (workspaceIdToKill) =>
-          killTerminalsForWorkspace({ terminalManager, sessionLogger: logger }, workspaceIdToKill),
-        stopWorkspaceSetup: (workspaceIdToStop) => workspaceSetupRuntime.stop(workspaceIdToStop),
-        assertWorkspaceAutomationAllowed: (guardedWorkspaceId) =>
-          assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, guardedWorkspaceId),
-        sessionLogger: logger,
-      },
-      { scope: { kind: "workspace", workspaceId }, requestId },
-    );
-  const hubAgentLifecycle = new CreateAgentLifecycleDispatch({
-    kivotosHome: config.kivotosHome,
-    worktreesRoot: config.worktreesRoot,
-    agentManager,
-    agentStorage,
-    github,
-    workspaceGitService,
-    createKivotosWorktreeWorkflow: createKivotosWorktreeForTools,
-    archiveAgentForClose: (agentId) =>
-      archiveAgentCommand({ agentManager, agentStorage, logger }, agentId),
-    findWorkspaceIdForCwd: findWorkspaceIdForCwdExternal,
-    listActiveWorkspaces: listActiveWorkspacesExternal,
-    archiveWorkspaceRecord: archiveWorkspaceRecordExternal,
-    emit: emitExternalSessionMessage,
-    emitAgentRemove: async () => undefined,
-    emitWorkspaceUpdatesForWorkspaceIds: emitWorkspaceUpdatesExternal,
-    markWorkspaceArchiving: markWorkspaceArchivingExternal,
-    clearWorkspaceArchiving: clearWorkspaceArchivingExternal,
-    killTerminalsForWorkspace: (workspaceId) =>
-      killTerminalsForWorkspace({ terminalManager, sessionLogger: logger }, workspaceId),
-    logger,
-  });
-  const hubRelationships = new HubRelationshipController({
-    kivotosHome: config.kivotosHome,
-    hostname: getHostName(),
-    serverId,
-    daemonPublicKey: daemonKeyPair.publicKeyB64,
-    logger,
-    remote: dependencies.hubRelationshipRemote ?? new DirectHubRelationshipRemote(),
-    clock: dependencies.hubRelationshipClock,
-    retryPolicy: dependencies.hubRelationshipRetryPolicy,
-    createDaemonId: dependencies.createHubDaemonId,
-    attachSocket: async (socket, options) => {
-      if (!wsServer) throw new Error("WebSocket server is not running");
-      await wsServer.attachExternalSocket(
-        socket,
-        { transport: "hub", hubDaemonId: options.daemonId },
-        {
-          principalId: options.principalId,
-          permissions: options.permissions,
-          hubExecutionAgents: options.agents,
-        },
-        options.sessionProtocol === "legacy"
-          ? {
-              type: "hello",
-              clientId: `hub:${options.daemonId}`,
-              clientType: "hub",
-              protocolVersion: 1,
-            }
-          : undefined,
-      );
-    },
-    updateAttachedPermissions: (principalId, permissions) => {
-      if (!wsServer) throw new Error("WebSocket server is not running");
-      wsServer.updatePrincipalPermissions(principalId, permissions);
-    },
-    createExecutionAgents: (daemonId) =>
-      new DaemonExecutions({
-        daemonId,
-        agentManager,
-        agentStorage,
-        createAgent,
-        interruptAgent: (agentId) => cancelAgentRunCommand({ agentManager, logger }, agentId),
-        archiveWorkspace: archiveWorkspaceByIdExternal,
-        cleanupFailedCreate: (input) =>
-          hubAgentLifecycle.cleanupCreatedWorktreeAfterFailedAgentCreate(input),
-      }),
-  });
 
   const createScheduleLocalWorkspaceExternal = async (input: {
     cwd: string;
@@ -1435,7 +1331,9 @@ export async function createKivotosDaemon(
     browserToolsBroker,
     kivotosToolPolicy:
       runtime.kivotosToolPolicy ??
-      (runtime.callerAgentId ? agentManager.getKivotosToolPolicy(runtime.callerAgentId) : undefined),
+      (runtime.callerAgentId
+        ? agentManager.getKivotosToolPolicy(runtime.callerAgentId)
+        : undefined),
     kivotosHome: config.kivotosHome,
     worktreesRoot: config.worktreesRoot,
     callerAgentId: runtime.callerAgentId,
@@ -1734,7 +1632,6 @@ export async function createKivotosDaemon(
               },
               serviceProxyPublicBaseUrl,
               browserToolsBroker,
-              hubRelationships,
               workspaceSetupRuntime,
               pluginRuntime,
               orchestrationSkills,
@@ -1763,7 +1660,6 @@ export async function createKivotosDaemon(
             daemonConfigStore.onFieldChange("relay.enabled", (value) => {
               relayRuntime?.setEnabled(value === true);
             });
-            await hubRelationships.start();
           };
 
           logAndResolve().then(resolve, reject);
@@ -1808,7 +1704,6 @@ export async function createKivotosDaemon(
     // that is still open. Plugins themselves are stopped once every session
     // they serve has been closed, further down.
     unsubscribePluginProviders();
-    await hubRelationships.stop();
     workspaceReconciliation.dispose();
     scriptHealthMonitor.stop();
     // Freeze both ingress and registration before taking the agent closure snapshot.

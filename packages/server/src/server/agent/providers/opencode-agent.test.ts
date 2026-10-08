@@ -2534,7 +2534,7 @@ describe("OpenCode adapter startTurn error handling", () => {
     await session.close();
   });
 
-  test("sends exact Hub MCP permission grants without approving unrelated tools", async () => {
+  test("sends exact injected MCP permission grants without approving unrelated tools", async () => {
     const cwd = tmpCwd();
     const runtime = new TestOpenCodeHarness();
     const openCode = new TestOpenCodeClient();
@@ -2549,7 +2549,7 @@ describe("OpenCode adapter startTurn error handling", () => {
         cwd,
         providerOptions: { permission: { bash: "ask", question: "deny" } },
         toolPolicy: {
-          preapproved: [{ kind: "mcp", server: "hub", tool: "finish_execution" }],
+          preapproved: [{ kind: "mcp", server: "injected", tool: "finish_execution" }],
         },
       });
       try {
@@ -2557,7 +2557,7 @@ describe("OpenCode adapter startTurn error handling", () => {
           permission?: Array<{ permission: string; pattern: string; action: string }>;
         };
         expect(created.permission).toEqual([
-          { permission: "hub_finish_execution", pattern: "*", action: "allow" },
+          { permission: "injected_finish_execution", pattern: "*", action: "allow" },
           { permission: "bash", pattern: "*", action: "ask" },
           { permission: "question", pattern: "*", action: "deny" },
         ]);
@@ -6892,14 +6892,14 @@ describe("OpenCode session permission rules", () => {
       provider: "opencode",
       cwd,
       providerOptions: { permission: { bash: "ask", external_directory: "allow" } },
-      toolPolicy: { preapproved: [{ kind: "mcp", server: "hub", tool: "finish_execution" }] },
+      toolPolicy: { preapproved: [{ kind: "mcp", server: "injected", tool: "finish_execution" }] },
     };
   }
   // OpenCode stores permission rules on the session (POST /session, PATCH /session/{id}) and
   // drops an unknown `permission` field on prompt_async, so rules sent with a prompt never
   // reach the server.
   const expectedRules = [
-    { permission: "hub_finish_execution", pattern: "*", action: "allow" },
+    { permission: "injected_finish_execution", pattern: "*", action: "allow" },
     { permission: "bash", pattern: "*", action: "ask" },
     { permission: "external_directory", pattern: "*", action: "allow" },
   ];

@@ -415,7 +415,7 @@ function mapCompactionEntry(entry: OmpSessionEntry): AgentTimelineItem {
   };
 }
 
-// omp 18.1+ persists injected rows (skill prompts, hub messages, job notices) as top-level
+// omp 18.1+ persists injected rows (skill prompts, job notices) as top-level
 // custom_message entries without a message object; replay them as live custom messages
 function mapCustomMessageEntry(entry: OmpSessionEntry): OmpAgentMessage | null {
   const content = entry.content;

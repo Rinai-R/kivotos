@@ -391,7 +391,7 @@ export interface DaemonClientConfig {
   providerSnapshots?: "wire";
   url: string;
   clientId: string;
-  clientType?: "mobile" | "browser" | "cli" | "mcp" | "hub";
+  clientType?: "mobile" | "browser" | "cli" | "mcp";
   appVersion?: string;
   runtimeGeneration?: number | null;
   password?: string;
@@ -5109,54 +5109,6 @@ export class DaemonClient {
     });
   }
 
-  async connectHub(
-    hubUrl: string,
-    token: string,
-    permissions: readonly string[] = [],
-    requestId?: string,
-  ) {
-    this.requireHubRelationshipSupport();
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: { type: "hub.management.daemon.connect.request", hubUrl, token, permissions },
-      responseType: "hub.management.daemon.connect.response",
-    });
-  }
-
-  async updateHubPermissions(
-    input: { grant?: readonly string[]; revoke?: readonly string[] },
-    requestId?: string,
-  ) {
-    this.requireHubRelationshipSupport();
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "hub.management.daemon.permissions.update.request",
-        grant: input.grant ?? [],
-        revoke: input.revoke ?? [],
-      },
-      responseType: "hub.management.daemon.permissions.update.response",
-    });
-  }
-
-  async getHubStatus(requestId?: string) {
-    this.requireHubRelationshipSupport();
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: { type: "hub.management.daemon.get_status.request" },
-      responseType: "hub.management.daemon.get_status.response",
-    });
-  }
-
-  async disconnectHub(force = false, requestId?: string) {
-    this.requireHubRelationshipSupport();
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: { type: "hub.management.daemon.disconnect.request", force },
-      responseType: "hub.management.daemon.disconnect.response",
-    });
-  }
-
   async getDaemonPairingOffer(
     options?: DaemonPairingOfferOptions,
   ): Promise<DaemonPairingOfferPayload> {
@@ -6176,13 +6128,6 @@ export class DaemonClient {
 
   getLastServerInfoMessage(): ServerInfoStatusPayload | null {
     return this.lastServerInfoMessage;
-  }
-
-  private requireHubRelationshipSupport(): void {
-    // COMPAT(hubRelationship): added in v0.1.X, drop the gate when floor >= v0.1.X.
-    if (this.lastServerInfoMessage?.features?.hubRelationship !== true) {
-      throw new Error("Update the host to use Hub relationship management.");
-    }
   }
 
   private requireDaemonConfigReloadSupport(): void {

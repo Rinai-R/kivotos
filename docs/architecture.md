@@ -81,9 +81,9 @@ not retain non-Git directories.
 | `server/directory-sync/`        | Daemon-global latest-state sequences for projects, workspaces, and agents      |
 | `server/workspace-labels/`      | Host-local label catalog, assignment mutations, and explicit subscriptions     |
 | `server/agent/agent-manager.ts` | Agent lifecycle state machine, timeline tracking, subscriber management        |
-| `server/agent/agent-storage.ts` | File-backed JSON persistence at `$KIVOTOS_HOME/agents/`                          |
+| `server/agent/agent-storage.ts` | File-backed JSON persistence at `$KIVOTOS_HOME/agents/`                        |
 | `server/agent/tools/`           | Transport-neutral catalog for workspaces, agents, permissions, and automation  |
-| `server/agent/mcp-server.ts`    | Thin MCP adapter that registers the Kivotos tool catalog with the MCP SDK        |
+| `server/agent/mcp-server.ts`    | Thin MCP adapter that registers the Kivotos tool catalog with the MCP SDK      |
 | `server/agent/providers/`       | Provider adapters (see "Agent providers" below)                                |
 | `server/orchestration-skills/`  | Bundled catalog, host selection, convergence, and skill-directory transactions |
 | `server/relay-transport.ts`     | Outbound relay connection with E2E encryption                                  |
@@ -183,11 +183,6 @@ Enables remote access when the daemon is behind a firewall.
 The production relay server lives in [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay). It is a distributed Elixir service. The Cloudflare relay implementation in this monorepo is retained as legacy code and is not deployed.
 
 See [SECURITY.md](../SECURITY.md) for the full threat model.
-
-### Kivotos Hub
-
-The optional Hub relationship is daemon-outbound and does not use the relay. Its connection,
-authorization, ownership, persistence, and lifecycle contract is documented in [hub.md](hub.md).
 
 ### `packages/desktop` — Desktop app (Electron)
 
@@ -355,7 +350,7 @@ the client package, as an exception to the default no-fallback feature policy.
 Creation executes through the existing Session capabilities. Connection-owned delivery
 controls observation only: detaching a socket or cleaning up its Session does not cancel
 accepted creation. Updates require an explicit subscription and go only to that socket;
-reconnect uses the shared subscription owner. Legacy consumers, including Hub, keep their
+reconnect uses the shared subscription owner. Legacy consumers keep their
 existing response contract.
 
 ## Agent lifecycle

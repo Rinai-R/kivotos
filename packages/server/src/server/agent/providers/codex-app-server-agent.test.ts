@@ -340,11 +340,14 @@ describe("Codex active-turn steering admission", () => {
     const commandResolution = deferred<{ commandName: string } | null>();
     const resolverEntered = deferred<void>();
     const appServer = createFakeCodexAppServer();
-    const { session, kivotosTurnId } = await startPublicSteeringSession(appServer, async (prompt) => {
-      if (prompt !== "/held") return null;
-      resolverEntered.resolve();
-      return commandResolution.promise;
-    });
+    const { session, kivotosTurnId } = await startPublicSteeringSession(
+      appServer,
+      async (prompt) => {
+        if (prompt !== "/held") return null;
+        resolverEntered.resolve();
+        return commandResolution.promise;
+      },
+    );
 
     const steer = session.steerActiveTurn!("/held", {
       expectedTurnId: kivotosTurnId,
@@ -1192,10 +1195,10 @@ describe("Codex app-server provider", () => {
       modeId: undefined,
       providerOptions: { sandbox_mode: "read-only" },
       mcpServers: {
-        hub: { type: "http", url: "http://127.0.0.1/hub" },
+        injected: { type: "http", url: "http://127.0.0.1/injected" },
       },
       toolPolicy: {
-        preapproved: [{ kind: "mcp", server: "hub", tool: "finish_execution" }],
+        preapproved: [{ kind: "mcp", server: "injected", tool: "finish_execution" }],
       },
     });
     const request = vi.fn(async (method: string) => {
@@ -1214,7 +1217,7 @@ describe("Codex app-server provider", () => {
       config: {
         sandbox_mode: "read-only",
         mcp_servers: {
-          hub: {
+          injected: {
             enabled_tools: ["finish_execution"],
             default_tools_approval_mode: "prompt",
             tools: { finish_execution: { approval_mode: "approve" } },
@@ -1222,7 +1225,7 @@ describe("Codex app-server provider", () => {
         },
       },
     });
-    expect(turnStart).not.toHaveProperty("config.mcp_servers.hub.tools.reply");
+    expect(turnStart).not.toHaveProperty("config.mcp_servers.injected.tools.reply");
   });
 
   test("passes ephemeral: true to thread/start when constructed as ephemeral", async () => {
@@ -2231,7 +2234,10 @@ describe("Codex app-server provider", () => {
         createConfig({
           cwd: "/workspace/project",
           mcpServers: {
-            kivotos: { type: "http", url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1" },
+            kivotos: {
+              type: "http",
+              url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1",
+            },
           },
         }),
         null,

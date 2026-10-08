@@ -55,12 +55,3 @@ export class SessionAuthorization {
     return requirement.some((permission) => this.permissions.has(permission));
   }
 }
-
-const LEGACY_HUB_EXECUTION_SCOPE = "hub.execution.*";
-
-export function permissionsForLegacyHubScopes(
-  scopes: readonly string[],
-): readonly DaemonPermission[] {
-  // COMPAT(semanticHubPermissions): added in v0.7, remove after Hub enrollment uses permissions.
-  return scopes.includes(LEGACY_HUB_EXECUTION_SCOPE) ? ["hub.execute"] : [];
-}

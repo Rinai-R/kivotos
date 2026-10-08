@@ -34,8 +34,8 @@ describe("OMP 17 RPC compatibility", () => {
   test("maps subscribed custom tool events without assuming built-in names", () => {
     const event = {
       type: "tool_execution_start",
-      toolCallId: "hub-call",
-      toolName: "hub",
+      toolCallId: "injected-call",
+      toolName: "injected",
       args: { op: "list" },
     };
 

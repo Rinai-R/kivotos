@@ -22,15 +22,6 @@ import {
   snapshotGitCommandRuntimeMetrics,
 } from "../utils/run-git-command.js";
 import { DEFAULT_GIT_PROCESS_POLICY } from "../utils/git-process-scheduler.js";
-import type {
-  HubEnrollment,
-  HubEnrollmentResult,
-  HubRelationshipRemote,
-  HubRevocation,
-  HubSocketConnection,
-  HubSocketCredentials,
-  HubSocketEvents,
-} from "./hub/relationship-remote.js";
 
 interface HeldAgentClose {
   started: Promise<void>;
@@ -496,106 +487,6 @@ describe("kivotos daemon bootstrap", () => {
     } finally {
       ws.close();
       await daemonHandle.close();
-    }
-  });
-
-  test("relay config changes during Hub enrollment reach the live runtime", async () => {
-    const kivotosHomeRoot = await mkdtemp(path.join(os.tmpdir(), "kivotos-relay-startup-"));
-    const kivotosHome = path.join(kivotosHomeRoot, ".kivotos");
-    const staticDir = await mkdtemp(path.join(os.tmpdir(), "kivotos-static-"));
-    await mkdir(kivotosHome, { recursive: true });
-    await writeFile(
-      path.join(kivotosHome, "hub-relationship.json"),
-      `${JSON.stringify({
-        version: 1,
-        state: "pending",
-        relationship: {
-          daemonId: "daemon-startup-race",
-          idempotencyKey: "enrollment-startup-race",
-          hubOrigin: "https://hub.test",
-          createdAt: "2026-07-31T00:00:00.000Z",
-          scopes: ["hub.execution.*"],
-        },
-        credential: { secret: "credential" },
-        enrollment: { token: "enrollment-token" },
-        identity: { serverId: "server-startup-race", daemonPublicKey: "public-key" },
-      })}\n`,
-      "utf-8",
-    );
-
-    let markEnrollmentStarted: () => void = () => undefined;
-    const enrollmentStarted = new Promise<void>((resolve) => {
-      markEnrollmentStarted = resolve;
-    });
-    let releaseEnrollment: () => void = () => undefined;
-    const enrollmentReleased = new Promise<void>((resolve) => {
-      releaseEnrollment = resolve;
-    });
-    const remote: HubRelationshipRemote = {
-      async enroll(input: HubEnrollment): Promise<HubEnrollmentResult> {
-        markEnrollmentStarted();
-        await enrollmentReleased;
-        return {
-          daemonId: input.daemonId,
-          permissions: input.permissions,
-          webSocketUrl: "wss://hub.test/daemon",
-        };
-      },
-      async updatePermissions(input) {
-        return { permissions: input.permissions };
-      },
-      async revoke(_input: HubRevocation): Promise<void> {},
-      openSocket(_input: HubSocketCredentials, _events: HubSocketEvents): HubSocketConnection {
-        return { close: () => undefined };
-      },
-    };
-    const config: KivotosDaemonConfig = {
-      listen: "127.0.0.1:0",
-      kivotosHome,
-      corsAllowedOrigins: [],
-      hostnames: true,
-      mcpEnabled: false,
-      staticDir,
-      mcpDebug: false,
-      agentClients: createTestAgentClients(),
-      agentStoragePath: path.join(kivotosHome, "agents"),
-      relayEnabled: false,
-      relayEndpoint: "127.0.0.1:9",
-      relayUseTls: false,
-      appBaseUrl: "https://app.paseo.sh",
-      openai: undefined,
-      speech: undefined,
-    };
-    const daemon = await createKivotosDaemon(config, pino({ level: "silent" }), {
-      hubRelationshipRemote: remote,
-    });
-    const starting = daemon.start();
-    let client: DaemonClient | null = null;
-
-    try {
-      await enrollmentStarted;
-      const listenTarget = daemon.getListenTarget();
-      if (!listenTarget || listenTarget.type !== "tcp") {
-        throw new Error("Expected daemon TCP listener during Hub enrollment");
-      }
-      client = new DaemonClient({
-        url: `ws://127.0.0.1:${listenTarget.port}/ws`,
-        appVersion: "0.1.82",
-      });
-      await client.connect();
-      await client.patchDaemonConfig({ relay: { enabled: true } });
-      releaseEnrollment();
-      await starting;
-
-      const status = await client.getDaemonStatus();
-      expect(status.relay?.enabled).toBe(true);
-    } finally {
-      releaseEnrollment();
-      await starting.catch(() => undefined);
-      await client?.close().catch(() => undefined);
-      await daemon.stop().catch(() => undefined);
-      await rm(kivotosHomeRoot, { recursive: true, force: true });
-      await rm(staticDir, { recursive: true, force: true });
     }
   });
 

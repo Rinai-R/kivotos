@@ -760,7 +760,7 @@ describe("ClaudeAgentSession features", () => {
     await session.close();
   });
 
-  test("preapproves only granted Hub MCP tools while preserving Claude denies", async () => {
+  test("preapproves only granted injected MCP tools while preserving Claude denies", async () => {
     const { queryFactory } = createQueryMock();
     const client = new ClaudeAgentClient({
       logger,
@@ -772,12 +772,12 @@ describe("ClaudeAgentSession features", () => {
       cwd: process.cwd(),
       providerOptions: {
         allowedTools: ["Read"],
-        disallowedTools: ["Bash", "mcp__hub__reply"],
+        disallowedTools: ["Bash", "mcp__injected__reply"],
         sandbox: { enabled: true, failIfUnavailable: true },
       },
-      mcpServers: { hub: { type: "http", url: "http://127.0.0.1/hub" } },
+      mcpServers: { injected: { type: "http", url: "http://127.0.0.1/injected" } },
       toolPolicy: {
-        preapproved: [{ kind: "mcp", server: "hub", tool: "finish_execution" }],
+        preapproved: [{ kind: "mcp", server: "injected", tool: "finish_execution" }],
       },
     });
 
@@ -788,11 +788,13 @@ describe("ClaudeAgentSession features", () => {
     ).ensureQuery();
 
     expect(queryFactory.mock.calls[0]?.[0].options).toMatchObject({
-      allowedTools: ["Read", "mcp__hub__finish_execution"],
-      disallowedTools: ["Bash", "mcp__hub__reply"],
+      allowedTools: ["Read", "mcp__injected__finish_execution"],
+      disallowedTools: ["Bash", "mcp__injected__reply"],
       sandbox: { enabled: true, failIfUnavailable: true },
     });
-    expect(queryFactory.mock.calls[0]?.[0].options.allowedTools).not.toContain("mcp__hub__reply");
+    expect(queryFactory.mock.calls[0]?.[0].options.allowedTools).not.toContain(
+      "mcp__injected__reply",
+    );
     await session.close();
   });
 
