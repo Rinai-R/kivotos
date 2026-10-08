@@ -57,7 +57,12 @@ jobs:
 
       - name: cli
         timeout-minutes: 15
-        run: npm run test:unit --workspace=@kivotos/cli
+        run: |
+          set -o pipefail
+          npm run test:unit --workspace=@kivotos/cli 2>&1 | tee /tmp/cli-tests.log || {
+            tail -c 4000 /tmp/cli-tests.log | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
 
       - name: server
         timeout-minutes: 30
