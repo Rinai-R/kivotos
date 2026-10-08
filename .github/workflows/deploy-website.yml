@@ -1,19 +1,6 @@
 name: Deploy Website
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "CHANGELOG.md"
-      - "public-docs/**"
-      - "packages/website/**"
-      - "packages/protocol/**"
-      - "package.json"
-      - "package-lock.json"
-      - "patches/**"
-      - ".github/workflows/deploy-website.yml"
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:

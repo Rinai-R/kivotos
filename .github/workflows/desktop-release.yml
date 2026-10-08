@@ -1,13 +1,6 @@
 name: Desktop Release
 
 on:
-  push:
-    tags:
-      - "v*"
-      - "desktop-v*"
-      - "desktop-macos-v*"
-      - "desktop-linux-v*"
-      - "desktop-windows-v*"
   workflow_dispatch:
     inputs:
       tag:

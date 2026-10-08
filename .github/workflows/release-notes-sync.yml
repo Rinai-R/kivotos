@@ -1,13 +1,6 @@
 name: Release Notes Sync
 
 on:
-  push:
-    tags:
-      - "v*"
-    branches:
-      - main
-    paths:
-      - "CHANGELOG.md"
   workflow_dispatch:
     inputs:
       tag:
