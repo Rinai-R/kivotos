@@ -40,5 +40,6 @@
     "expo": "*",
     "react": "*",
     "react-native": "*"
-  }
+  },
+  "private": true
 }

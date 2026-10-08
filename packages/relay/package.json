@@ -22,9 +22,6 @@
       "default": "./dist/cloudflare-adapter.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -44,5 +41,6 @@
     "@types/ws": "^8.5.8",
     "typescript": "^5.2.2",
     "vitest": "^4.1.6"
-  }
+  },
+  "private": true
 }

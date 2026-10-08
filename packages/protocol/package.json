@@ -14,9 +14,6 @@
       "default": "./dist/*.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -40,5 +37,6 @@
     "typescript": "^5.2.2",
     "vitest": "^4.1.6",
     "zod-aot": "0.20.4"
-  }
+  },
+  "private": true
 }

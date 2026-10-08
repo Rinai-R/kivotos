@@ -54,9 +54,6 @@
       "default": "./dist/client/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -91,5 +88,6 @@
     "react-native": {
       "optional": true
     }
-  }
+  },
+  "private": true
 }

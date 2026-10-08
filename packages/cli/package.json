@@ -11,9 +11,6 @@
     "!dist/**/*.map"
   ],
   "type": "module",
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -46,5 +43,6 @@
     "typescript": "^5.2.2",
     "vitest": "^4.1.6",
     "zx": "^8.8.5"
-  }
+  },
+  "private": true
 }

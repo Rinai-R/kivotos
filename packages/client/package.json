@@ -26,9 +26,6 @@
       "default": "./dist/daemon-client-websocket-transport.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "npm run build --workspace=@kivotos/protocol && npm run build --workspace=@kivotos/relay && tsc -p tsconfig.json --incremental false",
@@ -47,5 +44,6 @@
     "@types/node": "^20.9.0",
     "typescript": "^5.2.2",
     "vitest": "^4.1.6"
-  }
+  },
+  "private": true
 }

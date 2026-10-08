@@ -16,9 +16,6 @@
       "default": "./dist/index.js"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -51,5 +48,6 @@
   "devDependencies": {
     "typescript": "^5.9.2",
     "vitest": "^4.1.6"
-  }
+  },
+  "private": true
 }
