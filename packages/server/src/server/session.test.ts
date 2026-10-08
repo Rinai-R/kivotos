@@ -1644,7 +1644,10 @@ describe("project config RPC authorization", () => {
 
   test("read_project_config_request accepts the same root with a trailing slash", async () => {
     const repoRoot = makeRoot();
-    writeFileSync(join(repoRoot, "kivotos.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
+    writeFileSync(
+      join(repoRoot, "kivotos.json"),
+      JSON.stringify({ worktree: { setup: "npm ci" } }),
+    );
     const messages: unknown[] = [];
     const session = createSessionForTest({
       messages,
@@ -4722,7 +4725,7 @@ describe("session workspace script handling", () => {
     });
     const workspaceGitService = {
       peekSnapshot: vi.fn(() => snapshot),
-      getProjectSlug: vi.fn().mockResolvedValue("kivotos"),
+      getProjectSlug: vi.fn().mockResolvedValue("paseo"),
     };
     const workspaceRegistry = {
       get: vi.fn().mockResolvedValue({
@@ -4759,7 +4762,7 @@ describe("session workspace script handling", () => {
       expect.objectContaining({
         repoRoot: "/tmp/repo",
         workspaceId: "workspace-1",
-        projectSlug: "kivotos",
+        projectSlug: "paseo",
         branchName: "feature/service-scripts",
         scriptName: "api",
         daemonPort: 6767,

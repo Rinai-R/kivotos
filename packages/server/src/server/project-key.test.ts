@@ -18,7 +18,7 @@ describe("deriveProjectKey", () => {
   });
 
   test("normalizes GitHub casing", () => {
-    expect(derive("git@github.com:GetKivotos/Kivotos.git")).toBe("remote:github.com/getpaseo/paseo");
+    expect(derive("git@github.com:GetPaseo/Paseo.git")).toBe("remote:github.com/getpaseo/paseo");
   });
 
   test("preserves self-hosted paths and explicit ports", () => {

@@ -50,7 +50,7 @@ describe("checkout status projection", () => {
       {
         number: 993,
         repoOwner: "getpaseo",
-        repoName: "kivotos",
+        repoName: "paseo",
         url: "https://github.com/getpaseo/paseo/pull/993",
         title: "Auto-merge UX",
         state: "open",

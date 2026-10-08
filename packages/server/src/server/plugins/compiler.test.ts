@@ -429,12 +429,12 @@ export type Value = string;`,
   });
 
   it.each([
-    "@kivotos/plugin",
-    "@kivotos/plugin/react-native",
-    "@kivotos/plugin/ui",
-    "@kivotos/plugin/provider",
-    "@kivotos/plugin/acp",
-    "@kivotos/plugin/host",
+    "@getpaseo/plugin",
+    "@getpaseo/plugin/react-native",
+    "@getpaseo/plugin/ui",
+    "@getpaseo/plugin/provider",
+    "@getpaseo/plugin/acp",
+    "@getpaseo/plugin/host",
   ])("rejects retired entry %s", async (specifier) => {
     const entries = await createSplitPlugin();
     await writeFile(

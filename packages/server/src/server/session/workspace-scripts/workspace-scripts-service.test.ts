@@ -346,7 +346,7 @@ describe("start", () => {
     expect(spawnCalls[0]).toMatchObject({
       repoRoot: "/tmp/repo",
       workspaceId: "ws-1",
-      projectSlug: "kivotos",
+      projectSlug: "paseo",
       branchName: "feature/scripts",
       scriptName: "app",
       daemonPort: 6767,

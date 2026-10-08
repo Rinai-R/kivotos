@@ -319,8 +319,8 @@ function runtimeSpecifierError(
   else if (
     (specifier === "@kivotos/plugin" ||
       specifier.startsWith("@kivotos/plugin/") ||
-      specifier === "@kivotos/plugin" ||
-      specifier.startsWith("@kivotos/plugin/")) &&
+      specifier === "@getpaseo/plugin" ||
+      specifier.startsWith("@getpaseo/plugin/")) &&
     !(PLUGIN_SDK_SPECIFIERS as readonly string[]).includes(specifier)
   )
     kind = "Unknown SDK";

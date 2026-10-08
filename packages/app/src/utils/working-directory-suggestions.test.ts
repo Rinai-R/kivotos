@@ -19,7 +19,10 @@ describe("buildWorkingDirectorySuggestions", () => {
       query: "pso",
     });
 
-    expect(results).toEqual(["/Users/me/projects/kivotos-desktop", "/Users/me/projects/kivotos-plan"]);
+    expect(results).toEqual([
+      "/Users/me/projects/kivotos-desktop",
+      "/Users/me/projects/kivotos-plan",
+    ]);
   });
 
   it("does not reinterpret daemon-ranked suggestions", () => {
@@ -39,7 +42,7 @@ describe("buildWorkingDirectorySuggestions", () => {
         "/Users/me/projects/kivotos-desktop",
       ],
       serverPaths: [],
-      query: "projects/pso",
+      query: "projects/kvos",
     });
 
     expect(results).toEqual([

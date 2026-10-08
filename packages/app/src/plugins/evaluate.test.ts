@@ -649,7 +649,7 @@ describe("evaluatePluginClientBundle", () => {
     "@kivotos/plugin/react-native",
     "@kivotos/plugin/ui",
     "@kivotos/plugin/host",
-    "@kivotos/plugin",
+    "@getpaseo/plugin",
   ])("rejects %s in the client loader", (specifier) => {
     expect(() =>
       evaluatePluginClientBundle(

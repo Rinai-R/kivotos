@@ -1958,7 +1958,7 @@ describe("WorkspaceGitServiceImpl D2 read methods", () => {
       now: () => new Date(nowMs),
     });
 
-    await expect(service.getProjectSlug(REPO_CWD)).resolves.toBe("kivotos");
+    await expect(service.getProjectSlug(REPO_CWD)).resolves.toBe("paseo");
 
     nowMs = 1_000;
     await service.getProjectSlug(join(REPO_CWD, "."));

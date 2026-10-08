@@ -183,7 +183,8 @@ async function backupArtifacts(targets: SkillTargets): Promise<string[][]> {
       const rootEntries = await readdir(dir).catch(() => []);
       return [
         ...parentEntries.filter(
-          (entry) => entry !== path.basename(dir) && !entry.startsWith(".kivotos-skills-recovered-"),
+          (entry) =>
+            entry !== path.basename(dir) && !entry.startsWith(".kivotos-skills-recovered-"),
         ),
         ...rootEntries.filter((entry) => entry.startsWith(".kivotos-skills-transaction-")),
       ].sort();
@@ -414,7 +415,9 @@ describe("skills controller", () => {
   it("saves no selection at all when the very first save fails", async () => {
     await blockAgentsDir(harness.targets);
 
-    await expect(harness.controller.save({ mode: "custom", skills: ["kivotos"] })).rejects.toThrow();
+    await expect(
+      harness.controller.save({ mode: "custom", skills: ["kivotos"] }),
+    ).rejects.toThrow();
     await rm(harness.targets.agentsDir, { force: true });
 
     expect(await harness.controller.status()).toEqual({
@@ -582,14 +585,14 @@ describe("skills controller", () => {
         harness.targets.codexDir,
       ].map((root) => path.join(root, "kivotos-loop"));
       for (const live of livePaths) await chmod(live, 0o700);
-      const before = await Promise.all(livePaths.map(lstat));
+      const before = await Promise.all(livePaths.map((livePath) => lstat(livePath)));
 
       const transaction = await beginSkillsTransaction(harness.targets, previous, next, [
         { kind: "delete", name: "kivotos-loop" },
       ]);
       await transaction.rollback();
 
-      const after = await Promise.all(livePaths.map(lstat));
+      const after = await Promise.all(livePaths.map((livePath) => lstat(livePath)));
       expect(after.map((entry) => entry.ino)).toEqual(before.map((entry) => entry.ino));
       expect(after.map((entry) => entry.mode & 0o777)).toEqual([0o700, 0o700, 0o700]);
     },
@@ -1190,7 +1193,9 @@ describe("skills controller", () => {
     const collision = path.join(harness.targets.agentsDir, "kivotos");
     await writeFile(collision, "keep this file");
 
-    await expect(harness.controller.save({ mode: "custom", skills: ["kivotos"] })).rejects.toThrow();
+    await expect(
+      harness.controller.save({ mode: "custom", skills: ["kivotos"] }),
+    ).rejects.toThrow();
 
     expect(await readFile(collision, "utf8")).toBe("keep this file");
   });
