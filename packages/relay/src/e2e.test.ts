@@ -17,7 +17,14 @@ import {
 
 const nodeMajor = Number((process.versions.node ?? "0").split(".")[0] ?? "0");
 const shouldRunRelayE2e = process.env.FORCE_RELAY_E2E === "1" || nodeMajor < 25;
-const wranglerCliPath = createRequire(import.meta.url).resolve("wrangler/bin/wrangler.js");
+// Resolve the CLI through wrangler's own bin field: the package export map does not
+// expose bin/wrangler.js as a subpath in every release.
+const wranglerRequire = createRequire(import.meta.url);
+const wranglerPackageJsonPath = wranglerRequire.resolve("wrangler/package.json");
+const wranglerCliPath = resolvePath(
+  dirname(wranglerPackageJsonPath),
+  (wranglerRequire("wrangler/package.json") as { bin: Record<string, string> }).bin.wrangler,
+);
 const relayPackageRoot = resolvePath(dirname(fileURLToPath(import.meta.url)), "..");
 const STARTUP_HOOK_TIMEOUT_MS = 90_000;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
