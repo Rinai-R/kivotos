@@ -20,10 +20,16 @@ async function runCliWithClosedStdout(
     await new Promise((resolve) => setTimeout(resolve, 100));
     process.stderr.write("still running\\n");
   `;
-  const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
-    cwd: path.dirname(fileURLToPath(import.meta.url)),
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  // `--no-deprecation` keeps Node's own warnings (tsx's module.register() triggers DEP0205 on
+  // newer Node releases) out of stderr so the assertion still measures the CLI's own output.
+  const child = spawn(
+    process.execPath,
+    ["--no-deprecation", "--import", "tsx", "--input-type=module", "-e", script],
+    {
+      cwd: path.dirname(fileURLToPath(import.meta.url)),
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   child.stdout.destroy();
   let stderr = "";
   child.stderr.setEncoding("utf8");
