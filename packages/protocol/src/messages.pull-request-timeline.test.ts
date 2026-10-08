@@ -22,7 +22,7 @@ describe("pull request timeline message schemas", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-1",
     });
@@ -31,7 +31,7 @@ describe("pull request timeline message schemas", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-1",
     });
@@ -42,7 +42,7 @@ describe("pull request timeline message schemas", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-1",
     });
@@ -51,7 +51,7 @@ describe("pull request timeline message schemas", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-1",
     });

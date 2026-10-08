@@ -63,7 +63,7 @@ export async function handlePluginRegistryRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (request.method !== "GET") return null;
-  const base = env.PLUGINS_REGISTRY_URL ?? "https://getkivotos.github.io/plugins";
+  const base = env.PLUGINS_REGISTRY_URL ?? "https://getpaseo.github.io/plugins";
   if (url.pathname.startsWith("/plugins/thumb/")) {
     const index = await loadRegistryIndex(base, context);
     return handlePluginThumbnailRequest(request, index.plugins);

@@ -6,7 +6,7 @@ import { openWhatsNew, release, serveChangelog } from "../support/helpers/change
 const DISCORD_DESTINATION =
   /^https:\/\/(?:discord\.gg\/jz8T2uahpH|discord\.com\/invite\/jz8T2uahpH)(?:[/?#]|$)/;
 const GITHUB_ISSUE_DESTINATION =
-  /^https:\/\/github\.com\/(?:getkivotos\/kivotos\/issues\/new(?:\/choose)?(?:[/?#]|$)|login\?return_to=https%3A%2F%2Fgithub\.com%2Fgetkivotos%2Fkivotos%2Fissues%2Fnew$)/;
+  /^https:\/\/github\.com\/(?:getpaseo\/kivotos\/issues\/new(?:\/choose)?(?:[/?#]|$)|login\?return_to=https%3A%2F%2Fgithub\.com%2Fgetpaseo%2Fkivotos%2Fissues%2Fnew$)/;
 const CHANGELOG_DESTINATION = /^https:\/\/kivotos\.sh\/changelog(?:[/?#]|$)/;
 // The name and the version are separate cells of a key/value row, so they meet with no space
 // between them in the row's text content.

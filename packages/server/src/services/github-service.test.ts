@@ -430,7 +430,7 @@ function pullRequestCheckoutTargetJson(): string {
 
 function repoViewJson(): string {
   return JSON.stringify({
-    owner: { login: "getkivotos" },
+    owner: { login: "getpaseo" },
     name: "kivotos",
     parent: null,
   });
@@ -806,7 +806,7 @@ describe("ForgeService", () => {
     });
     expect(runner.calls[1]?.cwd).toBe("/repo");
     expect(runner.calls[1]?.args.slice(0, 3)).toEqual(["api", "graphql", "-f"]);
-    expect(runner.calls[1]?.args).toContain("owner=getkivotos");
+    expect(runner.calls[1]?.args).toContain("owner=getpaseo");
     expect(runner.calls[1]?.args).toContain("name=kivotos");
     expect(runner.calls[1]?.args).toContain("number=526");
   });

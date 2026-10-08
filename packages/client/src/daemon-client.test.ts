@@ -4533,7 +4533,7 @@ test("requests GitHub check details via namespaced RPC", async () => {
   const promise = client.checkoutGithubGetCheckDetails(
     {
       cwd: "/tmp/project",
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       checkRunId: 12345,
       workflowRunId: 456,
@@ -4546,7 +4546,7 @@ test("requests GitHub check details via namespaced RPC", async () => {
   expect(request).toMatchObject({
     type: "checkout.github.get_check_details.request",
     cwd: "/tmp/project",
-    repoOwner: "getkivotos",
+    repoOwner: "getpaseo",
     repoName: "kivotos",
     checkRunId: 12345,
     workflowRunId: 456,

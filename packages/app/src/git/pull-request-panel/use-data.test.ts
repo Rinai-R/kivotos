@@ -50,7 +50,7 @@ function prStatus(overrides: Partial<CheckoutPrStatus> = {}): CheckoutPrStatus {
     mergeable: "UNKNOWN",
     checks: [],
     reviewDecision: null,
-    repoOwner: "getkivotos",
+    repoOwner: "getpaseo",
     repoName: "kivotos",
     github: githubStatus,
     ...overrides,
@@ -118,7 +118,7 @@ describe("extractPrRepoIdentity", () => {
   it("reads the PR number, owner, and name from a status payload", () => {
     expect(extractPrRepoIdentity(prStatus())).toEqual({
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
     });
   });
@@ -152,7 +152,7 @@ describe("shouldFetchTimelineFrom", () => {
     timelineEnabled: true,
     githubFeaturesEnabled: true,
     cwd: "/repo",
-    identity: { prNumber: 42, repoOwner: "getkivotos", repoName: "kivotos" },
+    identity: { prNumber: 42, repoOwner: "getpaseo", repoName: "kivotos" },
     timelineUnsupported: false,
   };
 
@@ -212,12 +212,12 @@ describe("fetchPrPaneTimelinePage", () => {
       serverId: "host",
       cwd: "/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
     });
 
     expect(client.calls).toEqual([
-      { cwd: "/repo", prNumber: 42, repoOwner: "getkivotos", repoName: "kivotos" },
+      { cwd: "/repo", prNumber: 42, repoOwner: "getpaseo", repoName: "kivotos" },
     ]);
   });
 
@@ -243,7 +243,7 @@ describe("fetchPrPaneTimelinePage", () => {
       serverId: "host",
       cwd: "/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
     });
 
@@ -264,7 +264,7 @@ describe("fetchPrPaneTimelinePage", () => {
         serverId: "host",
         cwd: "/repo",
         prNumber: 99,
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
       }),
     ).rejects.toBe(error);
@@ -288,7 +288,7 @@ describe("fetchPrPaneTimelinePage", () => {
         serverId: "host",
         cwd: "/repo",
         prNumber: 99,
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
       }),
     ).rejects.toBe(error);
@@ -314,7 +314,7 @@ describe("fetchPrPaneTimelinePage", () => {
         serverId: "host",
         cwd: "/repo-a",
         prNumber: 1,
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
       }),
     ).rejects.toThrow();
@@ -325,7 +325,7 @@ describe("fetchPrPaneTimelinePage", () => {
       serverId: "host",
       cwd: "/repo-b",
       prNumber: 2,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
     });
 

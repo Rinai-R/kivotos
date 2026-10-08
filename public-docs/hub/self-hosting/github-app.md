@@ -39,7 +39,7 @@ After Hub verifies the App, choose **Install on GitHub**. Select the account or 
 
 Start from Hub rather than GitHub's own install button. The round trip binds the installation to the active Hub organization.
 
-The connection appears with a slug derived from the account. An installation on `getkivotos`, for example, becomes `getkivotos-github`. Connect as many installations as the Hub organization needs.
+The connection appears with a slug derived from the account. An installation on `getpaseo`, for example, becomes `getpaseo-github`. Connect as many installations as the Hub organization needs.
 
 ## What the connection provides
 

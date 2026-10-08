@@ -9,7 +9,7 @@ import {
 } from "./published";
 
 function registryBase(): string {
-  return (env as RegistryEnvironment).PLUGINS_REGISTRY_URL ?? "https://getkivotos.github.io/plugins";
+  return (env as RegistryEnvironment).PLUGINS_REGISTRY_URL ?? "https://getpaseo.github.io/plugins";
 }
 /** Listed plugins in index order, featured plugin IDs, install counts per window, and the server's clock. */
 export const getRegistry = createServerFn({ method: "GET" }).handler(async () => {

@@ -160,8 +160,8 @@ describe("Hub HTTP client", () => {
           daemons: [{ id: "a50e05af-4f20-4c8f-8dcc-58e5ea360663", slug: "macbook" }],
           github: [
             {
-              slug: "getkivotos",
-              accountLogin: "getkivotos",
+              slug: "getpaseo",
+              accountLogin: "getpaseo",
               accountType: "Organization",
               repositories: ["getpaseo/paseo"],
             },

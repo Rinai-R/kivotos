@@ -49,7 +49,7 @@ describe("checkout status projection", () => {
     const payload = normalizeCheckoutPrStatusPayload(
       {
         number: 993,
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
         url: "https://github.com/getpaseo/paseo/pull/993",
         title: "Auto-merge UX",

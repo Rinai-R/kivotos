@@ -117,7 +117,7 @@ docker compose up -d
 
 Open <http://localhost:3000> and complete browser setup. For a public deployment, set `KIVOTOS_HUB_APP_URL` and any reverse-proxy settings in `.env` before starting the stack.
 
-The stack publishes Hub on port `3000` and stores PostgreSQL data in a named volume. The Hub image is `ghcr.io/getkivotos/hub:latest`.
+The stack publishes Hub on port `3000` and stores PostgreSQL data in a named volume. The Hub image is `ghcr.io/getpaseo/hub:latest`.
 
 ### HTTPS with Caddy
 

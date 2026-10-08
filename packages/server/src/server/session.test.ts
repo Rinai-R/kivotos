@@ -4897,7 +4897,7 @@ describe("session pull request timeline handling", () => {
       isAuthenticated: vi.fn().mockResolvedValue(true),
       getPullRequestTimeline: vi.fn().mockResolvedValue({
         prNumber: 42,
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
         items: [
           {
@@ -4922,7 +4922,7 @@ describe("session pull request timeline handling", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-1",
     });
@@ -4930,7 +4930,7 @@ describe("session pull request timeline handling", () => {
     expect(github.getPullRequestTimeline).toHaveBeenCalledWith({
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
     });
     expect(messages).toContainEqual({
@@ -4960,14 +4960,14 @@ describe("session pull request timeline handling", () => {
   });
 
   test.each([
-    { prNumber: 0, repoOwner: "getkivotos", repoName: "kivotos" },
-    { prNumber: -1, repoOwner: "getkivotos", repoName: "kivotos" },
+    { prNumber: 0, repoOwner: "getpaseo", repoName: "kivotos" },
+    { prNumber: -1, repoOwner: "getpaseo", repoName: "kivotos" },
     { prNumber: 42, repoOwner: "get kivotos", repoName: "kivotos" },
-    { prNumber: 42, repoOwner: "getkivotos/cli", repoName: "kivotos" },
+    { prNumber: 42, repoOwner: "getpaseo/cli", repoName: "kivotos" },
     { prNumber: 42, repoOwner: "get$kivotos", repoName: "kivotos" },
-    { prNumber: 42, repoOwner: "getkivotos", repoName: "pa seo" },
-    { prNumber: 42, repoOwner: "getkivotos", repoName: "kivotos/app" },
-    { prNumber: 42, repoOwner: "getkivotos", repoName: "kivotos!" },
+    { prNumber: 42, repoOwner: "getpaseo", repoName: "pa seo" },
+    { prNumber: 42, repoOwner: "getpaseo", repoName: "kivotos/app" },
+    { prNumber: 42, repoOwner: "getpaseo", repoName: "kivotos!" },
   ])("returns an unknown error when request identity is invalid: %j", async (identity) => {
     const messages: unknown[] = [];
     const github = {
@@ -5016,7 +5016,7 @@ describe("session pull request timeline handling", () => {
       type: "pull_request_timeline_request",
       cwd: "/tmp/repo",
       prNumber: 42,
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       requestId: "request-3",
     });
@@ -5082,7 +5082,7 @@ describe("session pull request timeline handling", () => {
     await session.handleMessage({
       type: "checkout.forge.get_check_details.request",
       cwd: "/tmp/repo",
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       checkRunId: 12345,
       workflowRunId: 456,
@@ -5092,7 +5092,7 @@ describe("session pull request timeline handling", () => {
     expect(checkDetailRequests).toEqual([
       {
         cwd: "/tmp/repo",
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
         checkRunId: 12345,
         workflowRunId: 456,

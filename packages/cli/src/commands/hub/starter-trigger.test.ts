@@ -8,8 +8,8 @@ describe("starter trigger connections", () => {
         {
           github: [
             {
-              slug: "github-getkivotos",
-              accountLogin: "getkivotos",
+              slug: "github-getpaseo",
+              accountLogin: "getpaseo",
               accountType: "Organization",
               repositories: ["getpaseo/paseo"],
             },
@@ -26,7 +26,7 @@ describe("starter trigger connections", () => {
         id: "github:getpaseo/paseo",
         label: "GitHub — getpaseo/paseo",
         provider: "github",
-        filters: { connection: "github-getkivotos", repo: "getpaseo/paseo" },
+        filters: { connection: "github-getpaseo", repo: "getpaseo/paseo" },
       },
       {
         id: "slack:kivotos",
@@ -49,10 +49,10 @@ describe("starter trigger connections", () => {
         {
           github: [
             {
-              slug: "github-getkivotos",
-              accountLogin: "getkivotos",
+              slug: "github-getpaseo",
+              accountLogin: "getpaseo",
               accountType: "Organization",
-              repositories: ["getkivotos/hub"],
+              repositories: ["getpaseo/hub"],
             },
           ],
           slack: [],

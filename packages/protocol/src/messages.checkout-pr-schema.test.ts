@@ -517,7 +517,7 @@ describe("checkout PR schemas", () => {
       CheckoutGithubGetCheckDetailsRequestSchema.parse({
         type: "checkout.github.get_check_details.request",
         cwd: "/tmp/repo",
-        repoOwner: "getkivotos",
+        repoOwner: "getpaseo",
         repoName: "kivotos",
         checkRunId: 12345,
         workflowRunId: 456,
@@ -526,7 +526,7 @@ describe("checkout PR schemas", () => {
     ).toEqual({
       type: "checkout.github.get_check_details.request",
       cwd: "/tmp/repo",
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       checkRunId: 12345,
       workflowRunId: 456,
@@ -706,7 +706,7 @@ describe("checkout PR schemas", () => {
     const request = {
       type: "checkout.github.get_check_details.request",
       cwd: "/tmp/repo",
-      repoOwner: "getkivotos",
+      repoOwner: "getpaseo",
       repoName: "kivotos",
       checkRunId: 12345,
       requestId: "request-check-details",

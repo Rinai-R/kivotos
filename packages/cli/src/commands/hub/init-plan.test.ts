@@ -46,7 +46,7 @@ describe("Hub init planning", () => {
 
 describe("Hub init scaffold", () => {
   it.each([
-    ["github", { connection: "github-getkivotos", repo: "getpaseo/paseo", user: "boudra" }],
+    ["github", { connection: "github-getpaseo", repo: "getpaseo/paseo", user: "boudra" }],
     ["slack", { connection: "slack-kivotos", user: "U123456" }],
     ["discord", { connection: "discord-kivotos", user: "987654321" }],
   ] satisfies readonly [HubInitProvider, Record<string, string>][])(
@@ -89,7 +89,7 @@ describe("Hub init scaffold", () => {
       ]);
       const event = Object.values(parsed.on)[0]!;
       expect(event.filters.from_users).toEqual([providerFilters.user]);
-      if (provider === "github") expect(event.connection).toBe("github-getkivotos");
+      if (provider === "github") expect(event.connection).toBe("github-getpaseo");
       if (provider === "slack") expect(event.connection).toBe("slack-kivotos");
       if (provider === "discord") expect(event.connection).toBe("discord-kivotos");
       expect(event.filters.channels).toBeUndefined();

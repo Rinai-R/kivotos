@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "playwright/test";
 
-const APPLE_SILICON_DMG = /\/getkivotos\/kivotos\/releases\/download\/v[^/]+\/Kivotos-[^/]+-arm64\.dmg$/;
+const APPLE_SILICON_DMG = /\/getpaseo\/kivotos\/releases\/download\/v[^/]+\/Kivotos-[^/]+-arm64\.dmg$/;
 
 async function openDownloadPage(page: Page) {
   // Serve a stand-in file so the test never downloads a real release.
