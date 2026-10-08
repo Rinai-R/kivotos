@@ -45,10 +45,10 @@ describe("deriveProjectDisplayName", () => {
   it("shows owner/repo for GitHub remote keys", () => {
     expect(
       deriveProjectDisplayName({
-        projectKey: "remote:github.com/getpaseo/kivotos",
+        projectKey: "remote:github.com/getpaseo/paseo",
         projectName: "kivotos",
       }),
-    ).toBe("getkivotos/kivotos");
+    ).toBe("getpaseo/paseo");
   });
 
   it("shows remote path for non-GitHub remote keys", () => {
@@ -100,7 +100,7 @@ describe("groupAgents", () => {
     ];
 
     const { activeGroups } = groupAgents(agents, {
-      getRemoteUrl: () => "git@github.com:getkivotos/kivotos.git",
+      getRemoteUrl: () => "git@github.com:getpaseo/paseo.git",
     });
 
     expect(activeGroups).toHaveLength(1);

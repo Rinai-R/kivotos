@@ -40,7 +40,7 @@ function prStatus(overrides: Partial<CheckoutPrStatus> = {}): CheckoutPrStatus {
   return {
     forge: "github",
     number: 42,
-    url: "https://github.com/getpaseo/kivotos/pull/42",
+    url: "https://github.com/getpaseo/paseo/pull/42",
     title: "Wire real PR pane data",
     state: "open",
     baseRefName: "main",
@@ -230,7 +230,7 @@ describe("fetchPrPaneTimelinePage", () => {
           author: "octocat",
           body: "Looks good",
           createdAt: Date.now(),
-          url: "https://github.com/getpaseo/kivotos/pull/42#c1",
+          url: "https://github.com/getpaseo/paseo/pull/42#c1",
         },
       ],
     });
@@ -431,7 +431,7 @@ describe("selectPrPaneState", () => {
             author: "octocat",
             body: "Belongs to another PR",
             createdAt: Date.now(),
-            url: "https://github.com/getpaseo/kivotos/pull/41#c1",
+            url: "https://github.com/getpaseo/paseo/pull/41#c1",
           },
         ],
       }),

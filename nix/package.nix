@@ -147,7 +147,7 @@ buildNpmPackage rec {
 
   meta = {
     description = "Self-hosted daemon for Claude Code, Codex, and OpenCode";
-    homepage = "https://github.com/getpaseo/kivotos";
+    homepage = "https://github.com/getpaseo/paseo";
     license = lib.licenses.agpl3Plus;
     mainProgram = "kivotos";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;

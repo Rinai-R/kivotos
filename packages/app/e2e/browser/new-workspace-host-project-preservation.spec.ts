@@ -20,7 +20,7 @@ import { createTempGitRepo } from "../support/helpers/workspace";
 const PRIMARY_HOST_LABEL = "Primary host";
 const SECONDARY_HOST_LABEL = "Secondary host";
 const SHARED_PROJECT_NAME = "Kivotos";
-const SHARED_REMOTE_URL = "https://github.com/getpaseo/kivotos.git";
+const SHARED_REMOTE_URL = "https://github.com/getpaseo/paseo.git";
 
 interface CreatedProject {
   projectId: string;

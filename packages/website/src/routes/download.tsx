@@ -196,8 +196,8 @@ function Download() {
           <PlatformRow icon={TerminalIcon} label="Nix">
             <CodeBlock size="sm">
               {onBeta
-                ? `nix run github:getkivotos/kivotos/v${version}`
-                : "nix run github:getkivotos/kivotos"}
+                ? `nix run github:getpaseo/paseo/v${version}`
+                : "nix run github:getpaseo/paseo"}
             </CodeBlock>
           </PlatformRow>
         </div>
@@ -206,7 +206,7 @@ function Download() {
       <p className="text-center text-xs text-muted-foreground mt-8">
         All releases are available on{" "}
         <a
-          href="https://github.com/getpaseo/kivotos/releases"
+          href="https://github.com/getpaseo/paseo/releases"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-foreground transition-colors"

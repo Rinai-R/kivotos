@@ -31,7 +31,7 @@ Orca runs inside its desktop app by default and reaches other machines in two wa
 
 Both tools have iOS and Android apps.
 
-The mobile app is the full app, native on iOS and Android, with full feature parity with desktop. They are on the App Store and Google Play. To connect from your phone, enable the relay and scan a QR code. The daemon connects outbound to the relay and your phone meets it there, so you do not need a VPN, port forwarding, SSH, or an account. Traffic is end-to-end encrypted, and the [relay server](https://github.com/getpaseo/kivotos-relay) is open source. You can also connect directly over Tailscale.
+The mobile app is the full app, native on iOS and Android, with full feature parity with desktop. They are on the App Store and Google Play. To connect from your phone, enable the relay and scan a QR code. The daemon connects outbound to the relay and your phone meets it there, so you do not need a VPN, port forwarding, SSH, or an account. Traffic is end-to-end encrypted, and the [relay server](https://github.com/getpaseo/paseo-relay) is open source. You can also connect directly over Tailscale.
 
 Orca's mobile companion is in beta, on the App Store for iOS and as an APK download for Android. It can reply to agents, open sessions as a terminal or Chat UI, commit changes, and create workspaces on the paired desktop. Orca Relay, also in beta, connects the phone when it is not on the same network as the desktop and requires signing in to an Orca account. Without Orca Relay, the phone needs a LAN or Tailscale path to the desktop.
 

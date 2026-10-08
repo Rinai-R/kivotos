@@ -1624,7 +1624,7 @@ describe("handleCreateKivotosWorktreeRequest", () => {
           mimeType: "application/github-pr",
           number: 123,
           title: "Fix worktree naming",
-          url: "https://github.com/getpaseo/kivotos/pull/123",
+          url: "https://github.com/getpaseo/paseo/pull/123",
           baseRefName: "main",
           headRefName: "fix/worktree-naming",
         },

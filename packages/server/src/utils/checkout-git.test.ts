@@ -128,7 +128,7 @@ function createGitHubServiceForStatus(
     getPullRequest: async () => ({
       number: 1,
       title: "PR",
-      url: "https://github.com/getpaseo/kivotos/pull/1",
+      url: "https://github.com/getpaseo/paseo/pull/1",
       state: "OPEN",
       body: null,
       baseRefName: "main",
@@ -150,7 +150,7 @@ function createGitHubServiceForStatus(
       return status;
     },
     createPullRequest: async () => ({
-      url: "https://github.com/getpaseo/kivotos/pull/1",
+      url: "https://github.com/getpaseo/paseo/pull/1",
       number: 1,
     }),
     mergePullRequest: async () => ({ success: true }),
@@ -161,7 +161,7 @@ function createGitHubServiceForStatus(
 
 function createPullRequestStatus(overrides?: Partial<CurrentPullRequestStatus>) {
   return {
-    url: "https://github.com/getpaseo/kivotos/pull/123",
+    url: "https://github.com/getpaseo/paseo/pull/123",
     title: "Ship feature",
     state: "open",
     baseRefName: "main",
@@ -2504,7 +2504,7 @@ const x = 1;
   });
 
   it("disables GitHub features when gh is unavailable", async () => {
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -2519,7 +2519,7 @@ const x = 1;
 
   it("returns merged PR status when no open PR exists for the current branch", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -2543,7 +2543,7 @@ const x = 1;
 
   it("propagates S1 PR metadata and check display fields through checkout PR status", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -2557,7 +2557,7 @@ const x = 1;
             {
               name: "server-tests",
               status: "success",
-              url: "https://github.com/getpaseo/kivotos/actions/runs/123",
+              url: "https://github.com/getpaseo/paseo/actions/runs/123",
               workflow: "Server CI",
               duration: "2m 14s",
             },
@@ -2571,7 +2571,7 @@ const x = 1;
       authState: "authenticated",
       status: {
         number: 123,
-        url: "https://github.com/getpaseo/kivotos/pull/123",
+        url: "https://github.com/getpaseo/paseo/pull/123",
         title: "Ship feature",
         state: "open",
         baseRefName: "main",
@@ -2582,7 +2582,7 @@ const x = 1;
           {
             name: "server-tests",
             status: "success",
-            url: "https://github.com/getpaseo/kivotos/actions/runs/123",
+            url: "https://github.com/getpaseo/paseo/actions/runs/123",
             workflow: "Server CI",
             duration: "2m 14s",
           },
@@ -2595,7 +2595,7 @@ const x = 1;
 
   it("uses an origin tracked head when the local branch name differs", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -2613,7 +2613,7 @@ const x = 1;
 
   it("keeps the local branch lookup when origin tracking uses the same head name", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.feature.remote", "origin"], { cwd: repoDir });
@@ -2974,7 +2974,7 @@ const x = 1;
   });
 
   it("keeps fork identity when the local and tracked branch names match", async () => {
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["remote", "add", "contributor", "git@github.com:contributor/kivotos.git"], {
@@ -2997,7 +2997,7 @@ const x = 1;
     "https://github.com/contributor/kivotos.git",
     "ssh://git@github.com/contributor/kivotos.git",
   ])("preserves fork PR identity with branch.remote=%s", async (branchRemote) => {
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:getkivotos/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["checkout", "-b", "topic"], { cwd: repoDir });
@@ -3024,10 +3024,10 @@ const x = 1;
 
   it("does not attach an owner when the tracked remote is the same GitHub repository", async () => {
     execFileSync("git", ["checkout", "-b", "local-feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:getkivotos/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:getpaseo/paseo.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.local-feature.remote", "upstream"], {
@@ -3066,7 +3066,7 @@ const x = 1;
 
   it("uses the configured push remote for fork PR lookup when upstream is absent", async () => {
     execFileSync("git", ["checkout", "-b", "chethanuk/main"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["remote", "add", "kivotos-pr-345", "git@github.com:chethanuk/kivotos.git"], {
@@ -3099,7 +3099,7 @@ const x = 1;
 
   it("keeps the local branch lookup when same-repo tracking points at the base branch", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -3118,7 +3118,7 @@ const x = 1;
     execFileSync("git", ["remote", "add", "origin", "git@github.com:contributor/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.local-feature.remote", "upstream"], {
@@ -3159,7 +3159,7 @@ const x = 1;
 
   it("derives the same origin tracked head for on-demand PR status reads", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -3184,7 +3184,7 @@ const x = 1;
 
   it("uses the tracked fork branch for PR worktree status lookup", async () => {
     execFileSync("git", ["checkout", "-b", "chethanuk/main"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["remote", "add", "kivotos-pr-345", "git@github.com:chethanuk/kivotos.git"], {
@@ -3202,7 +3202,7 @@ const x = 1;
       requestedTargets,
       statusOverrides: {
         number: 345,
-        url: "https://github.com/getpaseo/kivotos/pull/345",
+        url: "https://github.com/getpaseo/paseo/pull/345",
       },
     });
 
@@ -3217,7 +3217,7 @@ const x = 1;
 
   it("returns closed-unmerged PR status without marking it as merged", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3225,7 +3225,7 @@ const x = 1;
       repoDir,
       createGitHubServiceForStatus(
         createPullRequestStatus({
-          url: "https://github.com/getpaseo/kivotos/pull/999",
+          url: "https://github.com/getpaseo/paseo/pull/999",
           title: "Closed without merge",
           state: "closed",
         }),
@@ -3242,7 +3242,7 @@ const x = 1;
 
   it("caches PR status results for duplicate lookups", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3261,7 +3261,7 @@ const x = 1;
 
   it("does not reuse a PR status cache entry after HEAD changes on the same branch", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3270,7 +3270,7 @@ const x = 1;
     github.getCurrentPullRequestStatus = async (options) => {
       if (options.headSha) requestedShas.push(options.headSha);
       return createPullRequestStatus({
-        url: `https://github.com/getpaseo/kivotos/pull/${requestedShas.length}`,
+        url: `https://github.com/getpaseo/paseo/pull/${requestedShas.length}`,
       });
     };
 
@@ -3288,7 +3288,7 @@ const x = 1;
 
   it("passes forced PR status reads through to the GitHub service", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3312,7 +3312,7 @@ const x = 1;
 
   it("expires cached PR status after the TTL", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3327,7 +3327,7 @@ const x = 1;
       github.getCurrentPullRequestStatus = async () => {
         callCount += 1;
         return createPullRequestStatus({
-          url: `https://github.com/getpaseo/kivotos/pull/${callCount}`,
+          url: `https://github.com/getpaseo/paseo/pull/${callCount}`,
         });
       };
       const first = await getPullRequestStatus(repoDir, github);
@@ -3343,7 +3343,7 @@ const x = 1;
 
   it("keeps stale PR status when a refresh hits a transient GitHub error", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3355,7 +3355,7 @@ const x = 1;
         callCount += 1;
         if (callCount === 1) {
           return createPullRequestStatus({
-            url: "https://github.com/getpaseo/kivotos/pull/123",
+            url: "https://github.com/getpaseo/paseo/pull/123",
           });
         }
         throw new GitHubCommandError({
@@ -3416,14 +3416,14 @@ const x = 1;
 
   it("does not use stale PR status fallback for forced GitHub errors", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
     const github = createGitHubServiceForStatus(null);
     github.getCurrentPullRequestStatus = async () =>
       createPullRequestStatus({
-        url: "https://github.com/getpaseo/kivotos/pull/123",
+        url: "https://github.com/getpaseo/paseo/pull/123",
       });
 
     const fresh = await getPullRequestStatus(repoDir, github);
@@ -3449,7 +3449,7 @@ const x = 1;
 
   it("clears stale PR status after a successful no-PR refresh", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 
@@ -3461,7 +3461,7 @@ const x = 1;
         callCount += 1;
         if (callCount === 1) {
           return createPullRequestStatus({
-            url: "https://github.com/getpaseo/kivotos/pull/123",
+            url: "https://github.com/getpaseo/paseo/pull/123",
           });
         }
         return null;
@@ -3521,7 +3521,7 @@ const x = 1;
 
   it("dedupes concurrent PR status lookups for the same cwd", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
       cwd: repoDir,
     });
 

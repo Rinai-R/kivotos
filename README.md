@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/kivotos/stargazers">
-    <img src="https://img.shields.io/github/stars/getkivotos/kivotos?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/getpaseo/paseo/stargazers">
+    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/kivotos/releases">
-    <img src="https://img.shields.io/github/v/release/getkivotos/kivotos?style=flat&logo=github" alt="GitHub release">
+  <a href="https://github.com/getpaseo/paseo/releases">
+    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
   </a>
   <a href="https://x.com/moboudra">
     <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
@@ -85,7 +85,7 @@ You need at least one agent CLI installed and configured with your credentials:
 
 ### Desktop app (recommended)
 
-Download it from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/kivotos/releases). Open the app and the daemon starts automatically. Nothing else to install.
+Download it from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open the app and the daemon starts automatically. Nothing else to install.
 
 To connect from your phone, open **Settings → your host → Pair Device**.
 
@@ -116,7 +116,7 @@ docker run -d --name kivotos \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getkivotos/kivotos:latest
+  ghcr.io/getpaseo/paseo:latest
 ```
 
 Open `http://localhost:6767` after it starts. Extend the base image with the agent CLIs you use, then provide credentials through environment variables or the persistent `/home/kivotos` volume. See the [Docker documentation](docs/docker.md) for full setup details.
@@ -168,7 +168,7 @@ See the [SDK quickstart](https://paseo.sh/docs/sdk/quickstart), [recipes](https:
 Skills teach your agent to use Kivotos to orchestrate other agents.
 
 ```bash
-npx skills add getkivotos/kivotos
+npx skills add getpaseo/paseo
 ```
 
 Then use them in any agent conversation:
@@ -215,7 +215,7 @@ Kivotos is an independent project used by tens of thousands of developers daily,
 
 ## Related projects
 
-- [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay) — official distributed relay, written in Elixir
+- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — official distributed relay, written in Elixir
 - [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code extension
 
 ## License

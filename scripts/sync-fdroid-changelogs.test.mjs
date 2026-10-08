@@ -247,7 +247,7 @@ test("renders the real 0.1.109 notice, which is the entry's whole point", () => 
     "",
     "### Fixed",
     "",
-    "- Kivotos Desktop no longer gets stuck connecting or loses native window controls after updating ([#2111](https://github.com/getpaseo/kivotos/pull/2111) by [@cleiter](https://github.com/cleiter))",
+    "- Kivotos Desktop no longer gets stuck connecting or loses native window controls after updating ([#2111](https://github.com/getpaseo/paseo/pull/2111) by [@cleiter](https://github.com/cleiter))",
     "",
   ].join("\n");
 

@@ -10,7 +10,7 @@ category: Getting started
 
 The official Kivotos Docker image runs the daemon and serves the bundled browser UI from the same HTTP origin. It is meant for servers, dev boxes, NAS devices, homelab hosts, and other places where you want Kivotos running without the desktop app.
 
-Docker images follow the stable Kivotos release cadence. `ghcr.io/getkivotos/kivotos:latest` points at the latest stable release, not an arbitrary `main` build.
+Docker images follow the stable Kivotos release cadence. `ghcr.io/getpaseo/paseo:latest` points at the latest stable release, not an arbitrary `main` build.
 
 ```bash
 docker run -d --name kivotos \
@@ -18,7 +18,7 @@ docker run -d --name kivotos \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getkivotos/kivotos:latest
+  ghcr.io/getpaseo/paseo:latest
 ```
 
 Then open:
@@ -48,7 +48,7 @@ Host-side CLI commands select the container explicitly, for example `kivotos pro
 ```yaml
 services:
   kivotos:
-    image: ghcr.io/getkivotos/kivotos:latest
+    image: ghcr.io/getpaseo/paseo:latest
     container_name: kivotos
     restart: unless-stopped
     ports:
@@ -72,7 +72,7 @@ docker compose up -d
 Create a child image for the providers you want available:
 
 ```Dockerfile
-FROM ghcr.io/getkivotos/kivotos:latest
+FROM ghcr.io/getpaseo/paseo:latest
 
 USER root
 RUN npm install -g @openai/codex @anthropic-ai/claude-code opencode-ai

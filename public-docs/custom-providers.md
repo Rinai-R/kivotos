@@ -22,7 +22,7 @@ Provider IDs must be lowercase alphanumeric with hyphens (`/^[a-z][a-z0-9-]*$/`)
 To override a bundled provider plugin, use its provider ID and omit `extends`. For
 [Muse Code](/docs/muse-code), set command or environment overrides under `agents.providers.muse`.
 
-The examples below are a quick tour. The full, up-to-date reference is on GitHub: [docs/custom-providers.md](https://github.com/getpaseo/kivotos/blob/main/docs/custom-providers.md).
+The examples below are a quick tour. The full, up-to-date reference is on GitHub: [docs/custom-providers.md](https://github.com/getpaseo/paseo/blob/main/docs/custom-providers.md).
 
 ## Provider options
 
@@ -213,4 +213,4 @@ Any agent that speaks [ACP](https://agentclientprotocol.com) over stdio can be a
 
 ## Full reference
 
-For the complete field reference (`extends`, `label`, `command`, `env`, `options`, `models`, `additionalModels`, `disallowedTools`, `kivotosTools`, `enabled`, `order`), model and thinking-option schemas, and deeper examples for each plan, see [docs/custom-providers.md](https://github.com/getpaseo/kivotos/blob/main/docs/custom-providers.md) on GitHub. See [Limit Kivotos tools by provider](/docs/mcp#limit-kivotos-tools-by-provider) for `kivotosTools` configuration.
+For the complete field reference (`extends`, `label`, `command`, `env`, `options`, `models`, `additionalModels`, `disallowedTools`, `kivotosTools`, `enabled`, `order`), model and thinking-option schemas, and deeper examples for each plan, see [docs/custom-providers.md](https://github.com/getpaseo/paseo/blob/main/docs/custom-providers.md) on GitHub. See [Limit Kivotos tools by provider](/docs/mcp#limit-kivotos-tools-by-provider) for `kivotosTools` configuration.

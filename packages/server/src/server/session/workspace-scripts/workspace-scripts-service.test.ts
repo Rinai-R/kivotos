@@ -58,7 +58,7 @@ function fakeGitService() {
     isGit: true,
     repoRoot: "/tmp/repo",
     currentBranch: "feature/scripts",
-    remoteUrl: "https://github.com/getpaseo/kivotos.git",
+    remoteUrl: "https://github.com/getpaseo/paseo.git",
     hasRemote: true,
   };
 

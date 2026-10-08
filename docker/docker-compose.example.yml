@@ -4,7 +4,7 @@
 # For any network-reachable deployment, change KIVOTOS_PASSWORD first.
 services:
   kivotos:
-    image: ghcr.io/getkivotos/kivotos:latest
+    image: ghcr.io/getpaseo/paseo:latest
     container_name: kivotos
     restart: unless-stopped
     ports:

@@ -38,7 +38,7 @@ list, drag down on a row to dismiss the sheet. In Form,
 press **Copy text**, long-press the input, and choose **Paste**. The input should contain
 “Copied from Kivotos”. With the system keyboard enabled, focusing the input should keep it visible.
 
-Run the [native sheet regression](https://github.com/getpaseo/kivotos/blob/main/packages/app/e2e/mobile/modal-sheet/README.md) to check body
+Run the [native sheet regression](https://github.com/getpaseo/paseo/blob/main/packages/app/e2e/mobile/modal-sheet/README.md) to check body
 dismissal, list scrolling and horizontal tabs together.
 
 These captures show Android copy/paste and custom padding on browser and wide native layouts.

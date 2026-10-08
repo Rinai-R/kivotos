@@ -158,9 +158,9 @@ done
 Verify both npm tags now resolve to `KIVOTOS_VERSION` before considering the
 stable release complete.
 
-The Docker workflow builds images from the checked-out source tree on pull requests and on `main` as non-publishing checks. Stable `vX.Y.Z` tag pushes publish `ghcr.io/getkivotos/kivotos:X.Y.Z` and `ghcr.io/getkivotos/kivotos:latest`; beta `vX.Y.Z-beta.N` tag pushes publish only `ghcr.io/getkivotos/kivotos:X.Y.Z-beta.N` and never move `latest`.
+The Docker workflow builds images from the checked-out source tree on pull requests and on `main` as non-publishing checks. Stable `vX.Y.Z` tag pushes publish `ghcr.io/getpaseo/paseo:X.Y.Z` and `ghcr.io/getpaseo/paseo:latest`; beta `vX.Y.Z-beta.N` tag pushes publish only `ghcr.io/getpaseo/paseo:X.Y.Z-beta.N` and never move `latest`.
 
-The production relay is the Elixir service in [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay), with its own deployment process. Kivotos releases and pushes to this repository do not deploy it. The Cloudflare relay code and workflow in this repository are legacy and are not used in production.
+The production relay is the Elixir service in [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay), with its own deployment process. Kivotos releases and pushes to this repository do not deploy it. The Cloudflare relay code and workflow in this repository are legacy and are not used in production.
 
 **Stable means stable.** If the user says "stable" or "ship stable", do not ask whether they want a beta first. They picked stable; treat it as a direct stable release. Only run the beta flow when the user explicitly says "beta".
 
@@ -434,7 +434,7 @@ gh workflow run docker.yml \
   -f publish=true
 ```
 
-This replaces `ghcr.io/getkivotos/kivotos:X.Y.Z-beta.N` in place without touching
+This replaces `ghcr.io/getpaseo/paseo:X.Y.Z-beta.N` in place without touching
 desktop, APK, or EAS release builders. The Docker exception is safe because the
 dispatch runs from `--ref main` and uses the explicit `kivotos_version`; it does
 not check out or move the `v*` release tag.
@@ -484,12 +484,12 @@ If you decide to publish a release without working desktop builds, inspect its
 assets first, then publish it manually:
 
 ```bash
-RELEASE_LOOKUP=$(node scripts/github-release.mjs --repo getkivotos/kivotos --tag vX.Y.Z)
+RELEASE_LOOKUP=$(node scripts/github-release.mjs --repo getpaseo/paseo --tag vX.Y.Z)
 gh release view "$RELEASE_LOOKUP" --json isDraft,isPrerelease,assets
 gh release edit "$RELEASE_LOOKUP" --tag vX.Y.Z --draft=false
 
 # Keep a beta marked as a prerelease:
-RELEASE_LOOKUP=$(node scripts/github-release.mjs --repo getkivotos/kivotos --tag vX.Y.Z-beta.N)
+RELEASE_LOOKUP=$(node scripts/github-release.mjs --repo getpaseo/paseo --tag vX.Y.Z-beta.N)
 gh release edit "$RELEASE_LOOKUP" --tag vX.Y.Z-beta.N --draft=false --prerelease
 ```
 
@@ -585,15 +585,15 @@ Every bullet must be scannable at a glance. The changelog is not release documen
 
 Every changelog bullet must credit contributors and link to the PR(s) that delivered the change. This is not one-PR-per-line — a single bullet describes a user-facing change and may reference multiple PRs.
 
-Format: append `([#123](https://github.com/getpaseo/kivotos/pull/123) by [@user](https://github.com/user))` at the end of each bullet. For changes spanning multiple PRs or contributors:
+Format: append `([#123](https://github.com/getpaseo/paseo/pull/123) by [@user](https://github.com/user))` at the end of each bullet. For changes spanning multiple PRs or contributors:
 
 ```markdown
-- Voice mode now works on tablets with proper microphone permissions. ([#210](https://github.com/getpaseo/kivotos/pull/210), [#215](https://github.com/getpaseo/kivotos/pull/215) by [@alice](https://github.com/alice), [@bob](https://github.com/bob))
+- Voice mode now works on tablets with proper microphone permissions. ([#210](https://github.com/getpaseo/paseo/pull/210), [#215](https://github.com/getpaseo/paseo/pull/215) by [@alice](https://github.com/alice), [@bob](https://github.com/bob))
 ```
 
 Rules:
 
-- **Always link the PR number** as `[#N](https://github.com/getpaseo/kivotos/pull/N)`.
+- **Always link the PR number** as `[#N](https://github.com/getpaseo/paseo/pull/N)`.
 - **Always link the contributor's GitHub profile** as `[@user](https://github.com/user)`.
 - **One bullet = one user-facing change**, regardless of how many PRs went into it. Group related PRs on the same bullet.
 - **De-duplicate contributors.** If the same person authored multiple PRs in one bullet, list them once.

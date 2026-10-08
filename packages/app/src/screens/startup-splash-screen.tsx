@@ -29,7 +29,7 @@ interface StartupSplashScreenProps {
   };
 }
 
-const GITHUB_ISSUE_URL = "https://github.com/getpaseo/kivotos/issues/new";
+const GITHUB_ISSUE_URL = "https://github.com/getpaseo/paseo/issues/new";
 const DOCS_URL = "https://paseo.sh/docs";
 
 const LOGO_SIZE = 96;

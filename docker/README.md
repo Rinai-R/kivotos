@@ -11,7 +11,7 @@ docker run -d --name kivotos \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getkivotos/kivotos:latest
+  ghcr.io/getpaseo/paseo:latest
 ```
 
 Then open `http://localhost:6767`.
@@ -20,7 +20,7 @@ The base image intentionally does not bundle agent CLIs. Extend it with the
 agents you use:
 
 ```Dockerfile
-FROM ghcr.io/getkivotos/kivotos:latest
+FROM ghcr.io/getpaseo/paseo:latest
 
 USER root
 RUN npm install -g @openai/codex @anthropic-ai/claude-code

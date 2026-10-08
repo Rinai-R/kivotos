@@ -6,8 +6,8 @@ import {
 
 describe("projectDisplayNameFromProjectId", () => {
   it("shows owner and repo for GitHub remote ids", () => {
-    expect(projectDisplayNameFromProjectId("remote:github.com/getpaseo/kivotos")).toBe(
-      "getkivotos/kivotos",
+    expect(projectDisplayNameFromProjectId("remote:github.com/getpaseo/paseo")).toBe(
+      "getpaseo/paseo",
     );
   });
 
@@ -18,7 +18,7 @@ describe("projectDisplayNameFromProjectId", () => {
 
 describe("projectIconPlaceholderLabelFromDisplayName", () => {
   it("uses repo name instead of owner for GitHub-style display names", () => {
-    expect(projectIconPlaceholderLabelFromDisplayName("getkivotos/kivotos")).toBe("kivotos");
+    expect(projectIconPlaceholderLabelFromDisplayName("getpaseo/paseo")).toBe("kivotos");
   });
 
   it("returns the original display name when it has no path separator", () => {

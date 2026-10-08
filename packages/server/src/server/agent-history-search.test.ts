@@ -20,7 +20,7 @@ function candidate(input: {
     },
     project: {
       projectKey: "key",
-      projectName: input.projectName ?? "getkivotos/kivotos",
+      projectName: input.projectName ?? "getpaseo/paseo",
       workspaceName: input.workspaceName ?? null,
       checkout: {
         cwd: "/tmp/repo",
@@ -71,7 +71,7 @@ describe("matchesAgentHistoryQuery", () => {
   });
 
   it("matches the project name", () => {
-    expect(matchesAgentHistoryQuery("kivotos", candidate({ projectName: "getkivotos/kivotos" }))).toBe(
+    expect(matchesAgentHistoryQuery("kivotos", candidate({ projectName: "getpaseo/paseo" }))).toBe(
       true,
     );
   });

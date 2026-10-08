@@ -173,7 +173,7 @@ function Privacy() {
           We use access controls, encrypted transport, and limited service permissions. No online
           service can guarantee absolute security. Read Kivotos&apos;s{" "}
           <a
-            href="https://github.com/getpaseo/kivotos/blob/main/SECURITY.md"
+            href="https://github.com/getpaseo/paseo/blob/main/SECURITY.md"
             target="_blank"
             rel="noopener noreferrer"
           >

@@ -137,7 +137,7 @@ function ShipPanel() {
             <GitPullRequest size={12} />
             Open
           </span>
-          <span className="text-mock-fg-muted">getkivotos/kivotos</span>
+          <span className="text-mock-fg-muted">getpaseo/paseo</span>
         </div>
       </div>
 

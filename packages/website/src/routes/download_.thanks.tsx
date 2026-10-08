@@ -36,7 +36,7 @@ const COMMUNITY = [
     name: "GitHub",
     icon: <GitHubIcon className="h-6 w-6" />,
     body: "Star, report issues, contribute.",
-    href: "https://github.com/getpaseo/kivotos",
+    href: "https://github.com/getpaseo/paseo",
   },
   {
     name: "Reddit",

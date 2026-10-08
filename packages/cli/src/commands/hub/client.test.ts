@@ -163,7 +163,7 @@ describe("Hub HTTP client", () => {
               slug: "getkivotos",
               accountLogin: "getkivotos",
               accountType: "Organization",
-              repositories: ["getkivotos/kivotos"],
+              repositories: ["getpaseo/paseo"],
             },
           ],
           discord: [{ slug: "kivotos", guildName: "Kivotos" }],

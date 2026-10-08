@@ -11,7 +11,7 @@ describe("starter trigger connections", () => {
               slug: "github-getkivotos",
               accountLogin: "getkivotos",
               accountType: "Organization",
-              repositories: ["getkivotos/kivotos"],
+              repositories: ["getpaseo/paseo"],
             },
           ],
           slack: [{ slug: "kivotos", teamName: "Kivotos" }],
@@ -19,14 +19,14 @@ describe("starter trigger connections", () => {
           daemons: [],
           linear: [],
         },
-        "getkivotos/kivotos",
+        "getpaseo/paseo",
       ),
     ).toEqual([
       {
-        id: "github:getkivotos/kivotos",
-        label: "GitHub — getkivotos/kivotos",
+        id: "github:getpaseo/paseo",
+        label: "GitHub — getpaseo/paseo",
         provider: "github",
-        filters: { connection: "github-getkivotos", repo: "getkivotos/kivotos" },
+        filters: { connection: "github-getkivotos", repo: "getpaseo/paseo" },
       },
       {
         id: "slack:kivotos",
@@ -60,7 +60,7 @@ describe("starter trigger connections", () => {
           daemons: [],
           linear: [],
         },
-        "getkivotos/kivotos",
+        "getpaseo/paseo",
       ),
     ).toEqual([]);
   });

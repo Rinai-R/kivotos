@@ -32,7 +32,7 @@ docker run -d --name kivotos \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getkivotos/kivotos:latest
+  ghcr.io/getpaseo/paseo:latest
 ```
 
 Then open:
@@ -59,7 +59,7 @@ Minimal example:
 ```yaml
 services:
   kivotos:
-    image: ghcr.io/getkivotos/kivotos:latest
+    image: ghcr.io/getpaseo/paseo:latest
     restart: unless-stopped
     ports:
       - "6767:6767"
@@ -79,7 +79,7 @@ releases to third-party agent release cycles.
 Create a child image for the agents you use:
 
 ```Dockerfile
-FROM ghcr.io/getkivotos/kivotos:latest
+FROM ghcr.io/getpaseo/paseo:latest
 
 USER root
 RUN npm install -g @openai/codex @anthropic-ai/claude-code opencode-ai
@@ -178,7 +178,7 @@ IPs and `localhost` are allowed by default.
 
 - Set `KIVOTOS_PASSWORD` for any published port or network-reachable deployment.
 - Prefer HTTPS at the reverse proxy for direct browser access.
-- Use the [official Kivotos relay](https://github.com/getpaseo/kivotos-relay) for
+- Use the [official Kivotos relay](https://github.com/getpaseo/paseo-relay) for
   untrusted networks or mobile access when you do not want to expose the daemon
   port directly.
 - The container is the isolation boundary for agents. Agents can read and write
@@ -207,9 +207,9 @@ docker build \
 
 The Docker workflow builds the image on pull requests and on `main` as a
 non-publishing check. Stable `vX.Y.Z` tag pushes publish
-`ghcr.io/getkivotos/kivotos:X.Y.Z` and `ghcr.io/getkivotos/kivotos:latest`. Beta tags
+`ghcr.io/getpaseo/paseo:X.Y.Z` and `ghcr.io/getpaseo/paseo:latest`. Beta tags
 publish only the exact prerelease tag, such as
-`ghcr.io/getkivotos/kivotos:0.1.102-beta.1`, and do not update `latest`.
+`ghcr.io/getpaseo/paseo:0.1.102-beta.1`, and do not update `latest`.
 
 To replace a Docker image in place without rebuilding desktop, APK, or EAS
 mobile release artifacts, dispatch the Docker workflow manually instead of

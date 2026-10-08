@@ -23,7 +23,7 @@ Clients connect to the daemon over WebSocket. There are two ways to establish th
 
 ## Relay connections (recommended)
 
-The relay is the simplest way to connect from your phone. It requires no VPN setup, no port forwarding, and no firewall configuration. The daemon can stay bound to localhost or a socket file, it connects _outbound_ to the relay, and your phone meets it there. The official relay server is the open-source Elixir service at [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay).
+The relay is the simplest way to connect from your phone. It requires no VPN setup, no port forwarding, and no firewall configuration. The daemon can stay bound to localhost or a socket file, it connects _outbound_ to the relay, and your phone meets it there. The official relay server is the open-source Elixir service at [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay).
 
 Relay is off on new installations. When you pair a device from `kivotos`, `kivotos daemon pair`, or Kivotos Desktop, Kivotos asks before enabling it. Choosing not to enable relay leaves the daemon available for direct TCP, Tailscale, or other VPN connections and does not create a pairing QR code. Use `--relay` with the CLI pairing or startup command to opt in without an interactive prompt.
 

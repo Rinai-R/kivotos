@@ -20,11 +20,11 @@ Most specialized workflows and integrations are better served by plugins.
 
 Plugins let you build what you need, share it, and maintain it independently. Start with the [plugin documentation](https://paseo.sh/docs/plugins). For applications and integrations built around Kivotos, see the [SDK documentation](https://paseo.sh/docs/sdk).
 
-If an extension point is missing, describe the workflow in [Discussions](https://github.com/getpaseo/kivotos/discussions). A reusable capability that enables several plugins may be a better addition than implementing one particular workflow in core.
+If an extension point is missing, describe the workflow in [Discussions](https://github.com/getpaseo/paseo/discussions). A reusable capability that enables several plugins may be a better addition than implementing one particular workflow in core.
 
 ## Report bugs
 
-Open a [GitHub issue](https://github.com/getpaseo/kivotos/issues) and fill out the bug report template.
+Open a [GitHub issue](https://github.com/getpaseo/paseo/issues) and fill out the bug report template.
 
 Include:
 
@@ -38,7 +38,7 @@ Focused fixes for reproducible bugs are welcome. If you submit one, follow the p
 
 ## Discuss workflows before proposing features
 
-Product discussions, including feature requests, belong in [GitHub Discussions](https://github.com/getpaseo/kivotos/discussions). Feature requests opened as issues will be closed.
+Product discussions, including feature requests, belong in [GitHub Discussions](https://github.com/getpaseo/paseo/discussions). Feature requests opened as issues will be closed.
 
 Explain:
 

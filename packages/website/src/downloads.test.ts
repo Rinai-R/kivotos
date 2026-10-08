@@ -4,19 +4,19 @@ import { parseReleaseAssetUrl } from "./downloads";
 describe("parseReleaseAssetUrl", () => {
   it("accepts a Kivotos release file", () => {
     const url =
-      "https://github.com/getpaseo/kivotos/releases/download/v0.10.3/Kivotos-0.10.3-arm64.dmg";
+      "https://github.com/getpaseo/paseo/releases/download/v0.10.3/Kivotos-0.10.3-arm64.dmg";
     expect(parseReleaseAssetUrl(url)).toBe(url);
   });
 
   it("rejects a path that climbs into another repository's releases", () => {
     expect(
       parseReleaseAssetUrl(
-        "https://github.com/getpaseo/kivotos/releases/download/v1/../../../../evil/repo/releases/download/v1/app.dmg",
+        "https://github.com/getpaseo/paseo/releases/download/v1/../../../../evil/repo/releases/download/v1/app.dmg",
       ),
     ).toBeNull();
     expect(
       parseReleaseAssetUrl(
-        "https://github.com/getpaseo/kivotos/releases/download/v1/%2e%2e/%2e%2e/%2e%2e/%2e%2e/evil/repo/app.dmg",
+        "https://github.com/getpaseo/paseo/releases/download/v1/%2e%2e/%2e%2e/%2e%2e/%2e%2e/evil/repo/app.dmg",
       ),
     ).toBeNull();
   });
@@ -24,11 +24,11 @@ describe("parseReleaseAssetUrl", () => {
   it("rejects other hosts and malformed values", () => {
     expect(
       parseReleaseAssetUrl(
-        "https://github.com.evil.test/getkivotos/kivotos/releases/download/v1/a.dmg",
+        "https://github.com.evil.test/getpaseo/paseo/releases/download/v1/a.dmg",
       ),
     ).toBeNull();
     expect(
-      parseReleaseAssetUrl("http://github.com/getpaseo/kivotos/releases/download/v1/a.dmg"),
+      parseReleaseAssetUrl("http://github.com/getpaseo/paseo/releases/download/v1/a.dmg"),
     ).toBeNull();
     expect(parseReleaseAssetUrl("not a url")).toBeNull();
     expect(parseReleaseAssetUrl(undefined)).toBeNull();

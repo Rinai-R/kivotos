@@ -849,11 +849,11 @@ describe("project command-center RPCs", () => {
       {
         id: "R_kivotos",
         name: "kivotos",
-        nameWithOwner: "getkivotos/kivotos",
+        nameWithOwner: "getpaseo/paseo",
         description: "Development environment in your pocket",
         visibility: "public",
         updatedAt: "2026-07-15T10:00:00Z",
-        cloneUrl: "git@github.com:getkivotos/kivotos.git",
+        cloneUrl: "git@github.com:getpaseo/paseo.git",
       },
     ]);
     const session = createSessionForTest({ messages, github: { searchRepositories } });
@@ -880,11 +880,11 @@ describe("project command-center RPCs", () => {
             {
               id: "R_kivotos",
               name: "kivotos",
-              nameWithOwner: "getkivotos/kivotos",
+              nameWithOwner: "getpaseo/paseo",
               description: "Development environment in your pocket",
               visibility: "public",
               updatedAt: "2026-07-15T10:00:00Z",
-              cloneUrl: "git@github.com:getkivotos/kivotos.git",
+              cloneUrl: "git@github.com:getpaseo/paseo.git",
             },
           ],
           available: true,
@@ -2080,7 +2080,7 @@ function createWorkspaceGitSnapshot(
       repoRoot: cwd,
       mainRepoRoot: null,
       currentBranch: "feature/service",
-      remoteUrl: "https://github.com/getpaseo/kivotos.git",
+      remoteUrl: "https://github.com/getpaseo/paseo.git",
       isKivotosOwnedWorktree: false,
       isDirty: true,
       baseRef: "main",
@@ -2841,7 +2841,7 @@ diff --git a/file.txt b/file.txt
       body: "Updates file.",
     });
     checkoutGitMocks.createPullRequest.mockResolvedValue({
-      url: "https://github.com/getpaseo/kivotos/pull/1",
+      url: "https://github.com/getpaseo/paseo/pull/1",
       number: 1,
     });
     const session = createSessionForTest({ workspaceGitService });
@@ -2886,7 +2886,7 @@ diff --git a/file.txt b/file.txt
       body: "Updates file.",
     });
     checkoutGitMocks.createPullRequest.mockResolvedValue({
-      url: "https://github.com/getpaseo/kivotos/pull/1",
+      url: "https://github.com/getpaseo/paseo/pull/1",
       number: 1,
     });
     const session = createSessionForTest({ workspaceGitService, messages });
@@ -2929,7 +2929,7 @@ diff --git a/file.txt b/file.txt
       type: "checkout_pr_create_response",
       payload: {
         cwd: "/tmp/request-worktree",
-        url: "https://github.com/getpaseo/kivotos/pull/1",
+        url: "https://github.com/getpaseo/paseo/pull/1",
         number: 1,
         error: null,
         requestId: "request-generated-pr",
@@ -3026,7 +3026,7 @@ diff --git a/file.txt b/file.txt
       new StructuredAgentFallbackError([]),
     );
     checkoutGitMocks.createPullRequest.mockResolvedValue({
-      url: "https://github.com/getpaseo/kivotos/pull/9",
+      url: "https://github.com/getpaseo/paseo/pull/9",
       number: 9,
     });
     const session = createSessionForTest({ workspaceGitService, messages });
@@ -3054,7 +3054,7 @@ diff --git a/file.txt b/file.txt
       type: "checkout_pr_create_response",
       payload: {
         cwd: "/tmp/request-worktree",
-        url: "https://github.com/getpaseo/kivotos/pull/9",
+        url: "https://github.com/getpaseo/paseo/pull/9",
         number: 9,
         error: null,
         requestId: "request-generated-pr-fallback",
@@ -3069,7 +3069,7 @@ diff --git a/file.txt b/file.txt
       getSnapshot: vi.fn().mockResolvedValue({}),
     };
     checkoutGitMocks.createPullRequest.mockResolvedValue({
-      url: "https://github.com/getpaseo/kivotos/pull/2",
+      url: "https://github.com/getpaseo/paseo/pull/2",
       number: 2,
     });
     const session = createSessionForTest({ github, workspaceGitService, messages });
@@ -3092,7 +3092,7 @@ diff --git a/file.txt b/file.txt
       type: "checkout_pr_create_response",
       payload: {
         cwd: "/tmp/request-worktree",
-        url: "https://github.com/getpaseo/kivotos/pull/2",
+        url: "https://github.com/getpaseo/paseo/pull/2",
         number: 2,
         error: null,
         requestId: "request-pr-create",
@@ -3924,7 +3924,7 @@ describe("session checkout status handling", () => {
         behindOfOrigin: 1,
         upstreamRef: null,
         hasRemote: true,
-        remoteUrl: "https://github.com/getpaseo/kivotos.git",
+        remoteUrl: "https://github.com/getpaseo/paseo.git",
         isKivotosOwnedWorktree: false,
         error: null,
         requestId: "request-status",
@@ -4717,7 +4717,7 @@ describe("session workspace script handling", () => {
     const snapshot = createWorkspaceGitSnapshot("/tmp/repo", {
       git: {
         currentBranch: "feature/service-scripts",
-        remoteUrl: "https://github.com/getpaseo/kivotos.git",
+        remoteUrl: "https://github.com/getpaseo/paseo.git",
       },
     });
     const workspaceGitService = {
@@ -4792,7 +4792,7 @@ describe("session pull request timeline handling", () => {
             forge: "github",
             number: 42,
             title: "Ship search",
-            url: "https://github.com/getpaseo/kivotos/pull/42",
+            url: "https://github.com/getpaseo/paseo/pull/42",
             state: "OPEN",
             body: null,
             labels: [],
@@ -4840,7 +4840,7 @@ describe("session pull request timeline handling", () => {
             forge: "github",
             number: 42,
             title: "Ship search",
-            url: "https://github.com/getpaseo/kivotos/pull/42",
+            url: "https://github.com/getpaseo/paseo/pull/42",
             state: "OPEN",
             body: null,
             labels: [],
@@ -4908,7 +4908,7 @@ describe("session pull request timeline handling", () => {
             avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
             body: "Looks good",
             createdAt: 1710000000000,
-            url: "https://github.com/getpaseo/kivotos/pull/42#pullrequestreview-1",
+            url: "https://github.com/getpaseo/paseo/pull/42#pullrequestreview-1",
             reviewState: "approved",
           },
         ],
@@ -4947,7 +4947,7 @@ describe("session pull request timeline handling", () => {
             avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
             body: "Looks good",
             createdAt: 1710000000000,
-            url: "https://github.com/getpaseo/kivotos/pull/42#pullrequestreview-1",
+            url: "https://github.com/getpaseo/paseo/pull/42#pullrequestreview-1",
             reviewState: "approved",
           },
         ],
@@ -5054,8 +5054,8 @@ describe("session pull request timeline handling", () => {
       name: "server-tests",
       status: "completed",
       conclusion: "failure",
-      url: "https://github.com/getpaseo/kivotos/actions/runs/456/job/789",
-      detailsUrl: "https://github.com/getpaseo/kivotos/actions/runs/456/job/789",
+      url: "https://github.com/getpaseo/paseo/actions/runs/456/job/789",
+      detailsUrl: "https://github.com/getpaseo/paseo/actions/runs/456/job/789",
       output: { title: "Tests failed", summary: "1 failure", text: "Assertion failed" },
       annotations: [],
       failedJobs: [],
@@ -5110,8 +5110,8 @@ describe("session pull request timeline handling", () => {
           name: "server-tests",
           status: "completed",
           conclusion: "failure",
-          url: "https://github.com/getpaseo/kivotos/actions/runs/456/job/789",
-          detailsUrl: "https://github.com/getpaseo/kivotos/actions/runs/456/job/789",
+          url: "https://github.com/getpaseo/paseo/actions/runs/456/job/789",
+          detailsUrl: "https://github.com/getpaseo/paseo/actions/runs/456/job/789",
           output: { title: "Tests failed", summary: "1 failure", text: "Assertion failed" },
           annotations: [],
           failedJobs: [],

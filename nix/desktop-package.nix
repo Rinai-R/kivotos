@@ -250,7 +250,7 @@ buildNpmPackage {
 
   meta = {
     description = "Kivotos desktop app (Electron wrapper)";
-    homepage = "https://github.com/getpaseo/kivotos";
+    homepage = "https://github.com/getpaseo/paseo";
     license = lib.licenses.agpl3Plus;
     mainProgram = "kivotos-desktop";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;

@@ -80,7 +80,7 @@ export function AgentTranscript() {
       <UserBubble>Create a PR</UserBubble>
       <Para>PR opened: Rebuild the homepage around live Kivotos workflows.</Para>
       <span className="block text-[13.5px] text-mock-accent-bright">
-        https://github.com/getpaseo/kivotos/pull/3981
+        https://github.com/getpaseo/paseo/pull/3981
       </span>
       <div>
         <Bullet>Ships the new product-led hero and interactive desktop mockup.</Bullet>

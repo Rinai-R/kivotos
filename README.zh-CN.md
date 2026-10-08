@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/kivotos/stargazers">
-    <img src="https://img.shields.io/github/stars/getkivotos/kivotos?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/getpaseo/paseo/stargazers">
+    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/kivotos/releases">
-    <img src="https://img.shields.io/github/v/release/getkivotos/kivotos?style=flat&logo=github" alt="GitHub release">
+  <a href="https://github.com/getpaseo/paseo/releases">
+    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
   </a>
   <a href="https://x.com/moboudra">
     <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
@@ -69,7 +69,7 @@ Kivotos 会运行一个名为 daemon 的本地服务，用来管理你的 coding
 
 ### 桌面 app（推荐）
 
-从 [paseo.sh/download](https://paseo.sh/download) 或 [GitHub releases 页面](https://github.com/getpaseo/kivotos/releases)下载。打开 app 后 daemon 会自动启动，不需要再安装其他东西。
+从 [paseo.sh/download](https://paseo.sh/download) 或 [GitHub releases 页面](https://github.com/getpaseo/paseo/releases)下载。打开 app 后 daemon 会自动启动，不需要再安装其他东西。
 
 如果要从手机连接，在 Settings 中扫描显示的二维码。
 
@@ -112,7 +112,7 @@ kivotos --host workstation.local:6767 run "run the full test suite"
 Skills 会教你的 agent 使用 Kivotos 来编排其他 agents。
 
 ```bash
-npx skills add getkivotos/kivotos
+npx skills add getpaseo/paseo
 ```
 
 然后在任意 agent 对话中使用：
@@ -159,7 +159,7 @@ Kivotos 由一个人开发，靠使用它的人来资助。你可以通过 [GitH
 
 ## 相关项目
 
-- [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay) — 官方分布式 relay，使用 Elixir 编写
+- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — 官方分布式 relay，使用 Elixir 编写
 - [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code 扩展
 
 ### 自托管 relay TLS

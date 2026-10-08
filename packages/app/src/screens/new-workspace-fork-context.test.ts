@@ -41,7 +41,7 @@ describe("getWorkspaceNamingAttachments", () => {
       mimeType: "application/github-pr",
       number: 1788,
       title: "Fork assistant turns into new drafts",
-      url: "https://github.com/getpaseo/kivotos/pull/1788",
+      url: "https://github.com/getpaseo/paseo/pull/1788",
     } satisfies AgentAttachment;
 
     expect(getWorkspaceNamingAttachments([chatHistory, prContext])).toEqual([prContext]);

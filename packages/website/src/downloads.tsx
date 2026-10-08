@@ -2,7 +2,7 @@ import * as React from "react";
 import type { DesktopPlatform, MobilePlatform } from "~/platform";
 
 export function releaseBase(version: string) {
-  return `https://github.com/getpaseo/kivotos/releases/download/v${version}`;
+  return `https://github.com/getpaseo/paseo/releases/download/v${version}`;
 }
 
 export interface ReleaseAssetInfo {
@@ -28,7 +28,7 @@ export function downloadUrls(release: ReleaseAssetInfo) {
 }
 
 const RELEASE_ASSETS_ORIGIN = "https://github.com";
-const RELEASE_ASSETS_PATH = "/getkivotos/kivotos/releases/download/";
+const RELEASE_ASSETS_PATH = "/getpaseo/paseo/releases/download/";
 
 /**
  * The release file a thanks-page link asks for, or null when it is not one of

@@ -834,7 +834,7 @@ function ExtensibleSection() {
         <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-5 sm:flex-row sm:items-center sm:justify-between md:px-8">
           <p className="text-sm text-white/45">Kivotos is Apache 2.0.</p>
           <a
-            href="https://github.com/getpaseo/kivotos"
+            href="https://github.com/getpaseo/paseo"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex shrink-0 items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"

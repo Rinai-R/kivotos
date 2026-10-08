@@ -315,7 +315,7 @@ function DiscordDemo() {
             <p>
               Ran on <span className="font-mono text-white/50">macbook-pro</span>. Opened{" "}
               <span className="text-white/80 underline decoration-white/20">
-                getkivotos/kivotos#1234
+                getpaseo/paseo#1234
               </span>{" "}
               with a fix for the terminal writes.
             </p>

@@ -12,7 +12,7 @@ Kivotos is an agentic development environment for running coding agents, editing
 
 ## Desktop app (recommended)
 
-Download from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/kivotos/releases). Open it and you're done.
+Download from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open it and you're done.
 
 The desktop app bundles its own daemon and starts it automatically, no separate install required. On first launch you'll see a brief startup screen, then connect from your phone using **Settings → your host → Pair Device**.
 
@@ -62,7 +62,7 @@ docker run -d --name kivotos \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getkivotos/kivotos:latest
+  ghcr.io/getpaseo/paseo:latest
 ```
 
 Then open `http://localhost:6767`.
@@ -80,8 +80,8 @@ The image runs the daemon and serves the bundled web UI. It does not bundle agen
 - [Plugins](/docs/plugins), add trusted local surfaces, sidebar actions, daemon behavior, and composer attachments.
 - [CLI reference](/docs/cli), every command.
 - [Self-hosting the web UI](/docs/web-ui), serve the browser app from your own daemon.
-- [GitHub repo](https://github.com/getpaseo/kivotos)
-- [Report an issue](https://github.com/getpaseo/kivotos/issues)
+- [GitHub repo](https://github.com/getpaseo/paseo)
+- [Report an issue](https://github.com/getpaseo/paseo/issues)
 
 ## Prerequisites
 

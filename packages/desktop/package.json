@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/getpaseo/kivotos.git"
+    "url": "https://github.com/getpaseo/paseo.git"
   },
   "main": "dist/main.js",
   "scripts": {

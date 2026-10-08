@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/kivotos/stargazers">
-    <img src="https://img.shields.io/github/stars/getkivotos/kivotos?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/getpaseo/paseo/stargazers">
+    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/kivotos/releases">
-    <img src="https://img.shields.io/github/v/release/getkivotos/kivotos?style=flat&logo=github" alt="GitHub release">
+  <a href="https://github.com/getpaseo/paseo/releases">
+    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
   </a>
   <a href="https://x.com/moboudra">
     <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
@@ -69,7 +69,7 @@ Kivotos はコーディングエージェントを管理するローカルサー
 
 ### デスクトップアプリ（推奨）
 
-[paseo.sh/download](https://paseo.sh/download) または [GitHub のリリースページ](https://github.com/getpaseo/kivotos/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
+[paseo.sh/download](https://paseo.sh/download) または [GitHub のリリースページ](https://github.com/getpaseo/paseo/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
 
 スマートフォンから接続するには、Settings 画面に表示される QR コードをスキャンしてください。
 
@@ -112,7 +112,7 @@ kivotos --host workstation.local:6767 run "run the full test suite"
 スキルはエージェントに Kivotos を使って他のエージェントをオーケストレーションする方法を教えます。
 
 ```bash
-npx skills add getkivotos/kivotos
+npx skills add getpaseo/paseo
 ```
 
 どのエージェントとの会話でも使用できます。
@@ -159,7 +159,7 @@ Kivotos は一人で開発しており、使ってくれる人たちの支援で
 
 ## 関連プロジェクト
 
-- [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay) — Elixir 製の公式分散リレー
+- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — Elixir 製の公式分散リレー
 - [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code 拡張機能
 
 ## ライセンス

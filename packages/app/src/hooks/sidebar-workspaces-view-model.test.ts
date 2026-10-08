@@ -297,18 +297,18 @@ describe("shared sidebar workspace model", () => {
     const model = buildSidebarWorkspacePlacementModel({
       projects: [
         project({
-          projectKey: "getkivotos/kivotos",
-          projectName: "getkivotos/kivotos",
-          iconWorkingDir: "/repo/getkivotos/kivotos",
+          projectKey: "getpaseo/paseo",
+          projectName: "getpaseo/paseo",
+          iconWorkingDir: "/repo/getpaseo/paseo",
           hosts: [
             {
               serverId: "host-a",
-              iconWorkingDir: "/repo/getkivotos/kivotos",
+              iconWorkingDir: "/repo/getpaseo/paseo",
               worktreeSupport: "supported" as const,
             },
             {
               serverId: "host-b",
-              iconWorkingDir: "/repo/getkivotos/kivotos",
+              iconWorkingDir: "/repo/getpaseo/paseo",
               worktreeSupport: "supported" as const,
             },
           ],
@@ -328,8 +328,8 @@ describe("shared sidebar workspace model", () => {
               workspace({
                 id: "main",
                 name: "main",
-                projectId: "getkivotos/kivotos",
-                projectDisplayName: "getkivotos/kivotos",
+                projectId: "getpaseo/paseo",
+                projectDisplayName: "getpaseo/paseo",
                 status: "done",
               }),
             ],
@@ -344,8 +344,8 @@ describe("shared sidebar workspace model", () => {
               workspace({
                 id: "feature",
                 name: "feature/status-flow",
-                projectId: "getkivotos/kivotos",
-                projectDisplayName: "getkivotos/kivotos",
+                projectId: "getpaseo/paseo",
+                projectDisplayName: "getpaseo/paseo",
                 status: "running",
                 statusEnteredAt: new Date("2026-06-10T00:00:00.000Z"),
               }),
@@ -361,18 +361,18 @@ describe("shared sidebar workspace model", () => {
     ]);
     expect(model.projects).toEqual([
       expect.objectContaining({
-        viewKey: "getkivotos/kivotos",
+        viewKey: "getpaseo/paseo",
         hosts: [
           {
             serverId: "host-a",
-            projectId: "getkivotos/kivotos",
-            iconWorkingDir: "/repo/getkivotos/kivotos",
+            projectId: "getpaseo/paseo",
+            iconWorkingDir: "/repo/getpaseo/paseo",
             worktreeSupport: "supported" as const,
           },
           {
             serverId: "host-b",
-            projectId: "getkivotos/kivotos",
-            iconWorkingDir: "/repo/getkivotos/kivotos",
+            projectId: "getpaseo/paseo",
+            iconWorkingDir: "/repo/getpaseo/paseo",
             worktreeSupport: "supported" as const,
           },
         ],
@@ -400,7 +400,7 @@ describe("shared sidebar workspace model", () => {
       ["host-a:main", "done", "main"],
       ["host-b:feature", "running", "feature/status-flow"],
     ]);
-    expect(model.projectNamesByViewKey).toEqual(new Map([["getkivotos/kivotos", "getkivotos/kivotos"]]));
+    expect(model.projectNamesByViewKey).toEqual(new Map([["getpaseo/paseo", "getpaseo/paseo"]]));
   });
 
   it("preserves unchanged row identities when another workspace updates", () => {
@@ -532,7 +532,7 @@ describe("shouldShowSidebarHostLabels", () => {
     const projects = buildSidebarProjectsFromStructure({
       projects: [
         project({
-          projectKey: "getkivotos/kivotos",
+          projectKey: "getpaseo/paseo",
           hosts: [
             {
               serverId: "host-a",
