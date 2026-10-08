@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FetchRecentProviderSessionEntry } from "@getpaseo/client/internal/daemon-client";
+import type { FetchRecentProviderSessionEntry } from "@kivotos/client/internal/daemon-client";
 import {
   aggregateSessionEntries,
   ALL_FILTER_VALUE,
@@ -27,7 +27,7 @@ function entry(
     providerId: "claude",
     providerLabel: "Claude Code",
     providerHandleId: "thread-1",
-    cwd: "/repo/paseo",
+    cwd: "/repo/kivotos",
     title: null,
     firstPromptPreview: null,
     lastPromptPreview: null,
@@ -245,23 +245,23 @@ describe("hasMoreSessions", () => {
 
 describe("resolveDirectoryLabel", () => {
   const projects = [
-    { rootPath: "/home/me/paseo", name: "paseo" },
-    { rootPath: "/home/me/paseo/packages/app", name: "paseo app" },
+    { rootPath: "/home/me/kivotos", name: "kivotos" },
+    { rootPath: "/home/me/kivotos/packages/app", name: "kivotos app" },
   ];
 
   it("names the project root after the project alone", () => {
-    expect(resolveDirectoryLabel("/home/me/paseo", projects)).toEqual({ name: "paseo" });
+    expect(resolveDirectoryLabel("/home/me/kivotos", projects)).toEqual({ name: "kivotos" });
   });
 
   it("qualifies a worktree under the project with its path below the root", () => {
     expect(
-      resolveDirectoryLabel("/home/me/paseo/.dev/worktrees/abc/zebra", [projects[0]!]),
-    ).toEqual({ name: "paseo", detail: ".dev/worktrees/abc/zebra" });
+      resolveDirectoryLabel("/home/me/kivotos/.dev/worktrees/abc/zebra", [projects[0]!]),
+    ).toEqual({ name: "kivotos", detail: ".dev/worktrees/abc/zebra" });
   });
 
   it("tells two worktrees of the same project apart", () => {
-    const zebra = resolveDirectoryLabel("/home/me/paseo/.dev/worktrees/abc/zebra", [projects[0]!]);
-    const otter = resolveDirectoryLabel("/home/me/paseo/.dev/worktrees/def/otter", [projects[0]!]);
+    const zebra = resolveDirectoryLabel("/home/me/kivotos/.dev/worktrees/abc/zebra", [projects[0]!]);
+    const otter = resolveDirectoryLabel("/home/me/kivotos/.dev/worktrees/def/otter", [projects[0]!]);
     expect(zebra).not.toEqual(otter);
     expect([zebra.detail, otter.detail]).toEqual([
       ".dev/worktrees/abc/zebra",
@@ -270,21 +270,21 @@ describe("resolveDirectoryLabel", () => {
   });
 
   it("picks the most specific project root containing the directory", () => {
-    expect(resolveDirectoryLabel("/home/me/paseo/packages/app/src", projects)).toEqual({
-      name: "paseo app",
+    expect(resolveDirectoryLabel("/home/me/kivotos/packages/app/src", projects)).toEqual({
+      name: "kivotos app",
       detail: "src",
     });
   });
 
   it("ignores trailing slashes on both sides", () => {
     expect(
-      resolveDirectoryLabel("/home/me/paseo/", [{ rootPath: "/home/me/paseo/", name: "p" }]),
+      resolveDirectoryLabel("/home/me/kivotos/", [{ rootPath: "/home/me/kivotos/", name: "p" }]),
     ).toEqual({ name: "p" });
   });
 
   it("does not match a project root that is only a string prefix", () => {
-    expect(resolveDirectoryLabel("/home/me/paseo-fork", projects)).toEqual({
-      name: "/home/me/paseo-fork",
+    expect(resolveDirectoryLabel("/home/me/kivotos-fork", projects)).toEqual({
+      name: "/home/me/kivotos-fork",
     });
   });
 
@@ -295,12 +295,12 @@ describe("resolveDirectoryLabel", () => {
 
 describe("formatDirectoryLabel", () => {
   it("shows the project name alone at its root", () => {
-    expect(formatDirectoryLabel({ name: "paseo" })).toBe("paseo");
+    expect(formatDirectoryLabel({ name: "kivotos" })).toBe("kivotos");
   });
 
   it("appends the path under the root so worktrees of one project read apart", () => {
-    expect(formatDirectoryLabel({ name: "paseo", detail: ".dev/worktrees/zebra" })).toBe(
-      "paseo · .dev/worktrees/zebra",
+    expect(formatDirectoryLabel({ name: "kivotos", detail: ".dev/worktrees/zebra" })).toBe(
+      "kivotos · .dev/worktrees/zebra",
     );
   });
 });
@@ -309,8 +309,8 @@ describe("resolveImportTarget", () => {
   it("trusts a scoped listing, whose rows the daemon already matched realpath-aware", () => {
     expect(
       resolveImportTarget({
-        entryCwd: "/private/repo/paseo",
-        workspaceCwd: "/repo/paseo",
+        entryCwd: "/private/repo/kivotos",
+        workspaceCwd: "/repo/kivotos",
         workspaceId: "ws-1",
         isScopedListing: true,
       }),
@@ -320,8 +320,8 @@ describe("resolveImportTarget", () => {
   it("keeps the current workspace for a Show-all row in that workspace's directory", () => {
     expect(
       resolveImportTarget({
-        entryCwd: "/repo/paseo/",
-        workspaceCwd: "/repo/paseo",
+        entryCwd: "/repo/kivotos/",
+        workspaceCwd: "/repo/kivotos",
         workspaceId: "ws-1",
         isScopedListing: false,
       }),
@@ -332,7 +332,7 @@ describe("resolveImportTarget", () => {
     expect(
       resolveImportTarget({
         entryCwd: "/repo/other",
-        workspaceCwd: "/repo/paseo",
+        workspaceCwd: "/repo/kivotos",
         workspaceId: "ws-1",
         isScopedListing: false,
       }),
@@ -340,7 +340,7 @@ describe("resolveImportTarget", () => {
   });
 
   it("treats a sheet with no workspace as cross-workspace", () => {
-    expect(resolveImportTarget({ entryCwd: "/repo/paseo", isScopedListing: false })).toEqual({
+    expect(resolveImportTarget({ entryCwd: "/repo/kivotos", isScopedListing: false })).toEqual({
       crossWorkspace: true,
     });
   });

@@ -53,7 +53,7 @@ const MAINTAINER_LINK = (
 export function FounderNote() {
   return (
     <div className="max-w-2xl space-y-5 leading-relaxed text-white/70">
-      <p>Paseo is an independent project used by tens of thousands of developers daily.</p>
+      <p>Kivotos is an independent project used by tens of thousands of developers daily.</p>
       <p>
         It is built by one person, full time, with no investors, no board and no company behind it.
         I have turned down funding offers to keep it that way.
@@ -64,9 +64,9 @@ export function FounderNote() {
         monetize, and that pressure changes what gets built.
       </p>
       <p>
-        Paseo is self-funded: the work is paid for by sponsorship and by{" "}
+        Kivotos is self-funded: the work is paid for by sponsorship and by{" "}
         <a href="/hub" className="underline hover:text-white/90">
-          Paseo Hub
+          Kivotos Hub
         </a>
         , an optional hosted service. Your support is what lets me keep working on it.
       </p>
@@ -176,7 +176,7 @@ export function SponsorSpotSection() {
       <SectionHeading
         as="h2"
         title="Sponsor as a company"
-        description="If your team relies on Paseo, a monthly sponsorship funds its development directly. As a thank you, your logo goes on the homepage and in the README."
+        description="If your team relies on Kivotos, a monthly sponsorship funds its development directly. As a thank you, your logo goes on the homepage and in the README."
       />
       <div className="space-y-8">
         <div className="flex items-end gap-2">
@@ -213,10 +213,10 @@ export function SponsorSpotSection() {
 }
 
 /** The /sponsor page's first section: the note and the ways to back the work. */
-export function SponsorPaseoSection() {
+export function SponsorKivotosSection() {
   return (
     <section>
-      <SectionHeading as="h1" title="Sponsor Paseo" />
+      <SectionHeading as="h1" title="Sponsor Kivotos" />
       <div className="space-y-10">
         <FounderNote />
         <BackingOptions />
@@ -229,10 +229,10 @@ export function SponsorPaseoSection() {
 export function SponsorSection() {
   return (
     <section>
-      <SectionHeading as="h2" title="Sponsor Paseo" />
+      <SectionHeading as="h2" title="Sponsor Kivotos" />
       <div className="space-y-10">
         <div className="max-w-2xl space-y-5 leading-relaxed text-white/70">
-          <p>Paseo is an independent project used by tens of thousands of developers daily.</p>
+          <p>Kivotos is an independent project used by tens of thousands of developers daily.</p>
           <p>
             It is built by one person, full time, with no investors and no company behind it. I have
             turned down funding to keep it that way. A tool that sits between you and your code,
@@ -240,9 +240,9 @@ export function SponsorSection() {
             monetize.
           </p>
           <p>
-            Paseo is self-funded through sponsorship and{" "}
+            Kivotos is self-funded through sponsorship and{" "}
             <a href="/hub" className="underline hover:text-white/90">
-              Paseo Hub
+              Kivotos Hub
             </a>
             . Your support is what lets me keep working on it.
           </p>
@@ -254,7 +254,7 @@ export function SponsorSection() {
   );
 }
 
-/** Homepage: the companies sponsoring Paseo. Renders nothing until there is one. */
+/** Homepage: the companies sponsoring Kivotos. Renders nothing until there is one. */
 export function SponsorsSection() {
   if (HOMEPAGE_SPONSORS.length === 0) return null;
   return (

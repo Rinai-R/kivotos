@@ -85,7 +85,7 @@ export async function installTerminalRenderProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
     interface ProbeTerm {
       write?: (data: string | Uint8Array, callback?: () => void) => void;
-      __paseoRenderProbeWriteWrapped?: boolean;
+      __kivotosRenderProbeWriteWrapped?: boolean;
     }
     interface ProbeState {
       term: ProbeTerm | undefined;
@@ -107,9 +107,9 @@ export async function installTerminalRenderProbe(page: Page): Promise<void> {
 
     const win = window as unknown as Record<string, unknown> & {
       __terminalRenderProbe?: ProbeState;
-      __paseoTerminal?: ProbeTerm;
+      __kivotosTerminal?: ProbeTerm;
     };
-    const existingDescriptor = Object.getOwnPropertyDescriptor(win, "__paseoTerminal");
+    const existingDescriptor = Object.getOwnPropertyDescriptor(win, "__kivotosTerminal");
     const getExisting = () =>
       existingDescriptor?.get ? existingDescriptor.get.call(win) : existingDescriptor?.value;
 
@@ -184,7 +184,7 @@ export async function installTerminalRenderProbe(page: Page): Promise<void> {
       value: probe,
     });
 
-    Object.defineProperty(win, "__paseoTerminal", {
+    Object.defineProperty(win, "__kivotosTerminal", {
       configurable: true,
       get() {
         return probe.term;
@@ -201,7 +201,7 @@ export async function installTerminalRenderProbe(page: Page): Promise<void> {
         probe.events.push({ at: performance.now(), type: "set" });
         probe.term = next;
 
-        if (next?.write && !next.__paseoRenderProbeWriteWrapped) {
+        if (next?.write && !next.__kivotosRenderProbeWriteWrapped) {
           const originalWrite = next.write.bind(next);
           next.write = (data: string | Uint8Array, callback?: () => void) => {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data);
@@ -229,7 +229,7 @@ export async function installTerminalRenderProbe(page: Page): Promise<void> {
             }
             return originalWrite(data, callback);
           };
-          next.__paseoRenderProbeWriteWrapped = true;
+          next.__kivotosRenderProbeWriteWrapped = true;
         }
       },
     });
@@ -644,22 +644,22 @@ export async function installTerminalKeystrokeStressProbe(page: Page): Promise<v
     Object.defineProperty(InstrumentedWebSocket, "CLOSED", { value: NativeWebSocket.CLOSED });
     window.WebSocket = InstrumentedWebSocket as typeof WebSocket;
 
-    const existingDescriptor = Object.getOwnPropertyDescriptor(window, "__paseoTerminal");
+    const existingDescriptor = Object.getOwnPropertyDescriptor(window, "__kivotosTerminal");
     const getExisting = () =>
       existingDescriptor?.get ? existingDescriptor.get.call(window) : existingDescriptor?.value;
 
     let terminal = getExisting();
-    Object.defineProperty(window, "__paseoTerminal", {
+    Object.defineProperty(window, "__kivotosTerminal", {
       configurable: true,
       get() {
         return terminal;
       },
       set(next: {
         write?: (data: string | Uint8Array, callback?: () => void) => void;
-        __paseoKeystrokeProbeWriteWrapped?: boolean;
+        __kivotosKeystrokeProbeWriteWrapped?: boolean;
       }) {
         terminal = next;
-        if (next?.write && !next.__paseoKeystrokeProbeWriteWrapped) {
+        if (next?.write && !next.__kivotosKeystrokeProbeWriteWrapped) {
           const originalWrite = next.write.bind(next);
           next.write = (data: string | Uint8Array, callback?: () => void) => {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data);
@@ -675,7 +675,7 @@ export async function installTerminalKeystrokeStressProbe(page: Page): Promise<v
               callback?.();
             });
           };
-          next.__paseoKeystrokeProbeWriteWrapped = true;
+          next.__kivotosKeystrokeProbeWriteWrapped = true;
         }
       },
     });

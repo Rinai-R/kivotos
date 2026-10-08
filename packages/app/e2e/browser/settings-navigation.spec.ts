@@ -92,11 +92,11 @@ test.describe("Settings sidebar navigation", () => {
     await selectHostConnectionType(page, "direct");
 
     await toggleHostAdvanced(page);
-    await fillDirectHostUri(page, "tcp://example.paseo.test:7443?ssl=true&password=shared-secret");
+    await fillDirectHostUri(page, "tcp://example.kivotos.test:7443?ssl=true&password=shared-secret");
     await toggleHostAdvanced(page);
 
     await expectDirectHostFormValues(page, {
-      host: "example.paseo.test",
+      host: "example.kivotos.test",
       port: "7443",
       password: "shared-secret",
     });
@@ -106,7 +106,7 @@ test.describe("Settings sidebar navigation", () => {
     await toggleHostAdvanced(page);
     await expectDirectHostUriValue(
       page,
-      "tcp://example.paseo.test:7443?ssl=true&password=shared-secret",
+      "tcp://example.kivotos.test:7443?ssl=true&password=shared-secret",
     );
     await toggleHostAdvanced(page);
     await expectDirectHostUriHidden(page);

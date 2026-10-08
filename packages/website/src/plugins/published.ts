@@ -2,7 +2,7 @@ import {
   PluginRegistryIdSchema,
   PluginRegistryIndexSchema,
   PublishedPluginDetailSchema,
-} from "@getpaseo/protocol/plugin-registry";
+} from "@kivotos/protocol/plugin-registry";
 import { getBlockingColdCache, type WebsiteCacheContext } from "../github-cache";
 import { handlePluginThumbnailRequest } from "./thumbnails";
 import { CATEGORIES } from "./categories";
@@ -63,7 +63,7 @@ export async function handlePluginRegistryRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (request.method !== "GET") return null;
-  const base = env.PLUGINS_REGISTRY_URL ?? "https://getpaseo.github.io/plugins";
+  const base = env.PLUGINS_REGISTRY_URL ?? "https://getkivotos.github.io/plugins";
   if (url.pathname.startsWith("/plugins/thumb/")) {
     const index = await loadRegistryIndex(base, context);
     return handlePluginThumbnailRequest(request, index.plugins);
@@ -112,7 +112,7 @@ export async function handlePluginRegistryRequest(
   const plugin = await loadRegistryPlugin(base, id, context);
   if (!plugin) return Response.json({ error: "Plugin not found" }, { status: 404 });
   if (
-    request.headers.get("X-Paseo-Install") === "1" ||
+    request.headers.get("X-Kivotos-Install") === "1" ||
     url.searchParams.get("intent") === "install"
   ) {
     const cache = context.cache;

@@ -28,7 +28,7 @@ import {
   Search,
   Settings,
 } from "lucide-react-native";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@kivotos/protocol/agent-types";
 import {
   AgentProfileGlyph,
   type AgentProfilePicker,

@@ -9,7 +9,7 @@ const { extractFile } = require("@electron/asar");
 const { WebSocket } = require("ws");
 const assert = require("node:assert/strict");
 
-const EXECUTABLE_NAME = "Paseo";
+const EXECUTABLE_NAME = "Kivotos";
 const SMOKE_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const TERMINAL_CAPTURE_ATTEMPTS = 20;
@@ -34,7 +34,7 @@ function createTempDir(prefix) {
 }
 
 async function assertBuiltinPluginsStarted(listen) {
-  const { DaemonClient } = await import("@getpaseo/client/internal/daemon-client");
+  const { DaemonClient } = await import("@kivotos/client/internal/daemon-client");
   const { builtinPlugins } =
     await import("../../server/dist/server/server/plugins/builtin/index.js");
   const client = new DaemonClient({
@@ -79,14 +79,14 @@ function getExecutablePath(appPath) {
 
 function getCliShimPath(appPath) {
   if (process.platform === "darwin") {
-    return path.join(appPath, "Contents", "Resources", "bin", "paseo");
+    return path.join(appPath, "Contents", "Resources", "bin", "kivotos");
   }
 
   if (process.platform === "win32") {
-    return path.join(appPath, "resources", "bin", "paseo.cmd");
+    return path.join(appPath, "resources", "bin", "kivotos.cmd");
   }
 
-  return path.join(appPath, "resources", "bin", "paseo");
+  return path.join(appPath, "resources", "bin", "kivotos");
 }
 
 function getMacMainExecutablePath(appPath) {
@@ -122,7 +122,7 @@ function shellQuoteCliArg(value) {
 function getTerminalHookSmokeCommand(marker) {
   if (process.platform === "win32") {
     const script = [
-      "& $env:PASEO_HOOK_CLI hooks codex Stop",
+      "& $env:KIVOTOS_HOOK_CLI hooks codex Stop",
       "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
       `Write-Output '${marker}'`,
     ].join("; ");
@@ -130,7 +130,7 @@ function getTerminalHookSmokeCommand(marker) {
     return `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encodedScript}`;
   }
 
-  return `"$PASEO_HOOK_CLI" hooks codex Stop && echo ${marker}`;
+  return `"$KIVOTOS_HOOK_CLI" hooks codex Stop && echo ${marker}`;
 }
 
 function getShellCommand(script) {
@@ -149,7 +149,7 @@ function getShellCommand(script) {
 
 function createDefaultDaemonEnv(extraEnv) {
   return {
-    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("PASEO_"))),
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("KIVOTOS_"))),
     ...extraEnv,
   };
 }
@@ -157,10 +157,10 @@ function createDefaultDaemonEnv(extraEnv) {
 function createIsolatedDesktopEnv({ home, listen, userData, cdpPort }) {
   return {
     ...createDefaultDaemonEnv({ HOME: home, USERPROFILE: home }),
-    PASEO_HOME: home,
-    PASEO_LISTEN: listen,
-    PASEO_ELECTRON_USER_DATA_DIR: userData,
-    PASEO_ELECTRON_FLAGS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${cdpPort}`,
+    KIVOTOS_HOME: home,
+    KIVOTOS_LISTEN: listen,
+    KIVOTOS_ELECTRON_USER_DATA_DIR: userData,
+    KIVOTOS_ELECTRON_FLAGS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${cdpPort}`,
   };
 }
 
@@ -303,7 +303,7 @@ function formatLogs({ stdout, stderr, userData, daemonHome }) {
 }
 
 async function writeSmokeArtifacts({ page, stdout, stderr, userData, daemonHome, error }) {
-  const artifactDir = process.env.PASEO_DESKTOP_SMOKE_ARTIFACT_DIR?.trim();
+  const artifactDir = process.env.KIVOTOS_DESKTOP_SMOKE_ARTIFACT_DIR?.trim();
   if (!artifactDir) {
     return;
   }
@@ -338,8 +338,8 @@ async function writeSmokeArtifacts({ page, stdout, stderr, userData, daemonHome,
         rootChildCount: document.querySelector("#root")?.childElementCount ?? 0,
         rootText: document.querySelector("#root")?.textContent?.trim().slice(0, 2_000) ?? "",
         bridgeKeys:
-          typeof window.paseoDesktop === "object" && window.paseoDesktop !== null
-            ? Object.keys(window.paseoDesktop)
+          typeof window.kivotosDesktop === "object" && window.kivotosDesktop !== null
+            ? Object.keys(window.kivotosDesktop)
             : [],
       }))
       .catch((evaluationError) => ({ evaluationError: String(evaluationError) }));
@@ -462,13 +462,13 @@ async function waitForPackagedAppPage(browser, deadline) {
     const page = browser
       .contexts()
       .flatMap((context) => context.pages())
-      .find((candidate) => candidate.url().startsWith("paseo://app/"));
+      .find((candidate) => candidate.url().startsWith("kivotos://app/"));
     if (page) {
       return page;
     }
     await delay(250);
   }
-  throw new Error("Timed out waiting for the packaged paseo://app/ renderer");
+  throw new Error("Timed out waiting for the packaged kivotos://app/ renderer");
 }
 
 async function assertPackagedRendererLoaded(page, deadline) {
@@ -482,8 +482,8 @@ async function assertPackagedRendererLoaded(page, deadline) {
   );
 
   const bridgeKeys = await page.evaluate(() =>
-    typeof window.paseoDesktop === "object" && window.paseoDesktop !== null
-      ? Object.keys(window.paseoDesktop)
+    typeof window.kivotosDesktop === "object" && window.kivotosDesktop !== null
+      ? Object.keys(window.kivotosDesktop)
       : [],
   );
   const missingBridgeKeys = REQUIRED_DESKTOP_BRIDGE_KEYS.filter((key) => !bridgeKeys.includes(key));
@@ -508,7 +508,7 @@ async function waitForRendererStartedDaemon({
 
   while (Date.now() < deadline) {
     try {
-      lastStatus = await page.evaluate(() => window.paseoDesktop.invoke("desktop_daemon_status"));
+      lastStatus = await page.evaluate(() => window.kivotosDesktop.invoke("desktop_daemon_status"));
       if (
         lastStatus?.status === "running" &&
         lastStatus.desktopManaged === true &&
@@ -641,8 +641,8 @@ async function smokeCliShim({ appPath, env }) {
 }
 
 async function smokeColdCliDaemonStart({ appPath }) {
-  const home = createTempDir("paseo-smoke-cli-daemon-home-");
-  const pidPath = path.join(home, "paseo.pid");
+  const home = createTempDir("kivotos-smoke-cli-daemon-home-");
+  const pidPath = path.join(home, "kivotos.pid");
   const port = await reserveLocalTcpPort();
   const listen = `127.0.0.1:${port}`;
   const env = createDefaultDaemonEnv({ HOME: home, USERPROFILE: home });
@@ -706,8 +706,8 @@ function assertCleanDaemonStatusOutput(output) {
 }
 
 async function smokeCliTerminal({ appPath, env }) {
-  const cwd = createTempDir("paseo-smoke-terminal-cwd-");
-  const marker = `paseo-packaged-terminal-smoke-${Date.now()}`;
+  const cwd = createTempDir("kivotos-smoke-terminal-cwd-");
+  const marker = `kivotos-packaged-terminal-smoke-${Date.now()}`;
   const name = `packaged-smoke-${process.pid}-${Date.now()}`;
   let terminalId = null;
 
@@ -813,7 +813,7 @@ async function openSmokeWorkspace({ appPath, env, page, daemonHome }) {
 
 async function assertSandboxState({ browser, page, expectedSandbox, stdout, stderr }) {
   const diagnostics = await page.evaluate(() =>
-    window.paseoDesktop.invoke("desktop_sandbox_diagnostics"),
+    window.kivotosDesktop.invoke("desktop_sandbox_diagnostics"),
   );
   if (diagnostics.enabled !== expectedSandbox) {
     throw new Error(
@@ -869,8 +869,8 @@ async function smokePackagedDesktopApp({
   assertLinuxDesktopIdentity(appPath);
   await smokeColdCliDaemonStart({ appPath });
 
-  const userData = createTempDir("paseo-smoke-user-data-");
-  const daemonHome = createTempDir("paseo-smoke-daemon-home-");
+  const userData = createTempDir("kivotos-smoke-user-data-");
+  const daemonHome = createTempDir("kivotos-smoke-daemon-home-");
   const daemonPort = await reserveLocalTcpPort();
   let cdpPort = await reserveLocalTcpPort();
   for (let attempt = 0; cdpPort === daemonPort && attempt < 10; attempt += 1) {
@@ -988,7 +988,7 @@ if (require.main === module) {
   const appIndex = process.argv.indexOf("--app");
   const appPath = appIndex >= 0 ? process.argv[appIndex + 1] : null;
   if (!appPath) {
-    process.stderr.write("Usage: node smoke-packaged-desktop-app.js --app <Paseo.app>\n");
+    process.stderr.write("Usage: node smoke-packaged-desktop-app.js --app <Kivotos.app>\n");
     process.exit(2);
   }
 

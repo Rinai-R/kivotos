@@ -8,22 +8,22 @@ category: Hub
 
 # Hub configuration
 
-Each organization trigger is one self-contained YAML file. Keep triggers in your repository and deploy them with `paseo hub deploy`:
+Each organization trigger is one self-contained YAML file. Keep triggers in your repository and deploy them with `kivotos hub deploy`:
 
 ```text
-.paseo/
+.kivotos/
 └── triggers/
     └── <trigger>.yml
 ```
 
 ## Generated starter trigger
 
-Run `paseo hub init` from the repository the agent should work in. Setup selects an app connection and an available agent runtime, asks which user may trigger it, validates the result, and writes one file. It then asks whether to deploy. Interactive `paseo hub login` connects the daemon and points to this command; it does not write trigger files.
+Run `kivotos hub init` from the repository the agent should work in. Setup selects an app connection and an available agent runtime, asks which user may trigger it, validates the result, and writes one file. It then asks whether to deploy. Interactive `kivotos hub login` connects the daemon and points to this command; it does not write trigger files.
 
 For a Slack connection named `my-team`, the generated document looks like this:
 
 ```yaml
-# .paseo/triggers/slack-help.yml
+# .kivotos/triggers/slack-help.yml
 name: slack-help
 enabled: true
 on:
@@ -48,7 +48,7 @@ run:
     Answer with hub.reply, then complete this request and call hub.finish_execution when done.
 
     <user-prompt>
-    ${{ paseo.prompt }}
+    ${{ kivotos.prompt }}
     </user-prompt>
   outputs:
     slack.reply:
@@ -60,7 +60,7 @@ run:
 
 `continuation.mode: conversation` keeps follow-ups in the same provider conversation on the same agent. The prompt asks the agent to reply and then call `hub.finish_execution`; replying alone does not finish the execution.
 
-A Discord starter uses `discord.mention`, your Discord user ID, and `discord.reply`. A GitHub starter uses `github.issue_comment`, restricts the repository to the current GitHub remote, and requires both `@paseo` and your GitHub username. GitHub's starter has no explicit reply output declaration.
+A Discord starter uses `discord.mention`, your Discord user ID, and `discord.reply`. A GitHub starter uses `github.issue_comment`, restricts the repository to the current GitHub remote, and requires both `@kivotos` and your GitHub username. GitHub's starter has no explicit reply output declaration.
 
 Setup asks before replacing the selected trigger file. It preserves other triggers and any existing legacy bundle. Read [Hub security](/docs/hub/security) before widening `from_users` or the agent's authority.
 
@@ -86,42 +86,42 @@ Use a positive duration in `ms`, `s`, `m`, or `h`, up to `24h`. Omitting the fie
 Run from the repository root:
 
 ```sh
-paseo hub login https://hub.example.com
-paseo hub deploy --dry-run
-paseo hub deploy
+kivotos hub login https://hub.example.com
+kivotos hub deploy --dry-run
+kivotos hub deploy
 ```
 
-Both deploy commands discover direct `.paseo/triggers/*.yml` files in deterministic path order. The CLI rejects nested files, `.yaml` extensions, symlinked trigger paths, and unreadable files. It does not search parent directories.
+Both deploy commands discover direct `.kivotos/triggers/*.yml` files in deterministic path order. The CLI rejects nested files, `.yaml` extensions, symlinked trigger paths, and unreadable files. It does not search parent directories.
 
 Dry-run validates each document against Hub without storing a revision. Deployment validates all documents first, then installs them one at a time through the organization trigger API. Installation creates or updates a trigger by its YAML `name`. If a later install fails, the error lists the files already installed; those revisions remain active. Errors name paths without printing file contents or credentials.
 
 Origin precedence:
 
 1. `--hub`
-2. `PASEO_HUB_URL`
+2. `KIVOTOS_HUB_URL`
 3. Active stored login
 4. `https://hub.paseo.sh`
 
 Credential precedence:
 
 1. `--api-key`
-2. `PASEO_HUB_API_KEY`
+2. `KIVOTOS_HUB_API_KEY`
 3. Stored login for the exact resolved origin
 
 Flags and environment keys are not stored. Endpoint and credential behavior is unchanged between deploy and dry-run.
 
 ## Legacy project bundles
 
-Existing project bundles use `.paseo/hub.yml`, direct `.paseo/workflows/*.yml` files, and referenced files below `.paseo/workflows/partials/`. `hub.yml` owns named environments and agents; each workflow owns its trigger and ordered steps.
+Existing project bundles use `.kivotos/hub.yml`, direct `.kivotos/workflows/*.yml` files, and referenced files below `.kivotos/workflows/partials/`. `hub.yml` owns named environments and agents; each workflow owns its trigger and ordered steps.
 
 Select the legacy deployment path explicitly:
 
 ```sh
-paseo hub deploy --project my-project --dry-run
-paseo hub deploy --project my-project
+kivotos hub deploy --project my-project --dry-run
+kivotos hub deploy --project my-project
 ```
 
-These commands send the complete bundle through the project configuration API. Dry-run validates without recording or activating a revision. `paseo hub init` does not create or migrate these bundles.
+These commands send the complete bundle through the project configuration API. Dry-run validates without recording or activating a revision. `kivotos hub init` does not create or migrate these bundles.
 
 The following source and revision behavior applies to legacy project bundles.
 

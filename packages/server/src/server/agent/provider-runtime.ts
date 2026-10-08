@@ -5,16 +5,16 @@ import {
   type ProviderSnapshotManagerOptions,
 } from "./provider-snapshot-manager.js";
 import { OpenCodeBridge } from "./providers/opencode/bridge.js";
-import type { PaseoToolCatalog } from "./tools/types.js";
+import type { KivotosToolCatalog } from "./tools/types.js";
 
 export interface AgentProviderRuntime {
   snapshotManager: ProviderSnapshotManager;
-  setPaseoToolCatalog(catalog: PaseoToolCatalog | null): void;
+  setKivotosToolCatalog(catalog: KivotosToolCatalog | null): void;
   shutdown(): Promise<void>;
 }
 
 interface CreateAgentProviderRuntimeOptions {
-  paseoHome: string;
+  kivotosHome: string;
   logger: Logger;
   snapshotManager: Omit<ProviderSnapshotManagerOptions, "logger" | "openCodeBridge">;
 }
@@ -22,7 +22,7 @@ interface CreateAgentProviderRuntimeOptions {
 export async function createAgentProviderRuntime(
   options: CreateAgentProviderRuntimeOptions,
 ): Promise<AgentProviderRuntime> {
-  const bridge = new OpenCodeBridge({ paseoHome: options.paseoHome, logger: options.logger });
+  const bridge = new OpenCodeBridge({ kivotosHome: options.kivotosHome, logger: options.logger });
   try {
     await bridge.start();
     const snapshotManager = new ProviderSnapshotManager({
@@ -33,7 +33,7 @@ export async function createAgentProviderRuntime(
     let shutdownPromise: Promise<void> | null = null;
     return {
       snapshotManager,
-      setPaseoToolCatalog: (catalog) => bridge.setManifestCatalog(catalog),
+      setKivotosToolCatalog: (catalog) => bridge.setManifestCatalog(catalog),
       shutdown: () => {
         shutdownPromise ??= shutdownProviderRuntime(snapshotManager, bridge);
         return shutdownPromise;

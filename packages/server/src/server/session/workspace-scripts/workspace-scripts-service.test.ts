@@ -58,7 +58,7 @@ function fakeGitService() {
     isGit: true,
     repoRoot: "/tmp/repo",
     currentBranch: "feature/scripts",
-    remoteUrl: "https://github.com/getpaseo/paseo.git",
+    remoteUrl: "https://github.com/getpaseo/kivotos.git",
     hasRemote: true,
   };
 
@@ -167,7 +167,7 @@ describe("buildSnapshot", () => {
     ).toEqual([]);
   });
 
-  test("returns no scripts for a workspace without a paseo.json", async () => {
+  test("returns no scripts for a workspace without a kivotos.json", async () => {
     const dir = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(dir);
     const { service } = buildService();
@@ -180,7 +180,7 @@ describe("buildSnapshot", () => {
     const directory = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(directory);
     writeFileSync(
-      join(directory, "paseo.json"),
+      join(directory, "kivotos.json"),
       JSON.stringify({ scripts: { app: { type: "service", command: "npm run app", port: 3000 } } }),
     );
     const project = {
@@ -236,7 +236,7 @@ describe("stop", () => {
     const dir = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(dir);
     writeFileSync(
-      join(dir, "paseo.json"),
+      join(dir, "kivotos.json"),
       JSON.stringify({ scripts: { web: { type: "service", command: "npm run web", port: 3000 } } }),
     );
     const runtimeStore = new WorkspaceScriptRuntimeStore();
@@ -283,7 +283,7 @@ describe("start", () => {
   test("refuses to start a script while repository automation is blocked", async () => {
     const { service, emitted, spawnCalls } = buildService({
       automationError: new Error(
-        "Scripts are blocked for PR #42 from contributor/paseo. Run setup to allow them.",
+        "Scripts are blocked for PR #42 from contributor/kivotos. Run setup to allow them.",
       ),
     });
 
@@ -297,7 +297,7 @@ describe("start", () => {
         workspaceId: "ws-1",
         scriptName: "app",
         terminalId: null,
-        error: "Scripts are blocked for PR #42 from contributor/paseo. Run setup to allow them.",
+        error: "Scripts are blocked for PR #42 from contributor/kivotos. Run setup to allow them.",
       },
     });
   });
@@ -346,7 +346,7 @@ describe("start", () => {
     expect(spawnCalls[0]).toMatchObject({
       repoRoot: "/tmp/repo",
       workspaceId: "ws-1",
-      projectSlug: "paseo",
+      projectSlug: "kivotos",
       branchName: "feature/scripts",
       scriptName: "app",
       daemonPort: 6767,
@@ -428,7 +428,7 @@ describe("start", () => {
     const directory = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(directory);
     writeFileSync(
-      join(directory, "paseo.json"),
+      join(directory, "kivotos.json"),
       JSON.stringify({ scripts: { app: { type: "service", command: "npm run app", port: 3000 } } }),
     );
     const project = {

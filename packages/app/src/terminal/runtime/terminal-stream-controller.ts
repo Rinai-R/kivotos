@@ -1,5 +1,5 @@
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { SubscribeTerminalRequest, TerminalState } from "@getpaseo/protocol/messages";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
+import type { SubscribeTerminalRequest, TerminalState } from "@kivotos/protocol/messages";
 import type { TerminalOutputData } from "./terminal-emulator-runtime";
 import { i18n } from "@/i18n/i18next";
 

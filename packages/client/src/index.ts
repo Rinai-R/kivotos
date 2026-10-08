@@ -1,7 +1,7 @@
 import type { OwnedSubscription } from "./connection/index.js";
 export type { OwnedSubscription, SubscriptionObserver } from "./connection/index.js";
 import type { DaemonClientConfig } from "./daemon-client.js";
-import type { AgentPermissionResponse } from "@getpaseo/protocol/agent-types";
+import type { AgentPermissionResponse } from "@kivotos/protocol/agent-types";
 import type {
   AgentSnapshotPayload,
   CreationSnapshot,
@@ -27,25 +27,25 @@ import type {
   SessionOutboundMessage,
   WorkspaceDescriptorPayload,
   WorkspaceCreateRequest,
-} from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/messages";
 import { DaemonClient, type CreateAgentRequestOptions } from "./daemon-client.js";
 import {
   createTerminalActions,
-  type PaseoTerminalActions,
-  type PaseoWorkspaceTerminalActions,
+  type KivotosTerminalActions,
+  type KivotosWorkspaceTerminalActions,
 } from "./terminals/index.js";
 export type {
-  PaseoTerminal,
-  PaseoTerminalActions,
-  PaseoTerminalHandle,
-  PaseoTerminalCreateOptions,
-  PaseoTerminalListOptions,
-  PaseoTerminalListResult,
-  PaseoTerminalCaptureOptions,
-  PaseoTerminalCaptureResult,
-  PaseoWorkspaceTerminalActions,
+  KivotosTerminal,
+  KivotosTerminalActions,
+  KivotosTerminalHandle,
+  KivotosTerminalCreateOptions,
+  KivotosTerminalListOptions,
+  KivotosTerminalListResult,
+  KivotosTerminalCaptureOptions,
+  KivotosTerminalCaptureResult,
+  KivotosWorkspaceTerminalActions,
 } from "./terminals/index.js";
-import type { PluginTimelineItem } from "@getpaseo/protocol/agent-types";
+import type { PluginTimelineItem } from "@kivotos/protocol/agent-types";
 import type {
   FetchAgentsEntry,
   FetchAgentsOptions,
@@ -71,14 +71,14 @@ export type ConnectionState =
   | { status: "disconnected"; reason?: string }
   | { status: "disposed" };
 
-export interface PaseoLogger {
+export interface KivotosLogger {
   debug(obj: object, msg?: string): void;
   info(obj: object, msg?: string): void;
   warn(obj: object, msg?: string): void;
   error(obj: object, msg?: string): void;
 }
 
-export interface PaseoClientConfig {
+export interface KivotosClientConfig {
   capabilities?: DaemonClientConfig["capabilities"];
   url: string;
   clientId?: string;
@@ -87,7 +87,7 @@ export interface PaseoClientConfig {
   password?: string;
   authHeader?: string;
   suppressSendErrors?: boolean;
-  logger?: PaseoLogger;
+  logger?: KivotosLogger;
   connectTimeoutMs?: number;
   e2ee?: {
     enabled?: boolean;
@@ -102,152 +102,152 @@ export interface PaseoClientConfig {
   runtimeMetricsWindowMs?: number;
 }
 
-export type PaseoWorkspace = WorkspaceDescriptorPayload;
-export type PaseoAgent = AgentSnapshotPayload;
-export type PaseoAgentListOptions = FetchAgentsOptions;
-export type PaseoProject = WorkspaceProjectDescriptorPayload;
-export type PaseoProjectListOptions = Omit<ProjectListRequestMessage, "type" | "requestId"> & {
+export type KivotosWorkspace = WorkspaceDescriptorPayload;
+export type KivotosAgent = AgentSnapshotPayload;
+export type KivotosAgentListOptions = FetchAgentsOptions;
+export type KivotosProject = WorkspaceProjectDescriptorPayload;
+export type KivotosProjectListOptions = Omit<ProjectListRequestMessage, "type" | "requestId"> & {
   requestId?: string;
 };
-export type PaseoProjectListResult = ProjectListResponseMessage["payload"];
-export type PaseoProjectUpdate = Extract<
+export type KivotosProjectListResult = ProjectListResponseMessage["payload"];
+export type KivotosProjectUpdate = Extract<
   SessionOutboundMessage,
   { type: "project.update" }
 >["payload"];
-export type PaseoProjectUpdateHandler = (update: PaseoProjectUpdate) => void;
+export type KivotosProjectUpdateHandler = (update: KivotosProjectUpdate) => void;
 
-export interface PaseoAgentListResult {
-  subscription?: OwnedSubscription<PaseoAgentListResult>;
+export interface KivotosAgentListResult {
+  subscription?: OwnedSubscription<KivotosAgentListResult>;
   requestId: string;
   subscriptionId?: string | null;
   entries: FetchAgentsEntry[];
   pageInfo: FetchAgentsPageInfo;
 }
-export type PaseoWorkspaceListOptions = Omit<
+export type KivotosWorkspaceListOptions = Omit<
   FetchWorkspacesRequestMessage,
   "type" | "requestId"
 > & {
   requestId?: string;
 };
 
-export interface PaseoWorkspaceListResult {
-  subscription?: OwnedSubscription<PaseoWorkspaceListResult>;
+export interface KivotosWorkspaceListResult {
+  subscription?: OwnedSubscription<KivotosWorkspaceListResult>;
   requestId: string;
   subscriptionId?: string | null;
-  entries: PaseoWorkspace[];
+  entries: KivotosWorkspace[];
   pageInfo: FetchWorkspacesResponseMessage["payload"]["pageInfo"];
 }
 
-export interface PaseoWorkspaceOpenOptions {
+export interface KivotosWorkspaceOpenOptions {
   cwd: string;
   requestId?: string;
 }
 
-export type PaseoWorkspaceCreateOptions = Omit<
+export type KivotosWorkspaceCreateOptions = Omit<
   WorkspaceCreateRequest,
   "type" | "requestId" | "agent" | "subscribe"
 > & {
   requestId?: string;
   agent?: Omit<
-    PaseoAgentCreateOptions,
+    KivotosAgentCreateOptions,
     "worktree" | "git" | "onEvent" | "idempotencyKey" | "requestId"
   >;
   onEvent?: (snapshot: CreationSnapshot) => void;
 };
 
-export interface PaseoWorkspaceArchiveResult {
+export interface KivotosWorkspaceArchiveResult {
   requestId: string;
   workspaceId: string;
   archivedAt: string | null;
   error: string | null;
 }
 
-export type PaseoWorkspaceUpdate = Extract<
+export type KivotosWorkspaceUpdate = Extract<
   SessionOutboundMessage,
   { type: "workspace_update" }
 >["payload"];
 
-export type PaseoWorkspaceUpdateHandler = (update: PaseoWorkspaceUpdate) => void;
+export type KivotosWorkspaceUpdateHandler = (update: KivotosWorkspaceUpdate) => void;
 
-export interface PaseoWorkspaceHandle {
+export interface KivotosWorkspaceHandle {
   readonly id: string;
   readonly projectId: string | null;
   readonly directory: string | null;
   readonly name: string | null;
-  readonly status: PaseoWorkspace["status"] | null;
+  readonly status: KivotosWorkspace["status"] | null;
   readonly agents: {
-    create(options: PaseoWorkspaceAgentCreateOptions): Promise<PaseoAgentHandle>;
+    create(options: KivotosWorkspaceAgentCreateOptions): Promise<KivotosAgentHandle>;
   };
-  readonly terminals: PaseoWorkspaceTerminalActions;
-  current(): PaseoWorkspace | null;
-  refresh(options?: { requestId?: string }): Promise<PaseoWorkspace | null>;
+  readonly terminals: KivotosWorkspaceTerminalActions;
+  current(): KivotosWorkspace | null;
+  refresh(options?: { requestId?: string }): Promise<KivotosWorkspace | null>;
   setTitle(title: string | null, requestId?: string): Promise<{ title: string | null }>;
-  archive(requestId?: string): Promise<PaseoWorkspaceArchiveResult>;
+  archive(requestId?: string): Promise<KivotosWorkspaceArchiveResult>;
   /**
    * Subscribes to already-emitted daemon workspace_update events for this id.
    * This returns a local unsubscribe function; it does not own app cache state or
    * send a daemon unsubscribe RPC. Call `workspaces.list({ subscribe: {} })` when
    * the daemon should start streaming workspace directory updates.
    */
-  subscribe(handler: (update: PaseoWorkspaceUpdate) => void): () => void;
+  subscribe(handler: (update: KivotosWorkspaceUpdate) => void): () => void;
 }
 
-export interface PaseoProjectActions {
-  list(options?: PaseoProjectListOptions): Promise<PaseoProjectListResult>;
-  subscribe(handler: PaseoProjectUpdateHandler): () => void;
+export interface KivotosProjectActions {
+  list(options?: KivotosProjectListOptions): Promise<KivotosProjectListResult>;
+  subscribe(handler: KivotosProjectUpdateHandler): () => void;
 }
 
-export interface PaseoWorkspaceActions {
-  list(options: PaseoWorkspaceListOptions & { subscribe: {} }): Promise<
-    PaseoWorkspaceListResult & {
+export interface KivotosWorkspaceActions {
+  list(options: KivotosWorkspaceListOptions & { subscribe: {} }): Promise<
+    KivotosWorkspaceListResult & {
       subscriptionId: string;
-      subscription: OwnedSubscription<PaseoWorkspaceListResult>;
+      subscription: OwnedSubscription<KivotosWorkspaceListResult>;
     }
   >;
-  list(options?: PaseoWorkspaceListOptions): Promise<PaseoWorkspaceListResult>;
-  ref(workspace: string | PaseoWorkspace): PaseoWorkspaceHandle;
+  list(options?: KivotosWorkspaceListOptions): Promise<KivotosWorkspaceListResult>;
+  ref(workspace: string | KivotosWorkspace): KivotosWorkspaceHandle;
   open(
-    input: string | PaseoWorkspaceOpenOptions,
+    input: string | KivotosWorkspaceOpenOptions,
     requestId?: string,
-  ): Promise<PaseoWorkspaceHandle>;
-  create(options: PaseoWorkspaceCreateOptions): Promise<PaseoWorkspaceHandle>;
+  ): Promise<KivotosWorkspaceHandle>;
+  create(options: KivotosWorkspaceCreateOptions): Promise<KivotosWorkspaceHandle>;
   archive(
-    workspace: string | PaseoWorkspaceHandle,
+    workspace: string | KivotosWorkspaceHandle,
     requestId?: string,
-  ): Promise<PaseoWorkspaceArchiveResult>;
+  ): Promise<KivotosWorkspaceArchiveResult>;
   /**
    * Local event subscription over the low-level driver's workspace_update stream.
    * The returned function only removes this SDK listener.
    */
-  subscribe(handler: PaseoWorkspaceUpdateHandler): () => void;
+  subscribe(handler: KivotosWorkspaceUpdateHandler): () => void;
 }
 
-type PaseoAgentSessionConfig = CreateAgentRequestMessage["config"];
-export type PaseoAgentProvider = PaseoAgentSessionConfig["provider"];
+type KivotosAgentSessionConfig = CreateAgentRequestMessage["config"];
+export type KivotosAgentProvider = KivotosAgentSessionConfig["provider"];
 
-export type PaseoProviderFeatureValues = Record<string, unknown>;
+export type KivotosProviderFeatureValues = Record<string, unknown>;
 
-export interface PaseoAgentConfig {
+export interface KivotosAgentConfig {
   /** Provider and model in `provider/model` format. */
   provider: string;
-  modeId?: PaseoAgentSessionConfig["modeId"];
-  thinkingOptionId?: PaseoAgentSessionConfig["thinkingOptionId"];
-  featureValues?: PaseoProviderFeatureValues;
+  modeId?: KivotosAgentSessionConfig["modeId"];
+  thinkingOptionId?: KivotosAgentSessionConfig["thinkingOptionId"];
+  featureValues?: KivotosProviderFeatureValues;
   /** JSON-safe provider-native settings, validated by the selected provider. */
-  options?: PaseoAgentSessionConfig["providerOptions"];
-  systemPrompt?: PaseoAgentSessionConfig["systemPrompt"];
-  toolPolicy?: PaseoAgentSessionConfig["toolPolicy"];
-  mcpServers?: PaseoAgentSessionConfig["mcpServers"];
+  options?: KivotosAgentSessionConfig["providerOptions"];
+  systemPrompt?: KivotosAgentSessionConfig["systemPrompt"];
+  toolPolicy?: KivotosAgentSessionConfig["toolPolicy"];
+  mcpServers?: KivotosAgentSessionConfig["mcpServers"];
 }
 
-export interface PaseoAgentCreateOptions {
+export interface KivotosAgentCreateOptions {
   idempotencyKey?: string;
   agentId?: string;
   onEvent?: (snapshot: CreationSnapshot) => void;
-  config: PaseoAgentConfig;
+  config: KivotosAgentConfig;
   cwd: string;
-  parent?: string | PaseoAgentHandle;
-  title?: PaseoAgentSessionConfig["title"];
+  parent?: string | KivotosAgentHandle;
+  title?: KivotosAgentSessionConfig["title"];
   env?: CreateAgentRequestMessage["env"];
   prompt?: string;
   clientMessageId?: string;
@@ -261,14 +261,14 @@ export interface PaseoAgentCreateOptions {
   labels?: Record<string, string>;
 }
 
-export type PaseoWorkspaceAgentCreateOptions = Omit<PaseoAgentCreateOptions, "cwd">;
+export type KivotosWorkspaceAgentCreateOptions = Omit<KivotosAgentCreateOptions, "cwd">;
 
-export interface PaseoAgentRefetchResult {
-  agent: PaseoAgent;
+export interface KivotosAgentRefetchResult {
+  agent: KivotosAgent;
   project: ProjectPlacementPayload | null;
 }
 
-export interface PaseoAgentTimelineRefetchOptions {
+export interface KivotosAgentTimelineRefetchOptions {
   direction?: FetchAgentTimelineDirection;
   cursor?: FetchAgentTimelineCursor;
   limit?: number;
@@ -276,34 +276,34 @@ export interface PaseoAgentTimelineRefetchOptions {
   requestId?: string;
 }
 
-export type PaseoAgentSendOptions = SendMessageOptions;
+export type KivotosAgentSendOptions = SendMessageOptions;
 
-export interface PaseoAgentRunOptions extends PaseoAgentSendOptions {
+export interface KivotosAgentRunOptions extends KivotosAgentSendOptions {
   timeoutMs?: number;
 }
 
-export type PaseoAgentRunResult = WaitForFinishResult;
-export type PaseoAgentPermissionResponse = AgentPermissionResponse;
+export type KivotosAgentRunResult = WaitForFinishResult;
+export type KivotosAgentPermissionResponse = AgentPermissionResponse;
 
-export interface PaseoAgentRespondToPermissionOptions {
+export interface KivotosAgentRespondToPermissionOptions {
   requestId: string;
-  response: PaseoAgentPermissionResponse;
+  response: KivotosAgentPermissionResponse;
 }
 
-export interface PaseoAgentCommandsOptions {
+export interface KivotosAgentCommandsOptions {
   requestId?: string;
 }
 
-export type PaseoAgentCommandsResult = ListCommandsResponse["payload"];
+export type KivotosAgentCommandsResult = ListCommandsResponse["payload"];
 
-export type PaseoAgentUpdate = Extract<SessionOutboundMessage, { type: "agent_update" }>["payload"];
+export type KivotosAgentUpdate = Extract<SessionOutboundMessage, { type: "agent_update" }>["payload"];
 
-export type PaseoAgentStream = Extract<SessionOutboundMessage, { type: "agent_stream" }>["payload"];
+export type KivotosAgentStream = Extract<SessionOutboundMessage, { type: "agent_stream" }>["payload"];
 
-export type PaseoAgentUpdateHandler = (update: PaseoAgentUpdate) => void;
+export type KivotosAgentUpdateHandler = (update: KivotosAgentUpdate) => void;
 
-export type PaseoAgentTimelineEvent =
-  | PaseoAgentStream
+export type KivotosAgentTimelineEvent =
+  | KivotosAgentStream
   | {
       agentId: string;
       event: { type: "replacement"; epoch: string };
@@ -315,16 +315,16 @@ export type PaseoAgentTimelineEvent =
     }
   | { agentId: string; event: { type: "error"; error: string } };
 
-export type PaseoAgentTimelineSubscription = ReturnType<DaemonClient["subscribeAgentTimeline"]>;
+export type KivotosAgentTimelineSubscription = ReturnType<DaemonClient["subscribeAgentTimeline"]>;
 
-export interface PaseoAgentTimelineHandle {
+export interface KivotosAgentTimelineHandle {
   append(item: Omit<PluginTimelineItem, "pluginId">): Promise<{ seq: number; epoch: string }>;
   /**
    * Fetches a fresh timeline page through the existing daemon RPC. If the daemon
    * includes an agent snapshot in the response, the parent handle is updated to
    * that value.
    */
-  refetch(options?: PaseoAgentTimelineRefetchOptions): Promise<FetchAgentTimelinePayload>;
+  refetch(options?: KivotosAgentTimelineRefetchOptions): Promise<FetchAgentTimelinePayload>;
   /**
    * Delivers live events only. After reconnect, subscription_restored precedes
    * subsequent updates. History may have been missed; use refetch() to request
@@ -333,10 +333,10 @@ export interface PaseoAgentTimelineHandle {
    * Await the returned unsubscribe function's `ready` promise before starting
    * work that must be observed. It rejects if establishment fails.
    */
-  subscribe(handler: (event: PaseoAgentTimelineEvent) => void): PaseoAgentTimelineSubscription;
+  subscribe(handler: (event: KivotosAgentTimelineEvent) => void): KivotosAgentTimelineSubscription;
 }
 
-export interface PaseoAgentHandle {
+export interface KivotosAgentHandle {
   readonly id: string;
   /**
    * `workspaceId` through `archivedAt` mirror the last snapshot this handle
@@ -347,25 +347,25 @@ export interface PaseoAgentHandle {
    */
   readonly workspaceId: string | null;
   readonly cwd: string | null;
-  readonly status: PaseoAgent["status"] | null;
-  readonly capabilities: PaseoAgent["capabilities"] | null;
-  readonly availableModes: PaseoAgent["availableModes"] | null;
-  readonly pendingPermissions: PaseoAgent["pendingPermissions"] | null;
-  readonly activeTurn: NonNullable<PaseoAgent["activeTurn"]> | null;
-  readonly lastUsage: NonNullable<PaseoAgent["lastUsage"]> | null;
-  readonly lastError: NonNullable<PaseoAgent["lastError"]> | null;
-  readonly features: NonNullable<PaseoAgent["features"]> | null;
-  readonly runtimeInfo: NonNullable<PaseoAgent["runtimeInfo"]> | null;
-  readonly archivedAt: NonNullable<PaseoAgent["archivedAt"]> | null;
-  readonly timeline: PaseoAgentTimelineHandle;
-  current(): PaseoAgent | null;
-  refresh(requestId?: string): Promise<PaseoAgentRefetchResult | null>;
-  send(text: string, options?: PaseoAgentSendOptions): Promise<void>;
-  respondToPermission(options: PaseoAgentRespondToPermissionOptions): Promise<void>;
+  readonly status: KivotosAgent["status"] | null;
+  readonly capabilities: KivotosAgent["capabilities"] | null;
+  readonly availableModes: KivotosAgent["availableModes"] | null;
+  readonly pendingPermissions: KivotosAgent["pendingPermissions"] | null;
+  readonly activeTurn: NonNullable<KivotosAgent["activeTurn"]> | null;
+  readonly lastUsage: NonNullable<KivotosAgent["lastUsage"]> | null;
+  readonly lastError: NonNullable<KivotosAgent["lastError"]> | null;
+  readonly features: NonNullable<KivotosAgent["features"]> | null;
+  readonly runtimeInfo: NonNullable<KivotosAgent["runtimeInfo"]> | null;
+  readonly archivedAt: NonNullable<KivotosAgent["archivedAt"]> | null;
+  readonly timeline: KivotosAgentTimelineHandle;
+  current(): KivotosAgent | null;
+  refresh(requestId?: string): Promise<KivotosAgentRefetchResult | null>;
+  send(text: string, options?: KivotosAgentSendOptions): Promise<void>;
+  respondToPermission(options: KivotosAgentRespondToPermissionOptions): Promise<void>;
   /** Sends a prompt and resolves when that turn finishes or needs attention. */
-  run(text: string, options?: PaseoAgentRunOptions): Promise<PaseoAgentRunResult>;
+  run(text: string, options?: KivotosAgentRunOptions): Promise<KivotosAgentRunResult>;
   /** Waits for the current turn, including one started with `prompt`. */
-  waitForFinish(timeoutMs?: number): Promise<PaseoAgentRunResult>;
+  waitForFinish(timeoutMs?: number): Promise<KivotosAgentRunResult>;
   /**
    * Asks the running session for the slash commands and skills it actually
    * loaded. Providers answer from the live session, so this sees built-in and
@@ -373,95 +373,95 @@ export interface PaseoAgentHandle {
    * `error` string; a provider that cannot answer reports it there rather than
    * rejecting.
    */
-  commands(options?: PaseoAgentCommandsOptions): Promise<PaseoAgentCommandsResult>;
+  commands(options?: KivotosAgentCommandsOptions): Promise<KivotosAgentCommandsResult>;
   archive(): Promise<{ archivedAt: string }>;
   detach(): Promise<void>;
-  subscribe(handler: (update: PaseoAgentUpdate) => void): () => void;
+  subscribe(handler: (update: KivotosAgentUpdate) => void): () => void;
 }
 
-export interface PaseoAgentActions {
-  list(options: PaseoAgentListOptions & { subscribe: {} }): Promise<
-    PaseoAgentListResult & {
+export interface KivotosAgentActions {
+  list(options: KivotosAgentListOptions & { subscribe: {} }): Promise<
+    KivotosAgentListResult & {
       subscriptionId: string;
-      subscription: OwnedSubscription<PaseoAgentListResult>;
+      subscription: OwnedSubscription<KivotosAgentListResult>;
     }
   >;
-  list(options?: PaseoAgentListOptions): Promise<PaseoAgentListResult>;
-  ref(agent: string | PaseoAgent): PaseoAgentHandle;
-  create(options: PaseoAgentCreateOptions): Promise<PaseoAgentHandle>;
+  list(options?: KivotosAgentListOptions): Promise<KivotosAgentListResult>;
+  ref(agent: string | KivotosAgent): KivotosAgentHandle;
+  create(options: KivotosAgentCreateOptions): Promise<KivotosAgentHandle>;
   /**
    * Local event subscription over the low-level driver's agent_update stream.
    * The returned function only removes this SDK listener.
    */
-  subscribe(handler: PaseoAgentUpdateHandler): () => void;
+  subscribe(handler: KivotosAgentUpdateHandler): () => void;
 }
 
-export type PaseoProviderModelsResult = ListProviderModelsResponseMessage["payload"];
-export type PaseoProviderModesResult = ListProviderModesResponseMessage["payload"];
-type PaseoProviderFeaturesDraft = ListProviderFeaturesRequestMessage["draftConfig"];
-export interface PaseoProviderFeaturesInput extends Omit<
-  PaseoProviderFeaturesDraft,
+export type KivotosProviderModelsResult = ListProviderModelsResponseMessage["payload"];
+export type KivotosProviderModesResult = ListProviderModesResponseMessage["payload"];
+type KivotosProviderFeaturesDraft = ListProviderFeaturesRequestMessage["draftConfig"];
+export interface KivotosProviderFeaturesInput extends Omit<
+  KivotosProviderFeaturesDraft,
   "provider" | "model"
 > {
   /** Provider and model in `provider/model` format. */
   provider: string;
 }
-export type PaseoProviderFeaturesResult = ListProviderFeaturesResponseMessage["payload"];
-export type PaseoProviderAvailabilityResult = ListAvailableProvidersResponse["payload"];
-export type PaseoProviderSnapshotResult = GetProvidersSnapshotResponseMessage["payload"];
-export type PaseoProviderSnapshotUpdate = Extract<
+export type KivotosProviderFeaturesResult = ListProviderFeaturesResponseMessage["payload"];
+export type KivotosProviderAvailabilityResult = ListAvailableProvidersResponse["payload"];
+export type KivotosProviderSnapshotResult = GetProvidersSnapshotResponseMessage["payload"];
+export type KivotosProviderSnapshotUpdate = Extract<
   SessionOutboundMessage,
   { type: "providers_snapshot_update" }
 >["payload"];
-export type PaseoProviderRefreshResult = RefreshProvidersSnapshotResponseMessage["payload"];
-export type PaseoProviderDiagnosticResult = ProviderDiagnosticResponseMessage["payload"];
-export type PaseoProviderUsageResult = ProviderUsageListResponseMessage["payload"];
-export interface PaseoProviderUsageOptions {
+export type KivotosProviderRefreshResult = RefreshProvidersSnapshotResponseMessage["payload"];
+export type KivotosProviderDiagnosticResult = ProviderDiagnosticResponseMessage["payload"];
+export type KivotosProviderUsageResult = ProviderUsageListResponseMessage["payload"];
+export interface KivotosProviderUsageOptions {
   requestId?: string;
 }
 
-export interface PaseoProviderListOptions {
+export interface KivotosProviderListOptions {
   cwd?: string;
   requestId?: string;
 }
 
-export interface PaseoProviderRefreshOptions {
+export interface KivotosProviderRefreshOptions {
   cwd?: string;
-  providers?: PaseoAgentProvider[];
+  providers?: KivotosAgentProvider[];
   requestId?: string;
 }
 
-export interface PaseoProviderWaitOptions extends PaseoProviderListOptions {
+export interface KivotosProviderWaitOptions extends KivotosProviderListOptions {
   timeoutMs?: number;
 }
 
-export interface PaseoProviderActions {
+export interface KivotosProviderActions {
   listModels(
-    provider: PaseoAgentProvider,
-    options?: PaseoProviderListOptions,
-  ): Promise<PaseoProviderModelsResult>;
+    provider: KivotosAgentProvider,
+    options?: KivotosProviderListOptions,
+  ): Promise<KivotosProviderModelsResult>;
   listModes(
-    provider: PaseoAgentProvider,
-    options?: PaseoProviderListOptions,
-  ): Promise<PaseoProviderModesResult>;
+    provider: KivotosAgentProvider,
+    options?: KivotosProviderListOptions,
+  ): Promise<KivotosProviderModesResult>;
   listFeatures(
-    draftConfig: PaseoProviderFeaturesInput,
+    draftConfig: KivotosProviderFeaturesInput,
     options?: { requestId?: string },
-  ): Promise<PaseoProviderFeaturesResult>;
-  listAvailable(options?: { requestId?: string }): Promise<PaseoProviderAvailabilityResult>;
-  snapshot(options?: PaseoProviderListOptions): Promise<PaseoProviderSnapshotResult>;
+  ): Promise<KivotosProviderFeaturesResult>;
+  listAvailable(options?: { requestId?: string }): Promise<KivotosProviderAvailabilityResult>;
+  snapshot(options?: KivotosProviderListOptions): Promise<KivotosProviderSnapshotResult>;
   /** Resolves after the daemon's lazy provider discovery has finished. */
-  waitForReady(options?: PaseoProviderWaitOptions): Promise<PaseoProviderSnapshotResult>;
-  refresh(options?: PaseoProviderRefreshOptions): Promise<PaseoProviderRefreshResult>;
+  waitForReady(options?: KivotosProviderWaitOptions): Promise<KivotosProviderSnapshotResult>;
+  refresh(options?: KivotosProviderRefreshOptions): Promise<KivotosProviderRefreshResult>;
   diagnostic(
-    provider: PaseoAgentProvider,
+    provider: KivotosAgentProvider,
     options?: { requestId?: string },
-  ): Promise<PaseoProviderDiagnosticResult>;
-  listUsage(options?: PaseoProviderUsageOptions): Promise<PaseoProviderUsageResult>;
-  subscribe(handler: (update: PaseoProviderSnapshotUpdate) => void): () => void;
+  ): Promise<KivotosProviderDiagnosticResult>;
+  listUsage(options?: KivotosProviderUsageOptions): Promise<KivotosProviderUsageResult>;
+  subscribe(handler: (update: KivotosProviderSnapshotUpdate) => void): () => void;
 }
 
-export interface PaseoConfigActions {
+export interface KivotosConfigActions {
   /**
    * Reads daemon config through the existing config RPC. Provider profiles,
    * custom provider entries, keys/env, custom binaries, and provider enablement
@@ -481,31 +481,31 @@ export interface PaseoConfigActions {
   ): Promise<{ requestId: string; config: MutableDaemonConfig }>;
 }
 
-export interface PaseoApi {
+export interface KivotosApi {
   dispose(): Promise<void>;
   observeEvents: DaemonClient["observeEvents"];
-  readonly terminals: PaseoTerminalActions;
-  readonly workspaces: PaseoWorkspaceActions;
-  readonly projects: PaseoProjectActions;
-  readonly agents: PaseoAgentActions;
-  readonly providers: PaseoProviderActions;
-  readonly config: PaseoConfigActions;
+  readonly terminals: KivotosTerminalActions;
+  readonly workspaces: KivotosWorkspaceActions;
+  readonly projects: KivotosProjectActions;
+  readonly agents: KivotosAgentActions;
+  readonly providers: KivotosProviderActions;
+  readonly config: KivotosConfigActions;
 }
 
-export interface PaseoClient extends PaseoApi {
+export interface KivotosClient extends KivotosApi {
   connect(): Promise<void>;
   close(): Promise<void>;
   ensureConnected(): void;
   getConnectionState(): ConnectionState;
 }
 
-export function createPaseoClient(config: PaseoClientConfig): PaseoClient {
+export function createKivotosClient(config: KivotosClientConfig): KivotosClient {
   const daemonClient = new DaemonClient({
     ...config,
     clientId: config.clientId ?? createGeneratedClientId(),
     clientType: "cli",
   });
-  const api = createPaseoApi(daemonClient);
+  const api = createKivotosApi(daemonClient);
   return {
     ...api,
     connect: () => daemonClient.connect(),
@@ -522,7 +522,7 @@ export function createPaseoClient(config: PaseoClientConfig): PaseoClient {
 }
 
 function toDaemonAgentCreateOptions(
-  options: PaseoAgentCreateOptions,
+  options: KivotosAgentCreateOptions,
   placement?: { workspaceId: string; cwd: string },
 ): CreateAgentRequestOptions {
   const { config: agentConfig, cwd, parent, title, prompt, ...requestOptions } = options;
@@ -544,16 +544,16 @@ function toDaemonAgentCreateOptions(
   };
 }
 
-export function createPaseoApi(
+export function createKivotosApi(
   daemonClient: DaemonClient,
   scopeOptions?: { signal?: AbortSignal },
-): PaseoApi {
+): KivotosApi {
   const handles = new Set<{ release(): Promise<void> }>();
-  const agentListeners = new Set<PaseoAgentUpdateHandler>();
-  const workspaceListeners = new Set<PaseoWorkspaceUpdateHandler>();
+  const agentListeners = new Set<KivotosAgentUpdateHandler>();
+  const workspaceListeners = new Set<KivotosWorkspaceUpdateHandler>();
   const lifetime = new AbortController();
   const own = <T extends { release(): Promise<void> }>(create: () => T): T => {
-    if (lifetime.signal.aborted) throw new Error("Paseo API is disposed");
+    if (lifetime.signal.aborted) throw new Error("Kivotos API is disposed");
     const handle = create();
     handles.add(handle);
     const release = handle.release.bind(handle);
@@ -563,15 +563,15 @@ export function createPaseoApi(
     };
     return handle;
   };
-  const listenAgents = (handler: PaseoAgentUpdateHandler) => {
-    if (lifetime.signal.aborted) throw new Error("Paseo API is disposed");
+  const listenAgents = (handler: KivotosAgentUpdateHandler) => {
+    if (lifetime.signal.aborted) throw new Error("Kivotos API is disposed");
     agentListeners.add(handler);
     return () => {
       agentListeners.delete(handler);
     };
   };
-  const listenWorkspaces = (handler: PaseoWorkspaceUpdateHandler) => {
-    if (lifetime.signal.aborted) throw new Error("Paseo API is disposed");
+  const listenWorkspaces = (handler: KivotosWorkspaceUpdateHandler) => {
+    if (lifetime.signal.aborted) throw new Error("Kivotos API is disposed");
     workspaceListeners.add(handler);
     return () => {
       workspaceListeners.delete(handler);
@@ -583,7 +583,7 @@ export function createPaseoApi(
     (agentId, handler) => own(() => daemonClient.subscribeAgentTimeline(agentId, handler)),
   );
   const createAgent = async (
-    options: PaseoAgentCreateOptions,
+    options: KivotosAgentCreateOptions,
     placement?: { workspaceId: string; cwd: string },
   ) => {
     const agent = await daemonClient.createAgent(toDaemonAgentCreateOptions(options, placement));
@@ -645,16 +645,16 @@ export function createPaseoApi(
     };
   };
 
-  function listWorkspaces(options: PaseoWorkspaceListOptions & { subscribe: {} }): Promise<
-    PaseoWorkspaceListResult & {
+  function listWorkspaces(options: KivotosWorkspaceListOptions & { subscribe: {} }): Promise<
+    KivotosWorkspaceListResult & {
       subscriptionId: string;
-      subscription: OwnedSubscription<PaseoWorkspaceListResult>;
+      subscription: OwnedSubscription<KivotosWorkspaceListResult>;
     }
   >;
-  function listWorkspaces(options?: PaseoWorkspaceListOptions): Promise<PaseoWorkspaceListResult>;
+  function listWorkspaces(options?: KivotosWorkspaceListOptions): Promise<KivotosWorkspaceListResult>;
   async function listWorkspaces(
-    options?: PaseoWorkspaceListOptions,
-  ): Promise<PaseoWorkspaceListResult> {
+    options?: KivotosWorkspaceListOptions,
+  ): Promise<KivotosWorkspaceListResult> {
     if (!options?.subscribe) return daemonClient.fetchWorkspaces(options);
     if (options.subscribe.subscriptionId !== undefined)
       throw new Error("Subscription IDs are assigned by the host");
@@ -669,14 +669,14 @@ export function createPaseoApi(
     return { ...(await subscription.ready), subscription };
   }
 
-  function listAgents(options: PaseoAgentListOptions & { subscribe: {} }): Promise<
-    PaseoAgentListResult & {
+  function listAgents(options: KivotosAgentListOptions & { subscribe: {} }): Promise<
+    KivotosAgentListResult & {
       subscriptionId: string;
-      subscription: OwnedSubscription<PaseoAgentListResult>;
+      subscription: OwnedSubscription<KivotosAgentListResult>;
     }
   >;
-  function listAgents(options?: PaseoAgentListOptions): Promise<PaseoAgentListResult>;
-  async function listAgents(options?: PaseoAgentListOptions): Promise<PaseoAgentListResult> {
+  function listAgents(options?: KivotosAgentListOptions): Promise<KivotosAgentListResult>;
+  async function listAgents(options?: KivotosAgentListOptions): Promise<KivotosAgentListResult> {
     if (!options?.subscribe) return daemonClient.fetchAgents(options);
     if (options.subscribe.subscriptionId !== undefined)
       throw new Error("Subscription IDs are assigned by the host");
@@ -760,18 +760,18 @@ export function createPaseoApi(
   };
 }
 
-type WorkspaceHandleFactory = (workspace: string | PaseoWorkspace) => PaseoWorkspaceHandle;
-type AgentHandleFactory = (agent: string | PaseoAgent) => PaseoAgentHandle;
+type WorkspaceHandleFactory = (workspace: string | KivotosWorkspace) => KivotosWorkspaceHandle;
+type AgentHandleFactory = (agent: string | KivotosAgent) => KivotosAgentHandle;
 type CreateAgent = (
-  options: PaseoAgentCreateOptions,
+  options: KivotosAgentCreateOptions,
   placement?: { workspaceId: string; cwd: string },
-) => Promise<PaseoAgentHandle>;
+) => Promise<KivotosAgentHandle>;
 
 function createWorkspaceHandleFactory(
   daemonClient: DaemonClient,
   createAgent: CreateAgent,
-  terminals: PaseoTerminalActions,
-  listen: (handler: PaseoWorkspaceUpdateHandler) => () => void,
+  terminals: KivotosTerminalActions,
+  listen: (handler: KivotosWorkspaceUpdateHandler) => () => void,
 ): WorkspaceHandleFactory {
   return (workspace) => {
     const id = typeof workspace === "string" ? workspace : workspace.id;
@@ -853,14 +853,14 @@ function createWorkspaceHandleFactory(
 
 function createAgentHandleFactory(
   daemonClient: DaemonClient,
-  listen: (handler: PaseoAgentUpdateHandler) => () => void,
+  listen: (handler: KivotosAgentUpdateHandler) => () => void,
   subscribeTimeline: DaemonClient["subscribeAgentTimeline"],
 ): AgentHandleFactory {
   return (agent) => {
     const id = typeof agent === "string" ? agent : agent.id;
     let current = typeof agent === "string" ? null : agent;
 
-    const handle: PaseoAgentHandle = {
+    const handle: KivotosAgentHandle = {
       id,
       timeline: {
         append: (item) => daemonClient.appendAgentTimelineItem(id, item),
@@ -995,9 +995,9 @@ function createAgentHandleFactory(
 async function openWorkspace(
   daemonClient: DaemonClient,
   createWorkspaceHandle: WorkspaceHandleFactory,
-  input: string | PaseoWorkspaceOpenOptions,
+  input: string | KivotosWorkspaceOpenOptions,
   requestId?: string,
-): Promise<PaseoWorkspaceHandle> {
+): Promise<KivotosWorkspaceHandle> {
   const options = typeof input === "string" ? { cwd: input, requestId } : input;
   const result = await daemonClient.openProject(options.cwd, options.requestId);
   if (result.error || !result.workspace) {
@@ -1006,11 +1006,11 @@ async function openWorkspace(
   return createWorkspaceHandle(result.workspace);
 }
 
-function resolveWorkspaceId(workspace: string | PaseoWorkspaceHandle): string {
+function resolveWorkspaceId(workspace: string | KivotosWorkspaceHandle): string {
   return typeof workspace === "string" ? workspace : workspace.id;
 }
 
-function resolveAgentId(agent: string | PaseoAgentHandle): string {
+function resolveAgentId(agent: string | KivotosAgentHandle): string {
   return typeof agent === "string" ? agent : agent.id;
 }
 
@@ -1027,8 +1027,8 @@ function parseProviderModel(selection: string): { provider: string; model: strin
 
 function listProviderUsage(
   daemonClient: DaemonClient,
-  options?: PaseoProviderUsageOptions,
-): Promise<PaseoProviderUsageResult> {
+  options?: KivotosProviderUsageOptions,
+): Promise<KivotosProviderUsageResult> {
   // COMPAT(providerUsageList): added in v0.1.98, remove after 2027-02-28 once daemon floor >= v0.1.98.
   if (daemonClient.getLastServerInfoMessage()?.features?.providerUsageList !== true) {
     return Promise.reject(new Error("Update the host to list provider usage."));
@@ -1040,26 +1040,26 @@ async function waitForProvidersReady(
   daemonClient: DaemonClient,
   observation: ReturnType<DaemonClient["observeEvents"]>,
   signal: AbortSignal,
-  options: PaseoProviderWaitOptions = {},
-): Promise<PaseoProviderSnapshotResult> {
+  options: KivotosProviderWaitOptions = {},
+): Promise<KivotosProviderSnapshotResult> {
   const { timeoutMs = 60_000, ...snapshotOptions } = options;
 
   try {
     await observation.ready;
     signal.throwIfAborted();
-    return await new Promise<PaseoProviderSnapshotResult>((resolve, reject) => {
+    return await new Promise<KivotosProviderSnapshotResult>((resolve, reject) => {
       let settled = false;
       let requestId: string | null = null;
       let snapshotCwd: string | undefined;
-      const pendingUpdates = new Map<string | undefined, PaseoProviderSnapshotUpdate>();
-      let latestEntries: PaseoProviderSnapshotResult["entries"] = [];
+      const pendingUpdates = new Map<string | undefined, KivotosProviderSnapshotUpdate>();
+      let latestEntries: KivotosProviderSnapshotResult["entries"] = [];
 
       const cleanup = () => {
         clearTimeout(timeout);
         unsubscribe();
         signal.removeEventListener("abort", abort);
       };
-      const finish = (snapshot: PaseoProviderSnapshotResult) => {
+      const finish = (snapshot: KivotosProviderSnapshotResult) => {
         if (settled) return;
         settled = true;
         cleanup();
@@ -1071,7 +1071,7 @@ async function waitForProvidersReady(
         cleanup();
         reject(error instanceof Error ? error : new Error(String(error)));
       };
-      const updateMatches = (update: PaseoProviderSnapshotUpdate) => update.cwd === snapshotCwd;
+      const updateMatches = (update: KivotosProviderSnapshotUpdate) => update.cwd === snapshotCwd;
 
       const unsubscribe = observation.subscribe({
         snapshot: () => {},
@@ -1088,7 +1088,7 @@ async function waitForProvidersReady(
           finish({ ...update, requestId });
         },
       });
-      const abort = () => fail(new Error("Paseo API is disposed"));
+      const abort = () => fail(new Error("Kivotos API is disposed"));
       signal.addEventListener("abort", abort, { once: true });
 
       const timeout = setTimeout(() => {
@@ -1133,5 +1133,5 @@ function createGeneratedClientId(): string {
     typeof globalThis.crypto?.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
       : Math.random().toString(36).slice(2);
-  return `paseo-sdk-${randomId}`;
+  return `kivotos-sdk-${randomId}`;
 }

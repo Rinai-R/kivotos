@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { resolve as resolvePath } from "node:path";
 import type { Logger } from "pino";
-import type { JsonValue } from "@getpaseo/protocol/agent-types";
+import type { JsonValue } from "@kivotos/protocol/agent-types";
 import { z } from "zod";
 import {
   PROVIDER_CAPABILITIES,
@@ -25,7 +25,7 @@ import {
   type ProviderSessionConfig,
   type ProviderContent,
   type ProviderTimelineItem,
-} from "@getpaseo/plugin/server/provider";
+} from "@kivotos/plugin/server/provider";
 import type {
   AgentCapabilityFlags,
   AgentClient,
@@ -1585,7 +1585,7 @@ function agentCapabilities(capabilities: readonly string[]): AgentCapabilityFlag
     supportsSessionListing: supports("session.list"),
     supportsDynamicModes: supports("session.configure"),
     supportsMcpServers: true,
-    supportsNativePaseoTools: false,
+    supportsNativeKivotosTools: false,
     supportsReasoningStream: true,
     supportsToolInvocations: true,
     supportsRewindConversation: supports("session.revert.conversation"),

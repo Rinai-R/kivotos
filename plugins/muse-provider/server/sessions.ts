@@ -3,7 +3,7 @@ import type {
   ProviderInput,
   ProviderLaunch,
   ProviderSessionSummary,
-} from "@getpaseo/plugin/server/provider";
+} from "@kivotos/plugin/server/provider";
 import { MspConnection } from "./connection.js";
 import { sessionListSchema } from "./wire.js";
 

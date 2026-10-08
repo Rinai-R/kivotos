@@ -1,11 +1,11 @@
-import type { AgentModelDefinition, ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
-import { normalizeAgentModelDefinition } from "@getpaseo/protocol/agent-types";
-import { expandProviderSnapshot } from "@getpaseo/protocol/provider-snapshot-codec";
+import type { AgentModelDefinition, ProviderSnapshotEntry } from "@kivotos/protocol/agent-types";
+import { normalizeAgentModelDefinition } from "@kivotos/protocol/agent-types";
+import { expandProviderSnapshot } from "@kivotos/protocol/provider-snapshot-codec";
 import type {
   GetProvidersSnapshotResponseMessage,
   ListProviderModelsResponseMessage,
   SessionOutboundMessage,
-} from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/messages";
 
 type ListProviderModelsPayload = ListProviderModelsResponseMessage["payload"];
 type GetProvidersSnapshotPayload = GetProvidersSnapshotResponseMessage["payload"];

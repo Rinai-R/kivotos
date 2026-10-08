@@ -9,18 +9,18 @@ import {
   type DaemonTransport,
   type Logger,
 } from "./daemon-client";
-import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
-import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@getpaseo/protocol/browser-automation/rpc-schemas";
+import { CLIENT_CAPS } from "@kivotos/protocol/client-capabilities";
+import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@kivotos/protocol/browser-automation/rpc-schemas";
 import {
   decodeFileTransferFrame,
   encodeFileTransferFrame,
   FileTransferOpcode,
-} from "@getpaseo/protocol/binary-frames/index";
+} from "@kivotos/protocol/binary-frames/index";
 import {
   encodeTerminalSnapshotPayload,
   encodeTerminalStreamFrame,
   TerminalStreamOpcode,
-} from "@getpaseo/protocol/terminal-stream-protocol";
+} from "@kivotos/protocol/terminal-stream-protocol";
 
 expectTypeOf<"getGitDiff" extends keyof DaemonClient ? true : false>().toEqualTypeOf<false>();
 expectTypeOf<
@@ -203,30 +203,30 @@ test("traces WebSocket frames, message types, and JSON parse duration", async ()
   expect(recorder.records).toEqual([
     {
       phase: "begin",
-      name: "paseo.ws.message.outbound",
+      name: "kivotos.ws.message.outbound",
       args: { envelopeType: "hello", messageType: "hello" },
     },
     { phase: "end" },
     {
       phase: "begin",
-      name: "paseo.ws.frame.outbound",
+      name: "kivotos.ws.frame.outbound",
       args: { kind: "text", size: expect.any(String) },
     },
     { phase: "end" },
     {
       phase: "begin",
-      name: "paseo.ws.frame.inbound",
+      name: "kivotos.ws.frame.inbound",
       args: { kind: "text", size: expect.any(String) },
     },
     {
       phase: "begin",
-      name: "paseo.ws.json.parse",
+      name: "kivotos.ws.json.parse",
       args: { size: expect.any(String) },
     },
     { phase: "end" },
     {
       phase: "begin",
-      name: "paseo.ws.message.inbound",
+      name: "kivotos.ws.message.inbound",
       args: { envelopeType: "session", messageType: "status" },
     },
     { phase: "end" },
@@ -237,7 +237,7 @@ test("traces WebSocket frames, message types, and JSON parse duration", async ()
 test("does not infer browser automation capabilities from Electron runtime", async () => {
   vi.stubGlobal("navigator", {
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Paseo/0.1.89 Chrome/146 Electron/41.2.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Kivotos/0.1.89 Chrome/146 Electron/41.2.0 Safari/537.36",
   });
   const mock = createMockTransport();
   const client = new DaemonClient({
@@ -335,7 +335,7 @@ test.each([
           mimeType: "application/github-pr",
           number: 123,
           title: "Review this PR",
-          url: "https://github.com/getpaseo/paseo/pull/123",
+          url: "https://github.com/getpaseo/kivotos/pull/123",
         },
       ],
       ...(structured ? { outputSchema: { type: "object" } } : {}),
@@ -780,7 +780,7 @@ test("dedupes in-flight checkout status requests per agentId", async () => {
         error: null,
         requestId: request.requestId,
         isGit: false,
-        isPaseoOwnedWorktree: false,
+        isKivotosOwnedWorktree: false,
         repoRoot: null,
         currentBranch: null,
         isDirty: null,
@@ -852,7 +852,7 @@ test("passes password as HTTP bearer header and WebSocket subprotocol", async ()
   expect(transportFactory).toHaveBeenCalledWith({
     url: "ws://test",
     headers: { Authorization: "Bearer shared-secret" },
-    protocols: ["paseo.bearer.shared-secret"],
+    protocols: ["kivotos.bearer.shared-secret"],
   });
 });
 
@@ -2895,7 +2895,7 @@ test("uploadFile sends metadata request and file bytes as binary chunks", async 
           fileName: "notes.txt",
           mimeType: "text/plain",
           size: 11,
-          path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
+          path: "/tmp/kivotos-uploads/upload_req-upload/notes.txt",
         },
         error: null,
       },
@@ -2910,7 +2910,7 @@ test("uploadFile sends metadata request and file bytes as binary chunks", async 
       fileName: "notes.txt",
       mimeType: "text/plain",
       size: 11,
-      path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
+      path: "/tmp/kivotos-uploads/upload_req-upload/notes.txt",
     },
     error: null,
   });
@@ -2946,14 +2946,14 @@ test("normalizes workspace_setup_progress into a workspace-scoped daemon event",
         status: "running",
         detail: {
           type: "worktree_setup",
-          worktreePath: "/tmp/project/.paseo/worktrees/feature-a",
+          worktreePath: "/tmp/project/.kivotos/worktrees/feature-a",
           branchName: "feature-a",
           log: "phase-one\n",
           commands: [
             {
               index: 1,
               command: "npm install",
-              cwd: "/tmp/project/.paseo/worktrees/feature-a",
+              cwd: "/tmp/project/.kivotos/worktrees/feature-a",
               log: "phase-one\n",
               status: "running",
               exitCode: null,
@@ -2973,14 +2973,14 @@ test("normalizes workspace_setup_progress into a workspace-scoped daemon event",
       status: "running",
       detail: {
         type: "worktree_setup",
-        worktreePath: "/tmp/project/.paseo/worktrees/feature-a",
+        worktreePath: "/tmp/project/.kivotos/worktrees/feature-a",
         branchName: "feature-a",
         log: "phase-one\n",
         commands: [
           {
             index: 1,
             command: "npm install",
-            cwd: "/tmp/project/.paseo/worktrees/feature-a",
+            cwd: "/tmp/project/.kivotos/worktrees/feature-a",
             log: "phase-one\n",
             status: "running",
             exitCode: null,
@@ -3012,7 +3012,7 @@ test("sends create_agent_request with workspace and caller identity", async () =
   const createPromise = client.createAgent({
     idempotencyKey: "one-creation",
     provider: "codex",
-    cwd: "/tmp/project/.paseo/worktrees/feature-a",
+    cwd: "/tmp/project/.kivotos/worktrees/feature-a",
     workspaceId: "ws-feature-a",
     callerAgentId: "parent-agent",
     title: "Compat agent",
@@ -3127,7 +3127,7 @@ test("sends structured attachments with create_agent_request", async () => {
         mimeType: "application/github-pr",
         number: 123,
         title: "Fix race in worktree setup",
-        url: "https://github.com/getpaseo/paseo/pull/123",
+        url: "https://github.com/getpaseo/kivotos/pull/123",
         baseRefName: "main",
         headRefName: "fix/worktree-race",
       },
@@ -3142,7 +3142,7 @@ test("sends structured attachments with create_agent_request", async () => {
       mimeType: "application/github-pr",
       number: 123,
       title: "Fix race in worktree setup",
-      url: "https://github.com/getpaseo/paseo/pull/123",
+      url: "https://github.com/getpaseo/kivotos/pull/123",
       baseRefName: "main",
       headRefName: "fix/worktree-race",
     },
@@ -3276,7 +3276,7 @@ test("omitting create_agent_request worktree base-ref fields preserves legacy wi
   await expect(createPromise).rejects.toThrow("legacy git shape sentinel");
 });
 
-test("sends structured first-agent context attachments with create_paseo_worktree_request", async () => {
+test("sends structured first-agent context attachments with create_kivotos_worktree_request", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();
 
@@ -3293,7 +3293,7 @@ test("sends structured first-agent context attachments with create_paseo_worktre
   mock.triggerOpen();
   await connectPromise;
 
-  const createPromise = client.createPaseoWorktree({
+  const createPromise = client.createKivotosWorktree({
     cwd: "/tmp/project",
     worktreeSlug: "review-pr-123",
     firstAgentContext: {
@@ -3303,7 +3303,7 @@ test("sends structured first-agent context attachments with create_paseo_worktre
           mimeType: "application/github-pr",
           number: 123,
           title: "Fix race in worktree setup",
-          url: "https://github.com/getpaseo/paseo/pull/123",
+          url: "https://github.com/getpaseo/kivotos/pull/123",
         },
       ],
     },
@@ -3320,13 +3320,13 @@ test("sends structured first-agent context attachments with create_paseo_worktre
       mimeType: "application/github-pr",
       number: 123,
       title: "Fix race in worktree setup",
-      url: "https://github.com/getpaseo/paseo/pull/123",
+      url: "https://github.com/getpaseo/kivotos/pull/123",
     },
   ]);
 
   mock.triggerMessage(
     wrapSessionMessage({
-      type: "create_paseo_worktree_response",
+      type: "create_kivotos_worktree_response",
       payload: {
         requestId: request.requestId,
         workspace: null,
@@ -3456,12 +3456,12 @@ test("searches GitHub repositories through the dotted RPC", async () => {
   await connectPromise;
 
   const searchPromise = client.searchGithubRepositories(
-    { query: "paseo", limit: 10 },
+    { query: "kivotos", limit: 10 },
     "req-repositories",
   );
   expect(parseSentFrame(mock.sent[0])).toEqual({
     type: "workspace.github.search_repositories.request",
-    query: "paseo",
+    query: "kivotos",
     limit: 10,
     requestId: "req-repositories",
   });
@@ -3474,13 +3474,13 @@ test("searches GitHub repositories through the dotted RPC", async () => {
         requestId: "req-repositories",
         repositories: [
           {
-            id: "R_paseo",
-            name: "paseo",
-            nameWithOwner: "getpaseo/paseo",
+            id: "R_kivotos",
+            name: "kivotos",
+            nameWithOwner: "getkivotos/kivotos",
             description: "Development environment in your pocket",
             visibility: "public",
             updatedAt: "2026-07-15T10:00:00Z",
-            cloneUrl: "git@github.com:getpaseo/paseo.git",
+            cloneUrl: "git@github.com:getkivotos/kivotos.git",
           },
         ],
         available: true,
@@ -3494,13 +3494,13 @@ test("searches GitHub repositories through the dotted RPC", async () => {
     requestId: "req-repositories",
     repositories: [
       {
-        id: "R_paseo",
-        name: "paseo",
-        nameWithOwner: "getpaseo/paseo",
+        id: "R_kivotos",
+        name: "kivotos",
+        nameWithOwner: "getkivotos/kivotos",
         description: "Development environment in your pocket",
         visibility: "public",
         updatedAt: "2026-07-15T10:00:00Z",
-        cloneUrl: "git@github.com:getpaseo/paseo.git",
+        cloneUrl: "git@github.com:getkivotos/kivotos.git",
       },
     ],
     available: true,
@@ -3677,7 +3677,7 @@ test("sends project.remove.request", async () => {
   await expect(removePromise).resolves.toEqual({ removedWorkspaceIds: ["ws-main"] });
 });
 
-test("sends worktree base-ref fields in create_paseo_worktree_request", async () => {
+test("sends worktree base-ref fields in create_kivotos_worktree_request", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();
 
@@ -3694,7 +3694,7 @@ test("sends worktree base-ref fields in create_paseo_worktree_request", async ()
   mock.triggerOpen();
   await connectPromise;
 
-  const createPromise = client.createPaseoWorktree(
+  const createPromise = client.createKivotosWorktree(
     {
       cwd: "/tmp/project",
       projectId: "remote:github.com/acme/project",
@@ -3709,7 +3709,7 @@ test("sends worktree base-ref fields in create_paseo_worktree_request", async ()
   expect(mock.sent).toHaveLength(1);
   const request = parseSentFrame(mock.sent[0]);
   expect(request).toEqual({
-    type: "create_paseo_worktree_request",
+    type: "create_kivotos_worktree_request",
     cwd: "/tmp/project",
     projectId: "remote:github.com/acme/project",
     worktreeSlug: "review-pr-123",
@@ -3721,7 +3721,7 @@ test("sends worktree base-ref fields in create_paseo_worktree_request", async ()
 
   mock.triggerMessage(
     wrapSessionMessage({
-      type: "create_paseo_worktree_response",
+      type: "create_kivotos_worktree_response",
       payload: {
         requestId: request.requestId,
         workspace: null,
@@ -3739,7 +3739,7 @@ test("sends worktree base-ref fields in create_paseo_worktree_request", async ()
   });
 });
 
-test("omitting create_paseo_worktree_request worktree base-ref fields preserves legacy wire shape", async () => {
+test("omitting create_kivotos_worktree_request worktree base-ref fields preserves legacy wire shape", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();
 
@@ -3756,7 +3756,7 @@ test("omitting create_paseo_worktree_request worktree base-ref fields preserves 
   mock.triggerOpen();
   await connectPromise;
 
-  const createPromise = client.createPaseoWorktree(
+  const createPromise = client.createKivotosWorktree(
     {
       cwd: "/tmp/project",
       worktreeSlug: "feature-a",
@@ -3768,7 +3768,7 @@ test("omitting create_paseo_worktree_request worktree base-ref fields preserves 
     JSON.stringify({
       type: "session",
       message: {
-        type: "create_paseo_worktree_request",
+        type: "create_kivotos_worktree_request",
         cwd: "/tmp/project",
         worktreeSlug: "feature-a",
         requestId: "req-worktree-legacy",
@@ -3778,7 +3778,7 @@ test("omitting create_paseo_worktree_request worktree base-ref fields preserves 
 
   mock.triggerMessage(
     wrapSessionMessage({
-      type: "create_paseo_worktree_response",
+      type: "create_kivotos_worktree_response",
       payload: {
         requestId: "req-worktree-legacy",
         workspace: null,
@@ -4330,7 +4330,7 @@ test("requests directory suggestions via RPC", async () => {
       message: {
         type: "directory_suggestions_response",
         payload: {
-          directories: ["/Users/test/projects/paseo"],
+          directories: ["/Users/test/projects/kivotos"],
           entries: [{ path: "README.md", kind: "file" }],
           error: null,
           requestId: "req-directories",
@@ -4340,7 +4340,7 @@ test("requests directory suggestions via RPC", async () => {
   );
 
   await expect(promise).resolves.toEqual({
-    directories: ["/Users/test/projects/paseo"],
+    directories: ["/Users/test/projects/kivotos"],
     entries: [{ path: "README.md", kind: "file" }],
     error: null,
     requestId: "req-directories",
@@ -4533,8 +4533,8 @@ test("requests GitHub check details via namespaced RPC", async () => {
   const promise = client.checkoutGithubGetCheckDetails(
     {
       cwd: "/tmp/project",
-      repoOwner: "getpaseo",
-      repoName: "paseo",
+      repoOwner: "getkivotos",
+      repoName: "kivotos",
       checkRunId: 12345,
       workflowRunId: 456,
     },
@@ -4546,8 +4546,8 @@ test("requests GitHub check details via namespaced RPC", async () => {
   expect(request).toMatchObject({
     type: "checkout.github.get_check_details.request",
     cwd: "/tmp/project",
-    repoOwner: "getpaseo",
-    repoName: "paseo",
+    repoOwner: "getkivotos",
+    repoName: "kivotos",
     checkRunId: 12345,
     workflowRunId: 456,
     requestId: "req-check-details",
@@ -7040,7 +7040,7 @@ test("uploadFile started while connecting waits for the connection and uploads",
     fileName: "notes.txt",
     mimeType: "text/plain",
     size: 11,
-    path: "/tmp/paseo-uploads/upload_req-upload-connecting/notes.txt",
+    path: "/tmp/kivotos-uploads/upload_req-upload-connecting/notes.txt",
   };
   mock.triggerMessage(
     wrapSessionMessage({

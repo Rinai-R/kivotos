@@ -1,4 +1,4 @@
-import type { AgentProviderNotice } from "@getpaseo/protocol/agent-types";
+import type { AgentProviderNotice } from "@kivotos/protocol/agent-types";
 import type { ToastApi } from "@/components/toast-host";
 
 export function showProviderNoticeToast(

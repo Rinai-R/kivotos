@@ -1,12 +1,12 @@
-import { callPluginRpc } from "@getpaseo/plugin/client/host";
+import { callPluginRpc } from "@kivotos/plugin/client/host";
 import type {
   PluginAgentCommandContext,
   PluginCommandCapabilities,
   PluginPanelLocation,
   PluginScreenParams,
   PluginWorkspaceCommandContext,
-} from "@getpaseo/plugin/client";
-import type { PluginClientStateSource } from "@getpaseo/plugin/client/host";
+} from "@kivotos/plugin/client";
+import type { PluginClientStateSource } from "@kivotos/plugin/client/host";
 import { resolvePluginPanelOpenLocation } from "./workspace-panels/locations";
 import { parsePluginOpenScreenInput } from "./surface-contribution";
 import type { InstalledPlugin } from "./types";
@@ -32,7 +32,7 @@ export function createPluginCapabilities(
     navigation.openSurface(plugin.id, screenId, params);
   }
   return {
-    paseo: plugin.paseo,
+    kivotos: plugin.kivotos,
     rpc: (contract, input) => callPluginRpc(contract, plugin.invoke, input),
     openSettings(screenId) {
       if (!plugin.settingsScreens.some((screen) => screen.id === screenId))

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
 import type { Logger } from "pino";
-import type { ProcessEnvRecord } from "../server/paseo-env.js";
+import type { ProcessEnvRecord } from "../server/kivotos-env.js";
 import {
   GitCommandRuntimeMetricsWindow,
   type GitCommandRuntimeMetricsSnapshot,

@@ -98,7 +98,7 @@ class SequencedFakeStt implements SpeechToTextProvider {
 describe("STTManager", () => {
   function resolveVoiceLanguage(params: { env?: NodeJS.ProcessEnv; persisted?: unknown }): string {
     const result = resolveSpeechConfig({
-      paseoHome: "/tmp/paseo-home",
+      kivotosHome: "/tmp/kivotos-home",
       env: params.env ?? ({} as NodeJS.ProcessEnv),
       persisted: PersistedConfigSchema.parse(params.persisted ?? {}),
     });
@@ -123,21 +123,21 @@ describe("STTManager", () => {
     expect(fakeStt.lastLanguage).toBe("en");
   });
 
-  it("uses PASEO_VOICE_LANGUAGE over PASEO_DICTATION_LANGUAGE", async () => {
+  it("uses KIVOTOS_VOICE_LANGUAGE over KIVOTOS_DICTATION_LANGUAGE", async () => {
     const fakeStt = await transcribeWithResolvedVoiceLanguage({
       env: {
-        PASEO_VOICE_LANGUAGE: "pt",
-        PASEO_DICTATION_LANGUAGE: "es",
+        KIVOTOS_VOICE_LANGUAGE: "pt",
+        KIVOTOS_DICTATION_LANGUAGE: "es",
       } as NodeJS.ProcessEnv,
     });
 
     expect(fakeStt.lastLanguage).toBe("pt");
   });
 
-  it("uses PASEO_DICTATION_LANGUAGE when PASEO_VOICE_LANGUAGE is unset", async () => {
+  it("uses KIVOTOS_DICTATION_LANGUAGE when KIVOTOS_VOICE_LANGUAGE is unset", async () => {
     const fakeStt = await transcribeWithResolvedVoiceLanguage({
       env: {
-        PASEO_DICTATION_LANGUAGE: "pt",
+        KIVOTOS_DICTATION_LANGUAGE: "pt",
       } as NodeJS.ProcessEnv,
     });
 
@@ -147,8 +147,8 @@ describe("STTManager", () => {
   it("treats empty voice language env vars as unset", async () => {
     const fakeStt = await transcribeWithResolvedVoiceLanguage({
       env: {
-        PASEO_VOICE_LANGUAGE: "",
-        PASEO_DICTATION_LANGUAGE: "  ",
+        KIVOTOS_VOICE_LANGUAGE: "",
+        KIVOTOS_DICTATION_LANGUAGE: "  ",
       } as NodeJS.ProcessEnv,
     });
 
@@ -174,7 +174,7 @@ describe("STTManager", () => {
   it("uses env voice language over settings voice STT language", async () => {
     const fakeStt = await transcribeWithResolvedVoiceLanguage({
       env: {
-        PASEO_VOICE_LANGUAGE: "pt",
+        KIVOTOS_VOICE_LANGUAGE: "pt",
       } as NodeJS.ProcessEnv,
       persisted: {
         features: {
@@ -235,8 +235,8 @@ describe("STTManager", () => {
   });
 
   it("uses streaming segmentation for batch transcription and concatenates segment finals", async () => {
-    const original = process.env.PASEO_STT_BATCH_COMMIT_EVERY_SECONDS;
-    process.env.PASEO_STT_BATCH_COMMIT_EVERY_SECONDS = "1";
+    const original = process.env.KIVOTOS_STT_BATCH_COMMIT_EVERY_SECONDS;
+    process.env.KIVOTOS_STT_BATCH_COMMIT_EVERY_SECONDS = "1";
 
     try {
       const manager = new STTManager(
@@ -253,9 +253,9 @@ describe("STTManager", () => {
       expect(result.byteLength).toBe(threeSecondsPcm.length);
     } finally {
       if (original === undefined) {
-        delete process.env.PASEO_STT_BATCH_COMMIT_EVERY_SECONDS;
+        delete process.env.KIVOTOS_STT_BATCH_COMMIT_EVERY_SECONDS;
       } else {
-        process.env.PASEO_STT_BATCH_COMMIT_EVERY_SECONDS = original;
+        process.env.KIVOTOS_STT_BATCH_COMMIT_EVERY_SECONDS = original;
       }
     }
   });

@@ -160,9 +160,9 @@ describe("resolveGitProcessPolicy", () => {
     expect(
       resolveGitProcessPolicy({
         env: {
-          PASEO_GIT_MAX_PROCESSES_PER_SECOND: "12",
-          PASEO_GIT_MAX_PROCESS_CONCURRENCY: "7",
-          PASEO_GIT_CONCURRENCY: "3",
+          KIVOTOS_GIT_MAX_PROCESSES_PER_SECOND: "12",
+          KIVOTOS_GIT_MAX_PROCESS_CONCURRENCY: "7",
+          KIVOTOS_GIT_CONCURRENCY: "3",
         },
         persisted: { maxProcessesPerSecond: 5, maxProcessConcurrency: 4 },
       }),

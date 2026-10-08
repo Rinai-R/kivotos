@@ -1,8 +1,8 @@
-import { readPaseoConfigJson } from "./paseo-config-file.js";
+import { readKivotosConfigJson } from "./kivotos-config-file.js";
 import {
-  PaseoConfigSchema,
-  type PaseoMetadataGeneration,
-} from "@getpaseo/protocol/paseo-config-schema";
+  KivotosConfigSchema,
+  type KivotosMetadataGeneration,
+} from "@kivotos/protocol/kivotos-config-schema";
 
 export type MetadataConfigKey = "title" | "branchName" | "commitMessage" | "pullRequest";
 
@@ -11,7 +11,7 @@ export interface RepoRootResolver {
 }
 
 // A style section carries the default guidance for one artifact. The project
-// owner replaces it wholesale via paseo.json metadataGeneration.<configKey>.instructions
+// owner replaces it wholesale via kivotos.json metadataGeneration.<configKey>.instructions
 // — their text is used instead of the default, never appended alongside it, so the
 // two never conflict. The contract block (what to produce, the JSON shape, and any
 // correctness/safety rules) lives outside the sections and is never overridable.
@@ -46,14 +46,14 @@ function renderStyleSection(section: MetadataStyleSection, override: string | un
 
 async function readProjectMetadataOverrides(
   options: Pick<BuildMetadataPromptOptions, "cwd" | "workspaceGitService">,
-): Promise<PaseoMetadataGeneration | undefined> {
+): Promise<KivotosMetadataGeneration | undefined> {
   if (!options.workspaceGitService) {
     return undefined;
   }
   try {
     const repoRoot = await options.workspaceGitService.resolveRepoRoot(options.cwd);
-    const json = readPaseoConfigJson(repoRoot);
-    return PaseoConfigSchema.parse(json).metadataGeneration;
+    const json = readKivotosConfigJson(repoRoot);
+    return KivotosConfigSchema.parse(json).metadataGeneration;
   } catch {
     return undefined;
   }

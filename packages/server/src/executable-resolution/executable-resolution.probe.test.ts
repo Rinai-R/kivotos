@@ -26,7 +26,7 @@ interface ProbeFixture {
 }
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "paseo-probe-test-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "kivotos-probe-test-"));
   tempDirs.push(dir);
   return dir;
 }

@@ -9,21 +9,21 @@ import type { Logger } from "pino";
 import { writeFileAtomic } from "../../../atomic-file.js";
 import {
   addModelVisibleStructuredContent,
-  serializePaseoToolInputParameters,
-} from "../../tools/paseo-tool-serialization.js";
-import type { PaseoToolCatalog } from "../../tools/types.js";
+  serializeKivotosToolInputParameters,
+} from "../../tools/kivotos-tool-serialization.js";
+import type { KivotosToolCatalog } from "../../tools/types.js";
 
 const INTERNAL_PREFIX = "/_internal/opencode";
 const MAX_REQUEST_BYTES = 1024 * 1024;
 
 interface OpenCodeBridgeOptions {
-  paseoHome: string;
+  kivotosHome: string;
   logger: Logger;
 }
 
 interface OpenCodeSessionBinding {
   env: Record<string, string>;
-  tools?: PaseoToolCatalog;
+  tools?: KivotosToolCatalog;
 }
 
 interface BindOpenCodeSessionInput extends OpenCodeSessionBinding {
@@ -41,7 +41,7 @@ interface OpenCodeConfig {
 }
 
 export class OpenCodeBridge {
-  private readonly paseoHome: string;
+  private readonly kivotosHome: string;
   private readonly logger: Logger;
   private readonly token = randomBytes(32).toString("hex");
   private readonly sessions = new Map<string, OpenCodeSessionBinding>();
@@ -49,10 +49,10 @@ export class OpenCodeBridge {
   private baseUrl: string | null = null;
   private pluginUrl: string | null = null;
   private v2PluginUrl: string | null = null;
-  private manifestCatalog: PaseoToolCatalog | null = null;
+  private manifestCatalog: KivotosToolCatalog | null = null;
 
   constructor(options: OpenCodeBridgeOptions) {
-    this.paseoHome = options.paseoHome;
+    this.kivotosHome = options.kivotosHome;
     this.logger = options.logger.child({ module: "agent", component: "opencode-bridge" });
   }
 
@@ -78,7 +78,7 @@ export class OpenCodeBridge {
     this.baseUrl = `http://127.0.0.1:${address.port}`;
   }
 
-  setManifestCatalog(catalog: PaseoToolCatalog | null): void {
+  setManifestCatalog(catalog: KivotosToolCatalog | null): void {
     this.manifestCatalog = catalog;
   }
 
@@ -105,7 +105,7 @@ export class OpenCodeBridge {
     const plugins = config.plugin ?? [];
     const withoutBridge = plugins.filter((entry) => {
       const specifier = Array.isArray(entry) ? entry[0] : entry;
-      return !specifier.includes("/paseo-") || !specifier.endsWith(".mjs");
+      return !specifier.includes("/kivotos-") || !specifier.endsWith(".mjs");
     });
     return {
       ...env,
@@ -133,10 +133,10 @@ export class OpenCodeBridge {
   }
 
   private async materializePlugin(version: 1 | 2 = 1): Promise<string> {
-    if (version === 2) return materializeOpenCodeV2Plugin(this.paseoHome);
+    if (version === 2) return materializeOpenCodeV2Plugin(this.kivotosHome);
     const artifact = await loadOpenCodeBridgePluginArtifact(import.meta.url);
     const digest = createHash("sha256").update(artifact).digest("hex");
-    const destination = path.join(this.paseoHome, "runtime", "opencode", `paseo-${digest}.mjs`);
+    const destination = path.join(this.kivotosHome, "runtime", "opencode", `kivotos-${digest}.mjs`);
     await writeFileAtomic(destination, artifact);
     return pathToFileURL(destination).href;
   }
@@ -159,7 +159,7 @@ export class OpenCodeBridge {
       if (request.method === "GET" && contextMatch) {
         const binding = this.sessions.get(decodeURIComponent(contextMatch[1]));
         if (!binding) {
-          sendJson(response, 404, { error: "OpenCode session is not bound to a Paseo agent" });
+          sendJson(response, 404, { error: "OpenCode session is not bound to a Kivotos agent" });
           return;
         }
         sendJson(response, 200, {
@@ -202,7 +202,7 @@ export class OpenCodeBridge {
       const definition: Record<string, unknown> = {
         name: tool.name,
         description: tool.description,
-        inputSchema: serializePaseoToolInputParameters(tool),
+        inputSchema: serializeKivotosToolInputParameters(tool),
       };
       if (tool.title) definition.title = tool.title;
       return definition;
@@ -217,11 +217,11 @@ export class OpenCodeBridge {
   }): Promise<void> {
     const binding = this.sessions.get(input.sessionId);
     if (!binding) {
-      sendJson(input.response, 404, { error: "OpenCode session is not bound to a Paseo agent" });
+      sendJson(input.response, 404, { error: "OpenCode session is not bound to a Kivotos agent" });
       return;
     }
     if (!binding.tools) {
-      sendJson(input.response, 403, { error: "Paseo tools are disabled for this session" });
+      sendJson(input.response, 403, { error: "Kivotos tools are disabled for this session" });
       return;
     }
     const body = await readJsonBody(input.request);
@@ -246,16 +246,16 @@ export class OpenCodeBridge {
   }
 }
 
-export async function materializeOpenCodeV2Plugin(paseoHome: string): Promise<string> {
+export async function materializeOpenCodeV2Plugin(kivotosHome: string): Promise<string> {
   const artifact = await loadOpenCodeBridgePluginArtifact(import.meta.url, undefined, 2);
   const digest = createHash("sha256").update(artifact).digest("hex");
   // V2 ignores configured file paths; it loads a package directory's server entry point.
-  const directory = path.join(paseoHome, "runtime", "opencode", `paseo-v2-${digest}`);
+  const directory = path.join(kivotosHome, "runtime", "opencode", `kivotos-v2-${digest}`);
   await writeFileAtomic(path.join(directory, "server.js"), artifact);
   await writeFileAtomic(
     path.join(directory, "package.json"),
     JSON.stringify({
-      name: "paseo-opencode-bridge",
+      name: "kivotos-opencode-bridge",
       private: true,
       type: "module",
       exports: { "./server": "./server.js" },

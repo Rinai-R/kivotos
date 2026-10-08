@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
-import type { TerminalProfile } from "@getpaseo/protocol/messages";
-import { DEFAULT_TERMINAL_PROFILES } from "@getpaseo/protocol/terminal-profiles";
+import type { TerminalProfile } from "@kivotos/protocol/messages";
+import { DEFAULT_TERMINAL_PROFILES } from "@kivotos/protocol/terminal-profiles";
 import { connectNewWorkspaceDaemonClient } from "./new-workspace";
 import { waitForTerminalContent } from "./terminal-perf";
 

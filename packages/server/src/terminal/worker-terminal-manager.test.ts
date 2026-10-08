@@ -11,12 +11,12 @@ import type {
   TerminalWorkspaceContributionChangedEvent,
 } from "./terminal-manager.js";
 import {
-  resolvePaseoCliBinDir,
-  resolvePaseoCliExecutablePath,
+  resolveKivotosCliBinDir,
+  resolveKivotosCliExecutablePath,
   type TerminalSession,
 } from "./terminal.js";
-import type { TerminalState } from "@getpaseo/protocol/messages";
-import type { TerminalActivity } from "@getpaseo/protocol/terminal-activity";
+import type { TerminalState } from "@kivotos/protocol/messages";
+import type { TerminalActivity } from "@kivotos/protocol/terminal-activity";
 import type {
   TerminalWorkerRequest,
   TerminalWorkerToParentMessage,
@@ -215,10 +215,10 @@ it("delivers rapid small writes complete and in order through worker coalescing"
     await manager.createTerminal({
       workspaceId: "ws-test",
       cwd,
-      env: { PASEO_TERMINAL_BURST_GATE: burstGatePath },
+      env: { KIVOTOS_TERMINAL_BURST_GATE: burstGatePath },
       ...nodeTerminalCommand(`
       const fs = require("node:fs");
-      const gatePath = process.env.PASEO_TERMINAL_BURST_GATE;
+      const gatePath = process.env.KIVOTOS_TERMINAL_BURST_GATE;
       const gate = setInterval(() => {
         if (!gatePath || !fs.existsSync(gatePath)) {
           return;
@@ -423,7 +423,7 @@ it("keeps registered cwd env inheritance behind the worker manager interface", a
 
   manager.registerCwdEnv({
     cwd,
-    env: { PASEO_WORKER_TERMINAL_TEST: "worker-env" },
+    env: { KIVOTOS_WORKER_TERMINAL_TEST: "worker-env" },
   });
   trackTerminal(
     await manager.createTerminal({
@@ -432,7 +432,7 @@ it("keeps registered cwd env inheritance behind the worker manager interface", a
       ...nodeTerminalCommand(`
       require("node:fs").writeFileSync(
         ${JSON.stringify(markerPath)},
-        process.env.PASEO_WORKER_TERMINAL_TEST ?? "",
+        process.env.KIVOTOS_WORKER_TERMINAL_TEST ?? "",
       );
       setInterval(() => {}, 1000);
     `),
@@ -461,10 +461,10 @@ it("injects parent-minted terminal activity env through the worker", async () =>
         require("node:fs").writeFileSync(
           ${JSON.stringify(envPath)},
           JSON.stringify({
-            terminalId: process.env.PASEO_TERMINAL_ID,
-            token: process.env.PASEO_ACTIVITY_TOKEN,
-            url: process.env.PASEO_TERMINAL_ACTIVITY_URL,
-            hookCli: process.env.PASEO_HOOK_CLI,
+            terminalId: process.env.KIVOTOS_TERMINAL_ID,
+            token: process.env.KIVOTOS_ACTIVITY_TOKEN,
+            url: process.env.KIVOTOS_TERMINAL_ACTIVITY_URL,
+            hookCli: process.env.KIVOTOS_HOOK_CLI,
             path: process.env.PATH ?? process.env.Path,
           }),
         );
@@ -482,18 +482,18 @@ it("injects parent-minted terminal activity env through the worker", async () =>
     hookCli?: string;
     path?: string;
   };
-  const paseoCliBinDir = resolvePaseoCliBinDir();
-  const paseoCliPath = resolvePaseoCliExecutablePath();
-  expect(paseoCliBinDir).not.toBeNull();
-  expect(paseoCliPath).not.toBeNull();
+  const kivotosCliBinDir = resolveKivotosCliBinDir();
+  const kivotosCliPath = resolveKivotosCliExecutablePath();
+  expect(kivotosCliBinDir).not.toBeNull();
+  expect(kivotosCliPath).not.toBeNull();
   expect(env.terminalId).toBe(session.id);
   expect(env.token).toEqual(expect.any(String));
   expect(env.token).not.toBe("");
   expect(env.url).toBe(activityUrl);
-  expect(env.hookCli).toBe(paseoCliPath);
+  expect(env.hookCli).toBe(kivotosCliPath);
   expect(manager.validateTerminalActivityToken(session.id, env.token ?? "")).toBe("valid");
   await expect(manager.setTerminalActivity(session.id, "attention")).resolves.toBe(true);
-  expect(env.path?.split(delimiter)[0]).toBe(paseoCliBinDir);
+  expect(env.path?.split(delimiter)[0]).toBe(kivotosCliBinDir);
 });
 
 it("starts the default shell through the worker and accepts quoted commands", async () => {

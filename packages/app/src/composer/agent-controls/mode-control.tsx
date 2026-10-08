@@ -24,8 +24,8 @@ import { resolveProviderDefinition } from "@/utils/provider-definitions";
 import { useToast } from "@/contexts/toast-context";
 import { toErrorMessage } from "@/utils/error-messages";
 import { showProviderNoticeToast } from "@/utils/provider-notice-toast";
-import type { AgentMode } from "@getpaseo/protocol/agent-types";
-import type { AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
+import type { AgentMode } from "@kivotos/protocol/agent-types";
+import type { AgentProviderDefinition } from "@kivotos/protocol/provider-manifest";
 import { getAgentModeIcon, getAgentModeOptionIcon } from "@/agent-controls/icons";
 interface ModeComboboxOptionProps {
   option: ComboboxOption;

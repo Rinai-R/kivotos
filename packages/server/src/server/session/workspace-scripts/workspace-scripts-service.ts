@@ -23,10 +23,10 @@ import type {
 } from "../../worktree-bootstrap.js";
 import {
   buildWorkspaceScriptPayloads,
-  readPaseoConfigForProjection,
+  readKivotosConfigForProjection,
 } from "../../script-status-projection.js";
 import { deriveProjectServiceSlug, deriveProjectSlug } from "../../workspace-git-metadata.js";
-import type { PaseoServicePortAllocation } from "@getpaseo/protocol/paseo-config-schema";
+import type { KivotosServicePortAllocation } from "@kivotos/protocol/kivotos-config-schema";
 
 type WorkspaceScriptsPayload = WorkspaceDescriptorPayload["scripts"];
 
@@ -64,7 +64,7 @@ export function createWorkspaceScriptsService(deps: {
   getDaemonTcpHost: (() => string | null) | null;
   serviceProxyPublicBaseUrl: string | null;
   resolveScriptHealth: ((hostname: string) => ScriptHealthState | null) | null;
-  globalServicePorts?: PaseoServicePortAllocation;
+  globalServicePorts?: KivotosServicePortAllocation;
   logger: pino.Logger;
   emit: (message: SessionOutboundMessage) => void;
   // Script status is daemon state, so it reaches every client, not only the requester.
@@ -122,7 +122,7 @@ export function createWorkspaceScriptsService(deps: {
     return buildWorkspaceScriptPayloads({
       workspaceId: workspace.workspaceId,
       workspaceDirectory: workspace.cwd,
-      paseoConfig: readPaseoConfigForProjection(workspace.cwd, logger),
+      kivotosConfig: readKivotosConfigForProjection(workspace.cwd, logger),
       serviceProxy,
       runtimeStore: scriptRuntimeStore,
       daemonPort: getDaemonTcpPort?.() ?? null,

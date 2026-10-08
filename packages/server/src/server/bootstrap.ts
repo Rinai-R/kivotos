@@ -1,4 +1,4 @@
-import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
+import type { PluginRegistries } from "@kivotos/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
 import { createServer as createHTTPServer, type IncomingMessage, type ServerResponse } from "http";
@@ -122,9 +122,9 @@ import { VoiceAssistantWebSocketServer } from "./websocket-server.js";
 import { WorkspaceSetupRuntime } from "./workspace-setup-runtime.js";
 import { createWorkspaceLabelService } from "./workspace-labels/index.js";
 import { createGitHubService } from "../services/github-service.js";
-import { createPaseoWorktree as createRegisteredPaseoWorktree } from "./paseo-worktree-service.js";
+import { createKivotosWorktree as createRegisteredKivotosWorktree } from "./kivotos-worktree-service.js";
 import { createWorkspaceProvisioningService } from "./session/workspace-provisioning/workspace-provisioning-service.js";
-import { createPaseoWorktreeWorkflow } from "./worktree-session.js";
+import { createKivotosWorktreeWorkflow } from "./worktree-session.js";
 import { DownloadTokenStore } from "./file-download/token-store.js";
 import { formatAttachmentContentDisposition } from "./file-download/content-disposition.js";
 import type { OpenAiSpeechProviderConfig } from "./speech/providers/openai/config.js";
@@ -136,10 +136,10 @@ import { AgentStorage } from "./agent/agent-storage.js";
 import { attachAgentStoragePersistence } from "./persistence-hooks.js";
 import { createAgentMcpServer } from "./agent/mcp-server.js";
 import {
-  createPaseoToolCatalog,
-  type PaseoToolHostDependencies,
-} from "./agent/tools/paseo-tools.js";
-import type { PaseoToolRuntimeContext } from "./agent/tools/types.js";
+  createKivotosToolCatalog,
+  type KivotosToolHostDependencies,
+} from "./agent/tools/kivotos-tools.js";
+import type { KivotosToolRuntimeContext } from "./agent/tools/types.js";
 import { createAgentProviderRuntime } from "./agent/provider-runtime.js";
 import { bootstrapWorkspaceRegistries } from "./workspace-registry-bootstrap.js";
 import { WorkspaceReconciliationService } from "./workspace-reconciliation-service.js";
@@ -153,7 +153,7 @@ import { ScheduleService } from "./schedule/service.js";
 import { DaemonConfigStore, type MutableDaemonConfig } from "./daemon-config-store.js";
 import { createOrchestrationSkills } from "./orchestration-skills/index.js";
 import { resolveConfigFromPersisted, type CliConfigOverrides } from "./config.js";
-import { resolvePaseoToolPolicy } from "./agent/paseo-tool-policy.js";
+import { resolveKivotosToolPolicy } from "./agent/kivotos-tool-policy.js";
 import { BrowserToolsBroker } from "./browser-tools/broker.js";
 import { DaemonConfigBrowserToolsPolicy } from "./browser-tools/policy.js";
 import { WorkspaceGitServiceImpl } from "./workspace-git-service.js";
@@ -181,7 +181,7 @@ import type {
   FirstAgentContext,
   PluginSource,
   TerminalProfile,
-} from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/messages";
 import type {
   AgentProviderRuntimeSettingsMap,
   ProviderOverride,
@@ -360,18 +360,18 @@ function describeMcpDebugPayload(value: unknown): Record<string, unknown> {
   };
 }
 
-export type PaseoOpenAIConfig = OpenAiSpeechProviderConfig;
-export type PaseoLocalSpeechConfig = LocalSpeechProviderConfig;
+export type KivotosOpenAIConfig = OpenAiSpeechProviderConfig;
+export type KivotosLocalSpeechConfig = LocalSpeechProviderConfig;
 
-export interface PaseoSpeechSttLanguages {
+export interface KivotosSpeechSttLanguages {
   dictation: string;
   voice: string;
 }
 
-export interface PaseoSpeechConfig {
+export interface KivotosSpeechConfig {
   providers: RequestedSpeechProviders;
-  sttLanguages?: PaseoSpeechSttLanguages;
-  local?: PaseoLocalSpeechConfig;
+  sttLanguages?: KivotosSpeechSttLanguages;
+  local?: KivotosLocalSpeechConfig;
 }
 
 export type DaemonLifecycleIntent =
@@ -388,9 +388,9 @@ export type DaemonLifecycleIntent =
       reason: string;
     };
 
-export interface PaseoDaemonConfig {
+export interface KivotosDaemonConfig {
   listen: string;
-  paseoHome: string;
+  kivotosHome: string;
   daemonVersion?: string;
   desktopManaged?: boolean;
   worktreesRoot?: string;
@@ -436,8 +436,8 @@ export interface PaseoDaemonConfig {
   };
   appBaseUrl?: string;
   auth?: DaemonAuthConfig;
-  openai?: PaseoOpenAIConfig;
-  speech?: PaseoSpeechConfig;
+  openai?: KivotosOpenAIConfig;
+  speech?: KivotosSpeechConfig;
   voiceLlmProvider?: AgentProvider | null;
   voiceLlmProviderExplicit?: boolean;
   voiceLlmModel?: string | null;
@@ -466,8 +466,8 @@ export interface PaseoDaemonConfig {
   };
 }
 
-export interface PaseoDaemon {
-  config: PaseoDaemonConfig;
+export interface KivotosDaemon {
+  config: KivotosDaemonConfig;
   agentManager: AgentManager;
   agentStorage: AgentStorage;
   terminalManager: TerminalManager;
@@ -480,7 +480,7 @@ export interface PaseoDaemon {
   getServerId(): string;
 }
 
-export interface PaseoDaemonDependencies {
+export interface KivotosDaemonDependencies {
   builtinPlugins?: BuiltinPluginLoader;
   hubRelationshipRemote?: HubRelationshipRemote;
   hubRelationshipClock?: HubRelationshipClock;
@@ -492,12 +492,12 @@ export interface PaseoDaemonDependencies {
   };
 }
 
-function resolveBuiltinPluginLoader(dependencies: PaseoDaemonDependencies): BuiltinPluginLoader {
+function resolveBuiltinPluginLoader(dependencies: KivotosDaemonDependencies): BuiltinPluginLoader {
   return dependencies.builtinPlugins ?? new BuiltinPluginLoader();
 }
 
 function createBootstrapManagedProcessRegistry(
-  config: Pick<PaseoDaemonConfig, "paseoHome" | "managedProcesses">,
+  config: Pick<KivotosDaemonConfig, "kivotosHome" | "managedProcesses">,
   logger: Logger,
 ): ManagedProcessRegistry {
   if (config.managedProcesses) {
@@ -505,7 +505,7 @@ function createBootstrapManagedProcessRegistry(
   }
 
   return createManagedProcessRegistry({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     processTable: createSystemManagedProcessTable(),
     terminateProcess: terminateWithTreeKill,
     logger,
@@ -522,7 +522,7 @@ async function reconcileManagedProcessLedger(
   }
 }
 
-function mountWebUi(app: express.Application, config: PaseoDaemonConfig, logger: Logger): void {
+function mountWebUi(app: express.Application, config: KivotosDaemonConfig, logger: Logger): void {
   app.use(
     createWebUiMiddleware({
       enabled: config.webUi?.enabled ?? false,
@@ -533,11 +533,11 @@ function mountWebUi(app: express.Application, config: PaseoDaemonConfig, logger:
   );
 }
 
-function resolveExpressTrustProxySetting(config: PaseoDaemonConfig): true | string[] {
+function resolveExpressTrustProxySetting(config: KivotosDaemonConfig): true | string[] {
   return config.trustedProxies ?? ["loopback"];
 }
 
-function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDaemonConfig {
+function createInitialMutableDaemonConfig(config: KivotosDaemonConfig): MutableDaemonConfig {
   const providers = config.providerOverrides ?? {};
 
   const initialConfig: MutableDaemonConfig = {
@@ -578,14 +578,14 @@ function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDae
   return initialConfig;
 }
 
-export async function createPaseoDaemon(
-  config: PaseoDaemonConfig,
+export async function createKivotosDaemon(
+  config: KivotosDaemonConfig,
   rootLogger: Logger,
-  dependencies: PaseoDaemonDependencies = {},
-): Promise<PaseoDaemon> {
+  dependencies: KivotosDaemonDependencies = {},
+): Promise<KivotosDaemon> {
   configureGitProcessPolicy(config.git ?? resolveGitProcessPolicy({ env: process.env }));
   const logger = rootLogger.child({ module: "bootstrap" });
-  const obsoleteTimelineDirectory = path.join(config.paseoHome, "agent-timelines");
+  const obsoleteTimelineDirectory = path.join(config.kivotosHome, "agent-timelines");
   await rm(obsoleteTimelineDirectory, { recursive: true, force: true }).catch((error) => {
     logger.warn(
       { err: error, path: obsoleteTimelineDirectory },
@@ -596,12 +596,12 @@ export async function createPaseoDaemon(
   const elapsed = () => `${(performance.now() - bootstrapStart).toFixed(0)}ms`;
   const daemonVersion = config.daemonVersion ?? resolveDaemonVersion(import.meta.url);
   const initialMutableConfig = createInitialMutableDaemonConfig(config);
-  const daemonConfigStore = new DaemonConfigStore(config.paseoHome, initialMutableConfig, logger, {
+  const daemonConfigStore = new DaemonConfigStore(config.kivotosHome, initialMutableConfig, logger, {
     relayEnabledMutable: config.relayEnabledMutable ?? true,
     startupPersisted: config.configReload?.startupPersisted,
     reloadSource: {
       resolve: (persisted) => {
-        const reloaded = resolveConfigFromPersisted(config.paseoHome, persisted, {
+        const reloaded = resolveConfigFromPersisted(config.kivotosHome, persisted, {
           env: config.configReload?.env ?? process.env,
           cli: config.configReload?.cli,
           relayEnabledFallback: config.configReload?.relayEnabledFallback,
@@ -624,16 +624,16 @@ export async function createPaseoDaemon(
       hasAgent: (id) => agentManager.getAgent(id) !== null,
       usageSession: (id) => agentManager.usageSession(id),
     },
-    managedSources: new ManagedPluginSources(config.paseoHome, {
+    managedSources: new ManagedPluginSources(config.kivotosHome, {
       registries: config.pluginRegistries,
       defaultUrl: config.pluginRegistryUrl,
     }),
     builtinPlugins: resolveBuiltinPluginLoader(dependencies),
-    settingsDirectory: path.join(config.paseoHome, "plugin-settings"),
+    settingsDirectory: path.join(config.kivotosHome, "plugin-settings"),
   });
 
-  const serverId = getOrCreateServerId(config.paseoHome, { logger });
-  const daemonKeyPair = await loadOrCreateDaemonKeyPair(config.paseoHome, logger);
+  const serverId = getOrCreateServerId(config.kivotosHome, { logger });
+  const daemonKeyPair = await loadOrCreateDaemonKeyPair(config.kivotosHome, logger);
   const managedProcesses = createBootstrapManagedProcessRegistry(config, logger);
   // Reconcile the helper-process ledger in the background so it never blocks the
   // daemon from coming up; terminating a live leftover can take a few seconds.
@@ -736,8 +736,8 @@ export async function createPaseoDaemon(
 
   // CORS - allow same-origin + configured origins
   const fixedAllowedOrigins = [
-    // Packaged desktop renderers use the custom paseo:// protocol scheme.
-    "paseo://app",
+    // Packaged desktop renderers use the custom kivotos:// protocol scheme.
+    "kivotos://app",
     // For TCP, add localhost variants
     ...(listenTarget.type === "tcp"
       ? [
@@ -880,21 +880,21 @@ export async function createPaseoDaemon(
 
   const agentStorage = new AgentStorage(config.agentStoragePath, logger);
   const projectRegistry = new FileBackedProjectRegistry(
-    path.join(config.paseoHome, "projects", "projects.json"),
+    path.join(config.kivotosHome, "projects", "projects.json"),
     logger,
   );
   workspaceRegistry = new FileBackedWorkspaceRegistry(
-    path.join(config.paseoHome, "projects", "workspaces.json"),
+    path.join(config.kivotosHome, "projects", "workspaces.json"),
     logger,
   );
   const workspaceLabelService = createWorkspaceLabelService({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     workspaceRegistry,
   });
   const github = createGitHubService();
   const workspaceGitService = new WorkspaceGitServiceImpl({
     logger,
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     worktreesRoot: config.worktreesRoot,
     deps: {
       forgeOverrides: { github },
@@ -917,7 +917,7 @@ export async function createPaseoDaemon(
     logger,
   });
   const agentProviderRuntime = await createAgentProviderRuntime({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     logger,
     snapshotManager: {
       refreshTimeoutMs: config.providerCatalogRefreshTimeoutMs,
@@ -952,8 +952,8 @@ export async function createPaseoDaemon(
       workspaceGitService.onWorkspaceStateMayHaveChanged(cwd);
     },
     mcpAuthToken: agentMcpAuthToken,
-    resolvePaseoToolPolicy: (provider) =>
-      resolvePaseoToolPolicy(provider, daemonConfigStore.get().providers),
+    resolveKivotosToolPolicy: (provider) =>
+      resolveKivotosToolPolicy(provider, daemonConfigStore.get().providers),
     logger,
   });
   const syncPluginProviders = () => {
@@ -973,7 +973,7 @@ export async function createPaseoDaemon(
   logger.info({ elapsed: elapsed() }, "Agent storage initialized");
   await bootstrapWorkspaceRegistries({
     serverId,
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     agentStorage,
     projectRegistry,
     workspaceRegistry,
@@ -1008,7 +1008,7 @@ export async function createPaseoDaemon(
   });
   const checkoutDiffManager = new CheckoutDiffManager({
     logger,
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     workspaceGitService,
   });
   const archiveWorkspaceRecordExternal = async (
@@ -1054,7 +1054,7 @@ export async function createPaseoDaemon(
         cwd: workspace.cwd,
         kind: workspace.kind,
         worktreeRoot: workspace.worktreeRoot,
-        isPaseoOwnedWorktree: workspace.isPaseoOwnedWorktree,
+        isKivotosOwnedWorktree: workspace.isKivotosOwnedWorktree,
         mainRepoRoot: workspace.mainRepoRoot,
       }));
   };
@@ -1111,8 +1111,8 @@ export async function createPaseoDaemon(
   });
 
   setupAutoArchiveOnMerge({
-    paseoHome: config.paseoHome,
-    paseoWorktreesBaseRoot: config.worktreesRoot,
+    kivotosHome: config.kivotosHome,
+    kivotosWorktreesBaseRoot: config.worktreesRoot,
     daemonConfigStore,
     workspaceGitService,
     github,
@@ -1130,16 +1130,16 @@ export async function createPaseoDaemon(
     emitWorkspaceUpdatesForWorkspaceIds: emitWorkspaceUpdatesExternal,
   });
 
-  const createPaseoWorktreeForTools = async (
-    input: Parameters<typeof createPaseoWorktreeWorkflow>[1],
-    serviceOptions?: Parameters<typeof createPaseoWorktreeWorkflow>[2],
+  const createKivotosWorktreeForTools = async (
+    input: Parameters<typeof createKivotosWorktreeWorkflow>[1],
+    serviceOptions?: Parameters<typeof createKivotosWorktreeWorkflow>[2],
   ) => {
-    return createPaseoWorktreeWorkflow(
+    return createKivotosWorktreeWorkflow(
       {
-        paseoHome: config.paseoHome,
+        kivotosHome: config.kivotosHome,
         worktreesRoot: config.worktreesRoot,
-        createPaseoWorktree: async (workflowInput, workflowOptions) => {
-          return createRegisteredPaseoWorktree(workflowInput, {
+        createKivotosWorktree: async (workflowInput, workflowOptions) => {
+          return createRegisteredKivotosWorktree(workflowInput, {
             github,
             ...(workflowOptions?.resolveDefaultBranch
               ? {
@@ -1186,11 +1186,11 @@ export async function createPaseoDaemon(
     agentManager,
     agentStorage,
     logger,
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     worktreesRoot: config.worktreesRoot,
     terminalManager,
     providerSnapshotManager,
-    createPaseoWorktree: createPaseoWorktreeForTools,
+    createKivotosWorktree: createKivotosWorktreeForTools,
     ensureWorkspaceForCreate: ensureWorkspaceForCreateAndBroadcastExternal,
   };
   const createAgent = (input: Parameters<typeof createAgentCommand>[1]) =>
@@ -1198,8 +1198,8 @@ export async function createPaseoDaemon(
   const archiveWorkspaceByIdExternal = (workspaceId: string, requestId: string) =>
     archiveByScope(
       {
-        paseoHome: config.paseoHome,
-        paseoWorktreesBaseRoot: config.worktreesRoot,
+        kivotosHome: config.kivotosHome,
+        kivotosWorktreesBaseRoot: config.worktreesRoot,
         github,
         workspaceGitService,
         agentManager,
@@ -1221,13 +1221,13 @@ export async function createPaseoDaemon(
       { scope: { kind: "workspace", workspaceId }, requestId },
     );
   const hubAgentLifecycle = new CreateAgentLifecycleDispatch({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     worktreesRoot: config.worktreesRoot,
     agentManager,
     agentStorage,
     github,
     workspaceGitService,
-    createPaseoWorktreeWorkflow: createPaseoWorktreeForTools,
+    createKivotosWorktreeWorkflow: createKivotosWorktreeForTools,
     archiveAgentForClose: (agentId) =>
       archiveAgentCommand({ agentManager, agentStorage, logger }, agentId),
     findWorkspaceIdForCwd: findWorkspaceIdForCwdExternal,
@@ -1243,7 +1243,7 @@ export async function createPaseoDaemon(
     logger,
   });
   const hubRelationships = new HubRelationshipController({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     hostname: getHostName(),
     serverId,
     daemonPublicKey: daemonKeyPair.publicKeyB64,
@@ -1305,11 +1305,11 @@ export async function createPaseoDaemon(
     await emitWorkspaceUpdatesExternal([workspace.workspaceId]);
     return workspace;
   };
-  const createSchedulePaseoWorktreeExternal = async (input: {
+  const createScheduleKivotosWorktreeExternal = async (input: {
     cwd: string;
     firstAgentContext: FirstAgentContext;
   }) => {
-    const result = await createPaseoWorktreeForTools({
+    const result = await createKivotosWorktreeForTools({
       cwd: input.cwd,
       firstAgentContext: input.firstAgentContext,
     });
@@ -1319,8 +1319,8 @@ export async function createPaseoDaemon(
   const archiveScheduleWorkspaceExternal = async (workspaceId: string) => {
     await archiveByScope(
       {
-        paseoHome: config.paseoHome,
-        paseoWorktreesBaseRoot: config.worktreesRoot,
+        kivotosHome: config.kivotosHome,
+        kivotosWorktreesBaseRoot: config.worktreesRoot,
         github,
         workspaceGitService,
         agentManager,
@@ -1352,13 +1352,13 @@ export async function createPaseoDaemon(
     );
   };
   const scheduleService = new ScheduleService({
-    paseoHome: config.paseoHome,
+    kivotosHome: config.kivotosHome,
     logger,
     agentManager,
     agentStorage,
     createAgent,
     createDirectoryWorkspace: createScheduleLocalWorkspaceExternal,
-    createPaseoWorktreeWorkspace: createSchedulePaseoWorktreeExternal,
+    createKivotosWorktreeWorkspace: createScheduleKivotosWorktreeExternal,
     archiveWorkspace: archiveScheduleWorkspaceExternal,
   });
   await scheduleService.start();
@@ -1382,8 +1382,8 @@ export async function createPaseoDaemon(
   logger.info({ elapsed: elapsed() }, "Preparing voice and MCP runtime");
 
   const createAgentToolHostDependencies = (
-    runtime: PaseoToolRuntimeContext,
-  ): PaseoToolHostDependencies => ({
+    runtime: KivotosToolRuntimeContext,
+  ): KivotosToolHostDependencies => ({
     agentManager,
     agentStorage,
     terminalManager,
@@ -1425,18 +1425,18 @@ export async function createPaseoDaemon(
       spawnWorkspaceScript,
       assertAutomationAllowed: (workspaceId) =>
         assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, workspaceId),
-      globalServicePorts: loadPersistedConfig(config.paseoHome).worktrees?.servicePorts,
+      globalServicePorts: loadPersistedConfig(config.kivotosHome).worktrees?.servicePorts,
     }),
     markWorkspaceArchiving: markWorkspaceArchivingExternal,
     clearWorkspaceArchiving: clearWorkspaceArchivingExternal,
     ensureWorkspaceForCreate: createAgentCommandDependencies.ensureWorkspaceForCreate,
-    createPaseoWorktree: createAgentCommandDependencies.createPaseoWorktree,
+    createKivotosWorktree: createAgentCommandDependencies.createKivotosWorktree,
     browserToolsEnabled: browserToolsPolicy.isEnabled(),
     browserToolsBroker,
-    paseoToolPolicy:
-      runtime.paseoToolPolicy ??
-      (runtime.callerAgentId ? agentManager.getPaseoToolPolicy(runtime.callerAgentId) : undefined),
-    paseoHome: config.paseoHome,
+    kivotosToolPolicy:
+      runtime.kivotosToolPolicy ??
+      (runtime.callerAgentId ? agentManager.getKivotosToolPolicy(runtime.callerAgentId) : undefined),
+    kivotosHome: config.kivotosHome,
     worktreesRoot: config.worktreesRoot,
     callerAgentId: runtime.callerAgentId,
     enableVoiceTools: runtime.enableVoiceTools,
@@ -1445,13 +1445,13 @@ export async function createPaseoDaemon(
     resolveCallerContext: (agentId) => wsServer?.resolveVoiceCallerContext(agentId) ?? null,
     logger,
   });
-  const createAgentToolCatalog = (runtime: PaseoToolRuntimeContext) =>
-    createPaseoToolCatalog(createAgentToolHostDependencies(runtime));
+  const createAgentToolCatalog = (runtime: KivotosToolRuntimeContext) =>
+    createKivotosToolCatalog(createAgentToolHostDependencies(runtime));
   const setAgentProviderToolsEnabled = (enabled: boolean) => {
-    agentProviderRuntime.setPaseoToolCatalog(enabled ? createAgentToolCatalog({}) : null);
+    agentProviderRuntime.setKivotosToolCatalog(enabled ? createAgentToolCatalog({}) : null);
   };
-  agentManager.setPaseoToolCatalogFactory(createAgentToolCatalog);
-  agentManager.setPaseoToolsEnabled(config.mcpInjectIntoAgents !== false);
+  agentManager.setKivotosToolCatalogFactory(createAgentToolCatalog);
+  agentManager.setKivotosToolsEnabled(config.mcpInjectIntoAgents !== false);
   setAgentProviderToolsEnabled(config.mcpEnabled !== false && config.mcpInjectIntoAgents !== false);
 
   let mcpEnabled = config.mcpEnabled ?? true;
@@ -1463,8 +1463,8 @@ export async function createPaseoDaemon(
       const agentMcpServer = await createAgentMcpServer(
         createAgentToolHostDependencies({
           callerAgentId,
-          paseoToolPolicy: callerAgentId
-            ? agentManager.getPaseoToolPolicy(callerAgentId)
+          kivotosToolPolicy: callerAgentId
+            ? agentManager.getKivotosToolPolicy(callerAgentId)
             : undefined,
         }),
       );
@@ -1594,7 +1594,7 @@ export async function createPaseoDaemon(
   const start = async () => {
     let mainStarted = false;
     try {
-      localCredential = await writeLocalCredential(config.paseoHome);
+      localCredential = await writeLocalCredential(config.kivotosHome);
       if (serviceProxyListenTarget) {
         const boundServiceProxyTarget = await serviceProxy.startStandalone({
           listenTarget: serviceProxyListenTarget,
@@ -1625,17 +1625,17 @@ export async function createPaseoDaemon(
             agentMcpBaseUrl =
               !mcpEnabled || config.mcpInjectIntoAgents === false ? null : mcpBaseUrl;
             agentManager.setMcpBaseUrl(agentMcpBaseUrl);
-            agentManager.setPaseoToolsEnabled(mcpEnabled && config.mcpInjectIntoAgents !== false);
+            agentManager.setKivotosToolsEnabled(mcpEnabled && config.mcpInjectIntoAgents !== false);
             daemonConfigStore.onFieldChange("mcp.enabled", (value) => {
               mcpEnabled = value !== false;
               const inject = daemonConfigStore.get().mcp.injectIntoAgents !== false;
               agentManager.setMcpBaseUrl(mcpEnabled && inject ? mcpBaseUrl : null);
-              agentManager.setPaseoToolsEnabled(mcpEnabled && inject);
+              agentManager.setKivotosToolsEnabled(mcpEnabled && inject);
               setAgentProviderToolsEnabled(mcpEnabled && inject);
             });
             daemonConfigStore.onFieldChange("mcp.injectIntoAgents", (value) => {
               agentManager.setMcpBaseUrl(mcpEnabled && value ? mcpBaseUrl : null);
-              agentManager.setPaseoToolsEnabled(mcpEnabled && value !== false);
+              agentManager.setKivotosToolsEnabled(mcpEnabled && value !== false);
               setAgentProviderToolsEnabled(mcpEnabled && value !== false);
             });
             daemonConfigStore.onFieldChange("appendSystemPrompt", (value) => {
@@ -1677,7 +1677,7 @@ export async function createPaseoDaemon(
               agentManager,
               agentStorage,
               downloadTokenStore,
-              config.paseoHome,
+              config.kivotosHome,
               daemonConfigStore,
               mcpBaseUrl,
               {
@@ -1740,7 +1740,7 @@ export async function createPaseoDaemon(
               orchestrationSkills,
               workspaceLabelService,
             );
-            pluginRuntime.bindPaseoSessionHost(wsServer);
+            pluginRuntime.bindKivotosSessionHost(wsServer);
             await pluginRuntime.start();
             providerSnapshotManager.settlePluginProviders();
             wsServer.beginAcceptingConnections();
@@ -1787,7 +1787,7 @@ export async function createPaseoDaemon(
       scriptHealthMonitor.start();
     } catch (error) {
       localCredential = null;
-      await deleteLocalCredential(config.paseoHome);
+      await deleteLocalCredential(config.kivotosHome);
       unsubscribePluginProviders();
       await pluginRuntime.stopAllPlugins().catch(() => undefined);
       await serviceProxy.stopStandalone().catch(() => undefined);
@@ -1802,7 +1802,7 @@ export async function createPaseoDaemon(
 
   const stop = async () => {
     localCredential = null;
-    await deleteLocalCredential(config.paseoHome);
+    await deleteLocalCredential(config.kivotosHome);
     // Stop tracking plugin provider registrations before anything tears plugins
     // down, so plugin shutdown cannot withdraw a provider from under an agent
     // that is still open. Plugins themselves are stopped once every session

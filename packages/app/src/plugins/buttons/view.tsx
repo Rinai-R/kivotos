@@ -3,8 +3,8 @@ import type {
   PluginButtonIcon,
   PluginButtonMenuEntry,
   PluginHostProps,
-} from "@getpaseo/plugin/client";
-import type { PluginTheme } from "@getpaseo/plugin";
+} from "@kivotos/plugin/client";
+import type { PluginTheme } from "@kivotos/plugin";
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";

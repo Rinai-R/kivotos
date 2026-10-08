@@ -17,20 +17,20 @@ describe("isVoicePermissionAllowed", () => {
   test("allows direct speak tool names across provider conventions", () => {
     const result = isVoicePermissionAllowed(buildRequest({ name: "speak" }));
     expect(result).toBe(true);
-    expect(isVoicePermissionAllowed(buildRequest({ name: "paseo_voice.speak" }))).toBe(true);
-    expect(isVoicePermissionAllowed(buildRequest({ name: "mcp__paseo_voice__speak" }))).toBe(true);
+    expect(isVoicePermissionAllowed(buildRequest({ name: "kivotos_voice.speak" }))).toBe(true);
+    expect(isVoicePermissionAllowed(buildRequest({ name: "mcp__kivotos_voice__speak" }))).toBe(true);
   });
 
   test("denies non-speak tool names", () => {
-    expect(isVoicePermissionAllowed(buildRequest({ name: "mcp__paseo__create_agent" }))).toBe(
+    expect(isVoicePermissionAllowed(buildRequest({ name: "mcp__kivotos__create_agent" }))).toBe(
       false,
     );
-    expect(isVoicePermissionAllowed(buildRequest({ name: "paseo_create_agent" }))).toBe(false);
+    expect(isVoicePermissionAllowed(buildRequest({ name: "kivotos_create_agent" }))).toBe(false);
   });
 
   test("denies non-tool permission kinds", () => {
     const result = isVoicePermissionAllowed(
-      buildRequest({ kind: "mode", name: "mcp__paseo__create_agent" }),
+      buildRequest({ kind: "mode", name: "mcp__kivotos__create_agent" }),
     );
     expect(result).toBe(false);
   });
@@ -40,7 +40,7 @@ describe("isVoicePermissionAllowed", () => {
       buildRequest({
         name: "codextool",
         metadata: {
-          questions: [{ question: "Allow codextool to call paseo_voice.speak for user feedback?" }],
+          questions: [{ question: "Allow codextool to call kivotos_voice.speak for user feedback?" }],
         },
       }),
     );

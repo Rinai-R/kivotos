@@ -218,7 +218,7 @@ function SubagentsTrackRow({
             {presentation.subtitle}
           </Text>
         ) : null}
-        {row.kind === "paseo" ? (
+        {row.kind === "kivotos" ? (
           <SubagentRowActions
             rowId={row.id}
             displayLabel={displayLabel}

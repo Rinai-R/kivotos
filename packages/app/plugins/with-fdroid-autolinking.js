@@ -18,23 +18,23 @@ const FDROID_ABI_VERSION_CODE_ENTRIES = Object.entries(FDROID_ABI_VERSION_CODE_S
   .map(([abi, suffix]) => `    "${abi}": ${suffix},`)
   .join("\n");
 
-const FDROID_ABI_VERSION_CODE_BLOCK = `// Paseo F-Droid single-ABI version codes
-def paseoAbiVersionCodes = [
+const FDROID_ABI_VERSION_CODE_BLOCK = `// Kivotos F-Droid single-ABI version codes
+def kivotosAbiVersionCodes = [
 ${FDROID_ABI_VERSION_CODE_ENTRIES}
 ]
-def paseoArchitectures = (findProperty("reactNativeArchitectures") ?: "")
+def kivotosArchitectures = (findProperty("reactNativeArchitectures") ?: "")
     .toString()
     .split(",")
     .collect { it.trim() }
     .findAll { !it.isEmpty() }
 
-if (paseoArchitectures.size() == 1) {
-    def paseoAbi = paseoArchitectures[0]
-    def paseoAbiVersionCode = paseoAbiVersionCodes[paseoAbi]
-    if (paseoAbiVersionCode == null) {
-        throw new GradleException("Unsupported Paseo Android ABI: " + paseoAbi)
+if (kivotosArchitectures.size() == 1) {
+    def kivotosAbi = kivotosArchitectures[0]
+    def kivotosAbiVersionCode = kivotosAbiVersionCodes[kivotosAbi]
+    if (kivotosAbiVersionCode == null) {
+        throw new GradleException("Unsupported Kivotos Android ABI: " + kivotosAbi)
     }
-    android.defaultConfig.versionCode = android.defaultConfig.versionCode * 10 + paseoAbiVersionCode
+    android.defaultConfig.versionCode = android.defaultConfig.versionCode * 10 + kivotosAbiVersionCode
 }
 `;
 
@@ -53,7 +53,7 @@ function configureFdroidAppBuildGradle(contents) {
     );
   }
 
-  if (!configuredContents.includes("// Paseo F-Droid single-ABI version codes")) {
+  if (!configuredContents.includes("// Kivotos F-Droid single-ABI version codes")) {
     configuredContents = `${configuredContents.trimEnd()}\n\n${FDROID_ABI_VERSION_CODE_BLOCK}`;
   }
 

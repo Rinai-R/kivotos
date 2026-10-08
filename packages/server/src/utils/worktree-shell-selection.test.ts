@@ -78,7 +78,7 @@ describe("worktree shell selection", () => {
     try {
       mkdirSync(join(worktreePath, ".git"), { recursive: true });
       writeFileSync(
-        join(worktreePath, "paseo.json"),
+        join(worktreePath, "kivotos.json"),
         JSON.stringify({
           worktree: {
             teardown: ["Write-Output 'teardown'"],
@@ -131,7 +131,7 @@ describe("worktree shell selection", () => {
     process.env.BASH_ENV = "should-not-leak";
     try {
       writeFileSync(
-        join(worktreePath, "paseo.json"),
+        join(worktreePath, "kivotos.json"),
         JSON.stringify({
           worktree: {
             setup: ["Write-Output 'setup'"],
@@ -146,11 +146,11 @@ describe("worktree shell selection", () => {
         branchName: "main",
         cleanupOnFailure: false,
         runtimeEnv: {
-          PASEO_SOURCE_CHECKOUT_PATH: worktreePath,
-          PASEO_ROOT_PATH: worktreePath,
-          PASEO_WORKTREE_PATH: worktreePath,
-          PASEO_BRANCH_NAME: "main",
-          PASEO_WORKTREE_PORT: "12345",
+          KIVOTOS_SOURCE_CHECKOUT_PATH: worktreePath,
+          KIVOTOS_ROOT_PATH: worktreePath,
+          KIVOTOS_WORKTREE_PATH: worktreePath,
+          KIVOTOS_BRANCH_NAME: "main",
+          KIVOTOS_WORKTREE_PORT: "12345",
         },
         onEvent: () => {},
       });

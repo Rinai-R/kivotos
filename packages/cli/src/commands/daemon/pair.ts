@@ -1,19 +1,19 @@
 import { confirm, isCancel, log } from "@clack/prompts";
 import { Command } from "commander";
 import chalk from "chalk";
-import { generateLocalPairingOffer } from "@getpaseo/server/pairing";
-import { readDaemonInstance } from "@getpaseo/server/daemon-control";
+import { generateLocalPairingOffer } from "@kivotos/server/pairing";
+import { readDaemonInstance } from "@kivotos/server/daemon-control";
 import {
   readPersistedConfig,
   editPersistedConfig,
   resolveConfigFromPersisted,
-} from "@getpaseo/server/configuration";
+} from "@kivotos/server/configuration";
 import { connectToDaemon } from "../../utils/client.js";
 import type { DaemonTarget } from "../../utils/daemon-target.js";
 import { addJsonAndDaemonHostOptions, withGlobalOptions } from "../../utils/command-options.js";
 import { formatPairingInstructions } from "../../output/pairing.js";
-import { parseConnectionOfferFromUrl } from "@getpaseo/protocol/connection-offer";
-import { serializeRelayConnectionUri } from "@getpaseo/protocol/daemon-endpoints";
+import { parseConnectionOfferFromUrl } from "@kivotos/protocol/connection-offer";
+import { serializeRelayConnectionUri } from "@kivotos/protocol/daemon-endpoints";
 
 interface PairOptions {
   daemonTarget: DaemonTarget;
@@ -68,25 +68,25 @@ export function pairCommand(): Command {
 }
 
 export async function resolveLocalPairingOffer(options: {
-  paseoHome: string;
+  kivotosHome: string;
   enableRelay?: boolean;
 }): Promise<PairingOffer> {
-  const instance = await readDaemonInstance(options.paseoHome);
+  const instance = await readDaemonInstance(options.kivotosHome);
   if (instance)
     return resolveDaemonPairingOffer(
-      { kind: "instance", home: options.paseoHome },
+      { kind: "instance", home: options.kivotosHome },
       options.enableRelay,
     );
   if (options.enableRelay)
-    editPersistedConfig(options.paseoHome, "daemon.relay.enabled", { value: true });
+    editPersistedConfig(options.kivotosHome, "daemon.relay.enabled", { value: true });
   const config = resolveConfigFromPersisted(
-    options.paseoHome,
-    readPersistedConfig(options.paseoHome, { defaultsIfMissing: true }),
+    options.kivotosHome,
+    readPersistedConfig(options.kivotosHome, { defaultsIfMissing: true }),
     { env: {} },
   );
 
   return generateLocalPairingOffer({
-    paseoHome: options.paseoHome,
+    kivotosHome: options.kivotosHome,
     relayEnabled: config.relayEnabled,
     relayEndpoint: config.relayEndpoint,
     relayPublicEndpoint: config.relayPublicEndpoint,
@@ -109,7 +109,7 @@ async function resolveDaemonPairingOffer(
   try {
     const serverInfo = client.getLastServerInfoMessage();
     if (serverInfo?.features?.daemonStatusRpc !== true) {
-      throw new Error("Update the Paseo daemon before pairing from this command.");
+      throw new Error("Update the Kivotos daemon before pairing from this command.");
     }
 
     let offer = await client.getDaemonPairingOffer({
@@ -117,7 +117,7 @@ async function resolveDaemonPairingOffer(
     });
     if (!offer.relayEnabled && enableRelay) {
       if (serverInfo.features.relayConfig !== true) {
-        throw new Error("Update the Paseo daemon before enabling relay from this command.");
+        throw new Error("Update the Kivotos daemon before enabling relay from this command.");
       }
       await client.patchDaemonConfig({ relay: { enabled: true } });
       try {
@@ -140,7 +140,7 @@ async function resolveDaemonPairingOffer(
 }
 
 export async function confirmRelayPairing(): Promise<boolean> {
-  log.message("Your connection is end-to-end encrypted. Paseo cannot read your code or messages.");
+  log.message("Your connection is end-to-end encrypted. Kivotos cannot read your code or messages.");
   log.message(`Learn how it works: ${RELAY_DOCS_URL}`);
   const answer = await confirm({
     message: "Enable relay to pair a device?",
@@ -162,14 +162,14 @@ export async function runPairCommand(options: PairOptions): Promise<void> {
   const target = options.daemonTarget;
   const resolveOffer = (enableRelay: boolean) =>
     target.kind === "instance"
-      ? resolveLocalPairingOffer({ paseoHome: target.home, enableRelay })
+      ? resolveLocalPairingOffer({ kivotosHome: target.home, enableRelay })
       : resolveDaemonPairingOffer(target, enableRelay);
   const offline = target.kind === "instance" && !(await readDaemonInstance(target.home));
   const pairing = await resolveOffer(options.relay === true);
 
   if (offline)
     output.writeStderr(
-      `Offline pairing offer. Start with: paseo daemon start --home ${JSON.stringify(target.kind === "instance" ? target.home : "")}\n`,
+      `Offline pairing offer. Start with: kivotos daemon start --home ${JSON.stringify(target.kind === "instance" ? target.home : "")}\n`,
     );
 
   outputPairingResult(pairing, options, output);
@@ -186,12 +186,12 @@ function outputPairingResult(
         `${JSON.stringify({
           code: "RELAY_DISABLED",
           message: "Relay pairing is disabled for this daemon.",
-          action: "Run paseo daemon pair --relay --json to enable it explicitly.",
+          action: "Run kivotos daemon pair --relay --json to enable it explicitly.",
         })}\n`,
       );
     } else {
       output.writeStderr(`${chalk.red("Relay pairing is disabled for this daemon.")}\n`);
-      output.writeStderr(`${chalk.yellow("Run paseo daemon pair --relay to enable it.")}\n`);
+      output.writeStderr(`${chalk.yellow("Run kivotos daemon pair --relay to enable it.")}\n`);
     }
     output.setExitCode(1);
     return;

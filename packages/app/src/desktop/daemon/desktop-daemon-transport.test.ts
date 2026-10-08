@@ -5,7 +5,7 @@ import {
 } from "./desktop-daemon-transport";
 import { createFakeLocalDaemonTransportRpc } from "./test-local-daemon-transport-rpc";
 
-const LOCAL_URL = "paseo+desktop://socket?path=%2Ftmp%2Fpaseo.sock";
+const LOCAL_URL = "kivotos+desktop://socket?path=%2Ftmp%2Fkivotos.sock";
 
 describe("desktop-daemon-transport", () => {
   it("uses the main-process event as readiness when it races registration", async () => {

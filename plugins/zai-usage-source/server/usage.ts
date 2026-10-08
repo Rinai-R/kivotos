@@ -5,7 +5,7 @@ import {
   type UsageAccount,
   type UsageReport,
   type UsageDetail,
-} from "@getpaseo/plugin/server/usage";
+} from "@kivotos/plugin/server/usage";
 
 const ApiOptionalStringSchema = z.preprocess(
   (value) => (value == null ? undefined : value),

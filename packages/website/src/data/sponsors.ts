@@ -34,8 +34,8 @@ export const SPONSOR_CONTACT_EMAIL = "hello@paseo.sh";
 
 export const GITHUB_SPONSORS_URL = "https://github.com/sponsors/boudra";
 export const OPEN_COLLECTIVE_URL =
-  "https://opencollective.com/paseo-ai/donate?interval=month&amount=10&contributeAs=me";
-export const BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/paseo";
+  "https://opencollective.com/kivotos-ai/donate?interval=month&amount=10&contributeAs=me";
+export const BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/kivotos";
 
 export function openSpotCount(): number {
   return Math.max(0, HOMEPAGE_SPOT_COUNT - HOMEPAGE_SPONSORS.length);

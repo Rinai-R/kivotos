@@ -1,4 +1,4 @@
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
 import { afterEach, describe, expect, it } from "vitest";
 import { selectProviderSubagentsForParent, selectSubagentsForParent } from "./select";
 import { useProviderSubagentStore } from "./provider-store";
@@ -309,7 +309,7 @@ describe("selectSubagentsForParent", () => {
 
     expect(rows).toEqual([
       {
-        kind: "paseo",
+        kind: "kivotos",
         id: "child",
         provider: "claude",
         title: "Review child",

@@ -1,6 +1,6 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import type { JsonValue } from "@getpaseo/protocol/agent-types";
-import { getOpenAgentTabLabel } from "@getpaseo/protocol/agent-labels";
+import type { JsonValue } from "@kivotos/protocol/agent-types";
+import { getOpenAgentTabLabel } from "@kivotos/protocol/agent-labels";
 import {
   memo,
   useCallback,
@@ -192,7 +192,7 @@ import { getIsElectron, isNative, isWeb } from "@/constants/platform";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import { buildHostRootRoute, buildSettingsHostRoute } from "@/utils/host-routes";
 import { useWorkspaceTerminals } from "@/screens/workspace/terminals/use-workspace-terminals";
-import type { TerminalProfile } from "@getpaseo/protocol/messages";
+import type { TerminalProfile } from "@kivotos/protocol/messages";
 import {
   WorkspaceHeaderMenuDesktop,
   WorkspaceHeaderMenuMobile,
@@ -860,9 +860,9 @@ export const WorkspaceScreen = memo(function WorkspaceScreen({
 }: WorkspaceScreenProps) {
   const navigationFocused = useIsFocused();
   useEffect(() => {
-    traceInstant("paseo.workspace.mount", { serverId, workspaceId });
+    traceInstant("kivotos.workspace.mount", { serverId, workspaceId });
     return () => {
-      traceInstant("paseo.workspace.unmount", { serverId, workspaceId });
+      traceInstant("kivotos.workspace.unmount", { serverId, workspaceId });
     };
   }, [serverId, workspaceId]);
   return (

@@ -1,14 +1,14 @@
 import type { Logger } from "pino";
 
 import type { TerminalManager } from "../../../terminal/terminal-manager.js";
-import type { CreatePaseoWorktreeInput } from "../../paseo-worktree-service.js";
+import type { CreateKivotosWorktreeInput } from "../../kivotos-worktree-service.js";
 import { expandUserPath, resolvePathFromBase } from "../../path-utils.js";
 import { toWorktreeRequestError } from "../../worktree-errors.js";
 import type {
   AgentWorktreeSetupContinuation,
-  CreatePaseoWorktreeSetupContinuationInput,
-  CreatePaseoWorktreeWorkflowFn,
-  CreatePaseoWorktreeWorkflowResult,
+  CreateKivotosWorktreeSetupContinuationInput,
+  CreateKivotosWorktreeWorkflowFn,
+  CreateKivotosWorktreeWorkflowResult,
 } from "../../worktree-session.js";
 import type { AgentAttachment, FirstAgentContext, GitSetupOptions } from "../../messages.js";
 import type { AgentManager, CreateAgentOptions, ManagedAgent } from "../agent-manager.js";
@@ -39,11 +39,11 @@ export interface CreateAgentCommandDependencies {
   agentManager: AgentManager;
   agentStorage: AgentStorage;
   logger: Logger;
-  paseoHome?: string;
+  kivotosHome?: string;
   worktreesRoot?: string;
   terminalManager?: TerminalManager | null;
   providerSnapshotManager: Pick<ProviderSnapshotManager, "resolveCreateConfig">;
-  createPaseoWorktree?: CreatePaseoWorktreeWorkflowFn;
+  createKivotosWorktree?: CreateKivotosWorktreeWorkflowFn;
   // Mints a fresh directory workspace for a cwd and returns its id.
   ensureWorkspaceForCreate?: EnsureWorkspaceForCreate;
 }
@@ -100,9 +100,9 @@ export interface CreateAgentFromMcpInput {
   env?: Record<string, string>;
   onCreated?: (created: {
     agentId: string;
-    createdWorktree: CreatePaseoWorktreeWorkflowResult | null;
+    createdWorktree: CreateKivotosWorktreeWorkflowResult | null;
   }) => void;
-  onWorktreeCreated?: (createdWorktree: CreatePaseoWorktreeWorkflowResult) => void;
+  onWorktreeCreated?: (createdWorktree: CreateKivotosWorktreeWorkflowResult) => void;
   callerAgentId?: string;
   callerContext?: {
     lockedCwd?: string;
@@ -128,7 +128,7 @@ export interface CreateAgentCommandResult {
   background: boolean;
   initialPromptStarted: boolean;
   initialPromptError: unknown | null;
-  createdWorktree?: CreatePaseoWorktreeWorkflowResult;
+  createdWorktree?: CreateKivotosWorktreeWorkflowResult;
 }
 
 export type BoundCreateAgentCommand = (
@@ -169,7 +169,7 @@ interface ResolvedCreateAgent {
   background: boolean;
   promptFailure: CreateAgentPromptFailureMode;
   promptLogger?: Logger;
-  createdWorktree?: CreatePaseoWorktreeWorkflowResult;
+  createdWorktree?: CreateKivotosWorktreeWorkflowResult;
 }
 
 export async function createAgentCommand(
@@ -515,7 +515,7 @@ async function resolveMcpCwd(params: {
   resolvedCwd: string;
   setupContinuation?: AgentWorktreeSetupContinuation;
   createdWorkspaceId?: string;
-  createdWorktree?: CreatePaseoWorktreeWorkflowResult;
+  createdWorktree?: CreateKivotosWorktreeWorkflowResult;
 }> {
   const { dependencies, worktree } = params;
   if (!worktree) {
@@ -547,10 +547,10 @@ async function resolveMcpCwd(params: {
       githubPrNumber: worktree.githubPrNumber,
       firstAgentContext: { prompt: params.initialPrompt },
       runSetup: false,
-      paseoHome: dependencies.paseoHome,
+      kivotosHome: dependencies.kivotosHome,
       worktreesRoot: dependencies.worktreesRoot,
     },
-    createPaseoWorktree: dependencies.createPaseoWorktree,
+    createKivotosWorktree: dependencies.createKivotosWorktree,
     resolveDefaultBranch: baseBranch ? async () => baseBranch : undefined,
     setupContinuation: {
       kind: "agent",
@@ -579,20 +579,20 @@ async function resolveMcpCwd(params: {
 }
 
 interface CreateMcpWorktreeOptions {
-  input: CreatePaseoWorktreeInput;
-  createPaseoWorktree: CreatePaseoWorktreeWorkflowFn | undefined;
+  input: CreateKivotosWorktreeInput;
+  createKivotosWorktree: CreateKivotosWorktreeWorkflowFn | undefined;
   resolveDefaultBranch?: (repoRoot: string) => Promise<string>;
-  setupContinuation?: CreatePaseoWorktreeSetupContinuationInput;
+  setupContinuation?: CreateKivotosWorktreeSetupContinuationInput;
 }
 
 async function createMcpWorktree(
   options: CreateMcpWorktreeOptions,
-): Promise<CreatePaseoWorktreeWorkflowResult> {
+): Promise<CreateKivotosWorktreeWorkflowResult> {
   try {
-    if (!options.createPaseoWorktree) {
-      throw new Error("Paseo worktree service is not configured");
+    if (!options.createKivotosWorktree) {
+      throw new Error("Kivotos worktree service is not configured");
     }
-    return await options.createPaseoWorktree(options.input, {
+    return await options.createKivotosWorktree(options.input, {
       ...(options.resolveDefaultBranch
         ? { resolveDefaultBranch: options.resolveDefaultBranch }
         : {}),

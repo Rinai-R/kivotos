@@ -1,20 +1,20 @@
 import {
-  getPaseoClient,
+  getKivotosClient,
   useHosts,
-  usePaseo,
+  useKivotos,
   type PluginSurfaceProps,
-} from "@getpaseo/plugin/client";
+} from "@kivotos/plugin/client";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 export function Hosts({ theme }: PluginSurfaceProps) {
   const hosts = useHosts();
-  const selected = usePaseo();
+  const selected = useKivotos();
   const [result, setResult] = useState("");
   const list = useCallback(
     async (serverId?: string) => {
       try {
-        const client = serverId ? getPaseoClient(serverId) : selected;
+        const client = serverId ? getKivotosClient(serverId) : selected;
         const { entries } = await client.agents.list();
         setResult(`${serverId ?? "Selected host"}: ${entries.length} agents`);
       } catch (error) {

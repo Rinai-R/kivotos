@@ -1,15 +1,15 @@
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import type { UsageSourceRegistration } from "@getpaseo/plugin/server";
-import type { ProviderLaunch } from "@getpaseo/plugin/server/provider";
+import type { UsageSourceRegistration } from "@kivotos/plugin/server";
+import type { ProviderLaunch } from "@kivotos/plugin/server/provider";
 import {
   hashAccountKey,
   unavailable,
   windowFromUsedPct,
   windowFromReportedDuration,
   toneFromUsedPct,
-} from "@getpaseo/plugin/server/usage";
+} from "@kivotos/plugin/server/usage";
 
 import { MspConnection } from "./connection.js";
 import { usageSchema } from "./wire.js";

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
 import { test, expect, type Page } from "../support/fixtures";
 import { connectDaemonClient } from "../support/helpers/daemon-client-loader";
 import {
@@ -190,8 +190,8 @@ async function setRuntimeCatalog(client: DaemonClient, count: number, cwd: strin
 async function reloadSavedDraft(page: Page) {
   await page.evaluate(() =>
     localStorage.setItem(
-      "@paseo:e2e-disable-default-seed-once",
-      localStorage.getItem("@paseo:e2e-seed-nonce")!,
+      "@kivotos:e2e-disable-default-seed-once",
+      localStorage.getItem("@kivotos:e2e-seed-nonce")!,
     ),
   );
   await page.reload();

@@ -1,0 +1,1 @@
+{ "id": "muse-provider", "requirements": { "kivotos": ">=0.11.0" } }

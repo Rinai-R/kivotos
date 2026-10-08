@@ -1,7 +1,7 @@
-import type { PaseoTerminal } from "@getpaseo/client";
+import type { KivotosTerminal } from "@kivotos/client";
 import type { OutputSchema } from "../../output/index.js";
 
-export type TerminalRow = PaseoTerminal;
+export type TerminalRow = KivotosTerminal;
 
 export interface TerminalKillRow {
   terminalId: string;

@@ -1,4 +1,4 @@
-import type { AgentFeature } from "@getpaseo/protocol/agent-types";
+import type { AgentFeature } from "@kivotos/protocol/agent-types";
 
 export function pruneFeatureValues(
   featureValues: Record<string, unknown>,

@@ -5,8 +5,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { isBearerTokenValidAsync } from "@getpaseo/server/auth";
-import { runLocalPaseo } from "./helpers/local-cli.ts";
+import { isBearerTokenValidAsync } from "@kivotos/server/auth";
+import { runLocalKivotos } from "./helpers/local-cli.ts";
 import {
   runSetPasswordCommand,
   setDaemonPasswordInConfig,
@@ -15,8 +15,8 @@ import {
 
 console.log("=== Daemon Set Password Command ===\n");
 
-const root = await mkdtemp(join(tmpdir(), "paseo-set-password-"));
-const paseoHome = join(root, ".paseo");
+const root = await mkdtemp(join(tmpdir(), "kivotos-set-password-"));
+const kivotosHome = join(root, ".kivotos");
 
 function promptSequence(values: string[]): PromptPassword {
   return async () => {
@@ -31,9 +31,9 @@ function promptSequence(values: string[]): PromptPassword {
 try {
   {
     console.log("Test 1: setDaemonPasswordInConfig writes hash and preserves config fields");
-    await mkdir(paseoHome, { recursive: true });
+    await mkdir(kivotosHome, { recursive: true });
     await writeFile(
-      join(paseoHome, "config.json"),
+      join(kivotosHome, "config.json"),
       `${JSON.stringify(
         {
           version: 1,
@@ -48,13 +48,13 @@ try {
       )}\n`,
     );
 
-    const result = await setDaemonPasswordInConfig("shared-secret", { home: paseoHome });
-    const config = JSON.parse(await readFile(join(paseoHome, "config.json"), "utf-8"));
+    const result = await setDaemonPasswordInConfig("shared-secret", { home: kivotosHome });
+    const config = JSON.parse(await readFile(join(kivotosHome, "config.json"), "utf-8"));
 
-    assert.strictEqual(result.configPath, join(paseoHome, "config.json"));
+    assert.strictEqual(result.configPath, join(kivotosHome, "config.json"));
     assert.strictEqual(
       result.restartCommand,
-      `paseo daemon restart --home ${JSON.stringify(paseoHome)}`,
+      `kivotos daemon restart --home ${JSON.stringify(kivotosHome)}`,
     );
     assert.strictEqual(config.daemon.listen, "127.0.0.1:9999");
     assert.strictEqual(config.daemon.relay.enabled, false);
@@ -74,13 +74,13 @@ try {
     console.log("Test 2: command prompts twice and accepts matching confirmation");
     const result = await runSetPasswordCommand(
       {
-        home: paseoHome,
-        daemonTarget: { kind: "instance", home: paseoHome },
+        home: kivotosHome,
+        daemonTarget: { kind: "instance", home: kivotosHome },
         promptPassword: promptSequence(["new-secret", "new-secret"]),
       },
       {} as Command,
     );
-    const config = JSON.parse(await readFile(join(paseoHome, "config.json"), "utf-8"));
+    const config = JSON.parse(await readFile(join(kivotosHome, "config.json"), "utf-8"));
 
     assert.strictEqual(result.data.action, "password_set");
     assert.strictEqual(
@@ -95,8 +95,8 @@ try {
     await assert.rejects(
       runSetPasswordCommand(
         {
-          home: paseoHome,
-          daemonTarget: { kind: "instance", home: paseoHome },
+          home: kivotosHome,
+          daemonTarget: { kind: "instance", home: kivotosHome },
           promptPassword: promptSequence(["first-secret", "second-secret"]),
         },
         {} as Command,
@@ -114,7 +114,7 @@ try {
     console.log("Test 4: piped stdin fails with a message instead of exiting silently");
     const pipedHome = join(root, "piped");
     await mkdir(pipedHome, { recursive: true });
-    const run = runLocalPaseo(["daemon", "set-password", "--home", pipedHome, "--json"]);
+    const run = runLocalKivotos(["daemon", "set-password", "--home", pipedHome, "--json"]);
     run.stdin.end("x\nx\n");
     const result = await run;
 
@@ -126,7 +126,7 @@ try {
     };
     assert.strictEqual(error.code, "PASSWORD_TTY_REQUIRED");
     assert.match(error.message, /needs a terminal/);
-    assert.match(error.details, /PASEO_PASSWORD/);
+    assert.match(error.details, /KIVOTOS_PASSWORD/);
     await assert.rejects(readFile(join(pipedHome, "config.json"), "utf-8"));
     console.log("✓ piped stdin reports that a terminal is required\n");
   }

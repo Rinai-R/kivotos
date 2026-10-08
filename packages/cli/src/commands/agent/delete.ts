@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { connectToDaemon } from "../../utils/client.js";
 import { isSameOrDescendantPath } from "../../utils/paths.js";
-import type { DaemonClient, FetchAgentHistoryEntry } from "@getpaseo/client/internal/daemon-client";
+import type { DaemonClient, FetchAgentHistoryEntry } from "@kivotos/client/internal/daemon-client";
 
 export function addDeleteOptions(cmd: Command): Command {
   return cmd
@@ -57,7 +57,7 @@ export async function runDeleteCommand(
     const error: CommandError = {
       code: "MISSING_ARGUMENT",
       message: "Agent ID required unless --all or --cwd is specified",
-      details: "Usage: paseo agent delete <id> | --all | --cwd <path>",
+      details: "Usage: kivotos agent delete <id> | --all | --cwd <path>",
     };
     throw error;
   }
@@ -79,7 +79,7 @@ export async function runDeleteCommand(
         const error: CommandError = {
           code: "AGENT_NOT_FOUND",
           message: `No agent found matching: ${id}`,
-          details: "Use `paseo ls` to list available agents",
+          details: "Use `kivotos ls` to list available agents",
         };
         throw error;
       }

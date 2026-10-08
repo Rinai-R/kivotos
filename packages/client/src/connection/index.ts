@@ -9,8 +9,8 @@ import {
   type SessionInboundMessage,
   type SessionOutboundMessage,
   type ServerInfoStatusPayload,
-} from "@getpaseo/protocol/messages";
-import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
+} from "@kivotos/protocol/messages";
+import { CLIENT_CAPS, type ClientCapability } from "@kivotos/protocol/client-capabilities";
 
 export class ConnectionSubscriptions extends OwnedSubscriptions {
   private legacy: LegacySubscriptions | null = null;

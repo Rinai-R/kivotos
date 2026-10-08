@@ -1,5 +1,5 @@
-import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@getpaseo/protocol/browser-automation/rpc-schemas";
-import type { SessionInboundMessage, SessionOutboundMessage } from "@getpaseo/protocol/messages";
+import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@kivotos/protocol/browser-automation/rpc-schemas";
+import type { SessionInboundMessage, SessionOutboundMessage } from "@kivotos/protocol/messages";
 import { getDesktopHost, type DesktopHostBridge } from "@/desktop/host";
 import {
   ensureResidentBrowserWebview as ensureResidentBrowserWebviewDefault,
@@ -70,7 +70,7 @@ export function mountBrowserAutomationHandler(
 }
 
 export function mountBrowserAutomationDaemonClientHandler(
-  client: import("@getpaseo/client/internal/daemon-client").DaemonClient,
+  client: import("@kivotos/client/internal/daemon-client").DaemonClient,
   options?: { serverId?: string },
 ): () => void {
   const observation = client.registerBrowserHost({

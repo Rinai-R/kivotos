@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 import assert from "node:assert";
-import { runLocalPaseo } from "./helpers/local-cli.ts";
+import { runLocalKivotos } from "./helpers/local-cli.ts";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,13 +14,13 @@ if (process.platform !== "win32") {
 
 console.log("=== Windows Daemon Status Process Lookup ===\n");
 
-const paseoHome = await mkdtemp(join(tmpdir(), "paseo-windows-status-home-"));
+const kivotosHome = await mkdtemp(join(tmpdir(), "kivotos-windows-status-home-"));
 const port = await getAvailablePort();
 const env = {
-  PASEO_HOME: paseoHome,
-  PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD: "0",
-  PASEO_DICTATION_ENABLED: "0",
-  PASEO_VOICE_MODE_ENABLED: "0",
+  KIVOTOS_HOME: kivotosHome,
+  KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD: "0",
+  KIVOTOS_DICTATION_ENABLED: "0",
+  KIVOTOS_VOICE_MODE_ENABLED: "0",
 };
 
 try {
@@ -30,18 +30,18 @@ try {
     ["features.dictation.enabled", "false"],
     ["features.voiceMode.enabled", "false"],
   ]) {
-    const saved = await runLocalPaseo(["daemon", "config", "set", field!, value!], env);
+    const saved = await runLocalKivotos(["daemon", "config", "set", field!, value!], env);
     assert.equal(saved.exitCode, 0, saved.stderr);
   }
-  const start = await runLocalPaseo(["daemon", "start"], env);
+  const start = await runLocalKivotos(["daemon", "start"], env);
   assert.strictEqual(
     start.exitCode,
     0,
     `daemon restart should succeed:\nstdout:\n${start.stdout}\nstderr:\n${start.stderr}`,
   );
 
-  const statusResult = await runLocalPaseo(
-    ["daemon", "status", "--home", paseoHome, "--json"],
+  const statusResult = await runLocalKivotos(
+    ["daemon", "status", "--home", kivotosHome, "--json"],
     env,
   );
   assert.strictEqual(
@@ -68,8 +68,8 @@ try {
   );
   console.log("✓ daemon status resolves daemonNode on Windows\n");
 } finally {
-  await runLocalPaseo(["daemon", "stop", "--home", paseoHome, "--force"], env);
-  await rm(paseoHome, { recursive: true, force: true });
+  await runLocalKivotos(["daemon", "stop", "--home", kivotosHome, "--force"], env);
+  await rm(kivotosHome, { recursive: true, force: true });
 }
 
 console.log("=== Windows daemon status process lookup passed ===");

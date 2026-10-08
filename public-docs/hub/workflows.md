@@ -8,11 +8,11 @@ category: Hub
 
 # Hub workflows
 
-A workflow file contains one trigger and the ordered steps it starts. Files are discovered from `.paseo/workflows/*.yml`.
+A workflow file contains one trigger and the ordered steps it starts. Files are discovered from `.kivotos/workflows/*.yml`.
 
 ## Your first workflow
 
-Assume `.paseo/hub.yml` defines an environment named `dev` and an agent named `codex`. Add `.paseo/workflows/slack-help.yml`:
+Assume `.kivotos/hub.yml` defines an environment named `dev` and an agent named `codex`. Add `.kivotos/workflows/slack-help.yml`:
 
 ```yaml
 name: slack-help
@@ -33,13 +33,13 @@ steps:
           Answer the request. Call hub.reply once, then call hub.finish_execution.
 
           <user-prompt>
-          ${{ paseo.prompt }}
+          ${{ kivotos.prompt }}
           </user-prompt>
     allow_outputs:
       - { type: slack.reply, max: 1, required: true }
 ```
 
-Hub removes the mention and declared input headers before exposing the remaining text as `${{ paseo.prompt }}`. The reply capability is explicit beside the Slack trigger. Discord uses `discord.reply`; GitHub uses a step-scoped [`github` block](/docs/hub/github), not `hub.reply`.
+Hub removes the mention and declared input headers before exposing the remaining text as `${{ kivotos.prompt }}`. The reply capability is explicit beside the Slack trigger. Discord uses `discord.reply`; GitHub uses a step-scoped [`github` block](/docs/hub/github), not `hub.reply`.
 
 ## Choose where a step runs
 
@@ -61,15 +61,15 @@ inputs:
   repo:
     type: string
     required: true
-    choices: [paseo, hub]
+    choices: [kivotos, hub]
 steps:
   - id: work
-    environment: ${{ paseo.inputs.repo }}
+    environment: ${{ kivotos.inputs.repo }}
     max_runtime: 30m
     idle_timeout: 5m
     agent: codex
     prompt:
-      - text: ${{ paseo.prompt }}
+      - text: ${{ kivotos.prompt }}
 ```
 
 Activation checks every `choices` result. Environment objects are never merged or overridden by a workflow.
@@ -105,15 +105,15 @@ inputs:
     choices: [codex-safe, claude]
 steps:
   - id: work
-    environment: paseo
+    environment: kivotos
     max_runtime: 30m
     idle_timeout: 5m
-    agent: ${{ paseo.inputs.agent }}
+    agent: ${{ kivotos.inputs.agent }}
     prompt:
-      - text: ${{ paseo.prompt }}
+      - text: ${{ kivotos.prompt }}
 ```
 
-If `codex-safe` contains structured sandbox options in `hub.yml`, selecting it carries those options unchanged. A dynamic inline object such as `provider: ${{ paseo.inputs.agent }}` is rejected.
+If `codex-safe` contains structured sandbox options in `hub.yml`, selecting it carries those options unchanged. A dynamic inline object such as `provider: ${{ kivotos.inputs.agent }}` is rejected.
 
 ## Route from a classifier
 
@@ -137,13 +137,13 @@ steps:
     agent: claude
     prompt:
       - include: partials/classify.md
-      - text: ${{ paseo.prompt }}
+      - text: ${{ kivotos.prompt }}
     output:
       schema:
         type: object
         required: [environment, agent]
         properties:
-          environment: { enum: [paseo, hub] }
+          environment: { enum: [kivotos, hub] }
           agent: { enum: [codex-safe, claude] }
         additionalProperties: false
   - id: work
@@ -154,12 +154,12 @@ steps:
     prompt:
       - text: |
           Complete the request. Call hub.reply once, then call hub.finish_execution.
-      - text: ${{ paseo.prompt }}
+      - text: ${{ kivotos.prompt }}
     allow_outputs:
       - { type: discord.reply, max: 1, required: true }
 ```
 
-`.paseo/workflows/partials/classify.md`:
+`.kivotos/workflows/partials/classify.md`:
 
 ```text
 Choose one configured repository environment and one complete named agent configuration.
@@ -176,15 +176,15 @@ prompt:
   - include: partials/instructions.md
   - text: |
       Provider evidence:
-      ${{ paseo.context }}
+      ${{ kivotos.context }}
 
       <user-prompt>
-      ${{ paseo.prompt }}
+      ${{ kivotos.prompt }}
       </user-prompt>
 ```
 
-- `${{ paseo.prompt }}` is normalized request text. It is always explicit in the authored prompt.
-- `${{ paseo.context }}` opts this step into provider context materialization and inserts JSON. Without that expression, Hub does not fetch or inject ambient context.
+- `${{ kivotos.prompt }}` is normalized request text. It is always explicit in the authored prompt.
+- `${{ kivotos.context }}` opts this step into provider context materialization and inserts JSON. Without that expression, Hub does not fetch or inject ambient context.
 
 Keep untrusted request text in a clearly delimited block. A partial is instruction text, not hidden authority.
 
@@ -200,12 +200,12 @@ filters:
   from_users: [automation]
 steps:
   - id: inspect
-    environment: paseo
+    environment: kivotos
     max_runtime: 10m
     idle_timeout: 2m
     agent: codex-safe
     prompt:
-      - text: ${{ paseo.prompt }}
+      - text: ${{ kivotos.prompt }}
     output:
       schema:
         type: object
@@ -215,7 +215,7 @@ steps:
         additionalProperties: false
   - id: review
     if: ${{ steps.inspect.outputs.needs_review == true }}
-    environment: paseo
+    environment: kivotos
     max_runtime: 30m
     idle_timeout: 5m
     agent: claude

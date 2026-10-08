@@ -5,10 +5,10 @@ import {
   type PluginWorkspacePanelProps,
   useRpc,
   useWorkspace,
-} from "@getpaseo/plugin/client";
+} from "@kivotos/plugin/client";
 import { useCallback, useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
-import { ExternalLink } from "@getpaseo/plugin/client/ui";
+import { ExternalLink } from "@kivotos/plugin/client/ui";
 import { incrementRpc } from "../shared/increment";
 
 export function contributeClient(client: PluginClientContext) {
@@ -41,7 +41,7 @@ export function contributeClient(client: PluginClientContext) {
     pills.get(agentId)?.remove();
     pills.delete(agentId);
   };
-  void client.paseo.agents
+  void client.kivotos.agents
     .list({ subscribe: {}, signal: lifetime.signal })
     .then(({ subscription }) => {
       subscription.subscribe({

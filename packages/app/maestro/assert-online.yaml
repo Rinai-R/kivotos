@@ -1,8 +1,8 @@
-appId: sh.paseo
+appId: sh.kivotos
 ---
 - runFlow:
     when:
-      visible: "Open in.*Paseo.*\\?"
+      visible: "Open in.*Kivotos.*\\?"
     commands:
       - tapOn: "Open"
 

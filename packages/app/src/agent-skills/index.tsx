@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ArrowUpRight, Blocks, Check, Settings2 } from "lucide-react-native";
-import type { AgentSkillOperation, AgentSkillsStatus } from "@getpaseo/protocol/messages";
+import type { AgentSkillOperation, AgentSkillsStatus } from "@kivotos/protocol/messages";
 import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
 import { SettingsSection } from "@/components/settings/headings/settings-section";

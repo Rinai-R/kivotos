@@ -150,7 +150,7 @@ describe("resolveWorkspaceRouteState", () => {
     ).toEqual({
       kind: "recoveryUnavailable",
       hostName: "Laptop",
-      message: "Update Paseo to recover this workspace.",
+      message: "Update Kivotos to recover this workspace.",
     });
   });
 

@@ -1,24 +1,24 @@
 // Browser compatibility tests run a real daemon in a separate Node runtime.
 //
-// argv: <daemonVersion> [port] [paseoHomeRoot]
+// argv: <daemonVersion> [port] [kivotosHomeRoot]
 // A fixed port and a caller-owned home let a test stop this daemon and start a
 // replacement under the same endpoint and serverId.
 import path from "node:path";
-import { createTestPaseoDaemon } from "./paseo-daemon.js";
+import { createTestKivotosDaemon } from "./kivotos-daemon.js";
 
-const [, , daemonVersion, portArg, paseoHomeRoot] = process.argv;
+const [, , daemonVersion, portArg, kivotosHomeRoot] = process.argv;
 const listenPort = portArg ? Number(portArg) : 0;
 if (!Number.isInteger(listenPort) || listenPort < 0) {
   throw new Error(`Invalid versioned daemon port: ${portArg ?? ""}`);
 }
 
-const daemon = await createTestPaseoDaemon({
+const daemon = await createTestKivotosDaemon({
   daemonVersion,
   ...(listenPort > 0 ? { listenPort } : {}),
-  ...(paseoHomeRoot
+  ...(kivotosHomeRoot
     ? {
-        paseoHomeRoot,
-        staticDir: path.join(paseoHomeRoot, "static"),
+        kivotosHomeRoot,
+        staticDir: path.join(kivotosHomeRoot, "static"),
         // The caller removes the home so a replacement daemon keeps the same serverId.
         cleanup: false,
       }

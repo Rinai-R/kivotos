@@ -1,5 +1,5 @@
 import { app, Menu, BrowserWindow, ipcMain } from "electron";
-import { getActivePaseoBrowserWebContentsForHostWindow } from "./browser-webviews/index.js";
+import { getActiveKivotosBrowserWebContentsForHostWindow } from "./browser-webviews/index.js";
 
 interface ShowContextMenuInput {
   kind?: "terminal";
@@ -148,7 +148,7 @@ function buildApplicationMenuTemplate(
           click: withBrowserWindow((win) => {
             reloadActiveBrowserOrWindow({
               win,
-              getActiveBrowserContentsForHostWindow: getActivePaseoBrowserWebContentsForHostWindow,
+              getActiveBrowserContentsForHostWindow: getActiveKivotosBrowserWebContentsForHostWindow,
             });
           }),
         },
@@ -158,7 +158,7 @@ function buildApplicationMenuTemplate(
           click: withBrowserWindow((win) => {
             reloadActiveBrowserOrWindow({
               win,
-              getActiveBrowserContentsForHostWindow: getActivePaseoBrowserWebContentsForHostWindow,
+              getActiveBrowserContentsForHostWindow: getActiveKivotosBrowserWebContentsForHostWindow,
               ignoreCache: true,
             });
           }),
@@ -196,7 +196,7 @@ export function setupApplicationMenu(options: ApplicationMenuOptions): void {
   applicationMenuOptions = options;
   rebuildApplicationMenu();
 
-  ipcMain.handle("paseo:menu:showContextMenu", (event, input?: ShowContextMenuInput) => {
+  ipcMain.handle("kivotos:menu:showContextMenu", (event, input?: ShowContextMenuInput) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       return;
@@ -230,7 +230,7 @@ export function setupApplicationMenu(options: ApplicationMenuOptions): void {
 
   // Disable the zoom accelerators while capturing a shortcut so combos like
   // Cmd+- / Cmd+= reach the renderer instead of zooming the window.
-  ipcMain.handle("paseo:menu:set-capturing-shortcut", (_event, capturing?: boolean) => {
+  ipcMain.handle("kivotos:menu:set-capturing-shortcut", (_event, capturing?: boolean) => {
     capturingShortcut = capturing === true;
     rebuildApplicationMenu();
   });

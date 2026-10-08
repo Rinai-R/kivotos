@@ -10,35 +10,35 @@ category: Workspaces
 
 Git worktrees are one kind of workspace.
 
-A [workspace](/docs/workspaces) is the place where a task happens. When that workspace is backed by a git worktree, Paseo creates a separate directory on a separate branch so parallel agents never step on each other.
+A [workspace](/docs/workspaces) is the place where a task happens. When that workspace is backed by a git worktree, Kivotos creates a separate directory on a separate branch so parallel agents never step on each other.
 
-This page covers the git-specific details: where worktrees live, how branches are chosen, and how to configure setup hooks, scripts, terminals, and long-running services through `paseo.json`.
+This page covers the git-specific details: where worktrees live, how branches are chosen, and how to configure setup hooks, scripts, terminals, and long-running services through `kivotos.json`.
 
 ## Layout and workflow
 
-Worktrees live under `$PASEO_HOME/worktrees/` by default, grouped by a hash of the source checkout path. You can change the base directory with `worktrees.root` in `config.json`. Each worktree gets a slug and a branch when its workspace is created.
+Worktrees live under `$KIVOTOS_HOME/worktrees/` by default, grouped by a hash of the source checkout path. You can change the base directory with `worktrees.root` in `config.json`. Each worktree gets a slug and a branch when its workspace is created.
 
 ```
-~/.paseo/worktrees/
+~/.kivotos/worktrees/
 └── 1vnnm9k3/               # hash of source checkout path
     ├── tidy-fox/           # worktree slug
     └── bold-owl/
 ```
 
-With a custom root, Paseo keeps the same hashed layout under that directory:
+With a custom root, Kivotos keeps the same hashed layout under that directory:
 
 ```json
 {
   "worktrees": {
-    "root": "/mnt/fast/paseo-worktrees"
+    "root": "/mnt/fast/kivotos-worktrees"
   }
 }
 ```
 
-1. Create a workspace with worktree isolation, Paseo creates the worktree and runs your setup hooks
+1. Create a workspace with worktree isolation, Kivotos creates the worktree and runs your setup hooks
 2. Launch one or more agents in that workspace
 3. Review the diff against the base branch
-4. Merge or archive the workspace; after the last workspace using it is archived, Paseo runs teardown and removes the worktree
+4. Merge or archive the workspace; after the last workspace using it is archived, Kivotos runs teardown and removes the worktree
 
 ## Create a worktree-backed workspace
 
@@ -47,7 +47,7 @@ The examples below use the current directory as the source checkout. Pass `--pat
 Branch off from a base branch:
 
 ```bash
-paseo workspace create \
+kivotos workspace create \
   --isolation worktree \
   --mode branch-off \
   --new-branch feature/auth \
@@ -55,12 +55,12 @@ paseo workspace create \
   --base origin/main
 ```
 
-Use `origin/main` rather than `main`. Paseo fetches remote refs in the background, so the remote-tracking branch is current, while your local `main` is whatever you last pulled. An unqualified `main` resolves to that local branch first, and the worktree starts from stale history. Prefixing the remote names the fetched ref explicitly.
+Use `origin/main` rather than `main`. Kivotos fetches remote refs in the background, so the remote-tracking branch is current, while your local `main` is whatever you last pulled. An unqualified `main` resolves to that local branch first, and the worktree starts from stale history. Prefixing the remote names the fetched ref explicitly.
 
 Check out an existing branch:
 
 ```bash
-paseo workspace create \
+kivotos workspace create \
   --isolation worktree \
   --mode checkout-branch \
   --branch feature/existing \
@@ -70,17 +70,17 @@ paseo workspace create \
 Or open a pull request in its own workspace:
 
 ```bash
-paseo workspace create \
+kivotos workspace create \
   --isolation worktree \
   --mode checkout-pr \
   --pr-number 2186
 ```
 
-Add `--forge <name>` when Paseo cannot infer the forge from the source checkout.
+Add `--forge <name>` when Kivotos cannot infer the forge from the source checkout.
 
-## paseo.json
+## kivotos.json
 
-Drop a `paseo.json` in your repo root. Paseo reads it from the committed version of the base branch you picked, so uncommitted changes in other branches don't apply.
+Drop a `kivotos.json` in your repo root. Kivotos reads it from the committed version of the base branch you picked, so uncommitted changes in other branches don't apply.
 
 ```json
 {
@@ -102,7 +102,7 @@ Drop a `paseo.json` in your repo root. Paseo reads it from the committed version
 ```json
 {
   "worktree": {
-    "setup": "npm ci\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/.env\" .env\nnpm run db:migrate",
+    "setup": "npm ci\ncp \"$KIVOTOS_SOURCE_CHECKOUT_PATH/.env\" .env\nnpm run db:migrate",
     "teardown": "npm run db:drop || true"
   }
 }
@@ -110,13 +110,13 @@ Drop a `paseo.json` in your repo root. Paseo reads it from the committed version
 
 Both fields accept a multiline shell script or an array of commands; commands run sequentially either way.
 
-Commands run with the worktree as `cwd`. Use `$PASEO_SOURCE_CHECKOUT_PATH` to reach files in the original checkout (untracked config, local caches, etc).
+Commands run with the worktree as `cwd`. Use `$KIVOTOS_SOURCE_CHECKOUT_PATH` to reach files in the original checkout (untracked config, local caches, etc).
 
 ## Scripts and services
 
-`scripts` are named commands you can run inside a worktree on demand. Mark one as a _service_ and Paseo supervises it as a long-running process, assigns it a port, and routes HTTP traffic to it through the daemon's reverse proxy.
+`scripts` are named commands you can run inside a worktree on demand. Mark one as a _service_ and Kivotos supervises it as a long-running process, assigns it a port, and routes HTTP traffic to it through the daemon's reverse proxy.
 
-Run them from the app, or manage them from automation with [`paseo script`](/docs/cli#workspace-scripts) and the [workspace-script MCP tools](/docs/mcp#workspace-scripts).
+Run them from the app, or manage them from automation with [`kivotos script`](/docs/cli#workspace-scripts) and the [workspace-script MCP tools](/docs/mcp#workspace-scripts).
 
 ### Plain scripts
 
@@ -137,26 +137,26 @@ Run them from the app, or manage them from automation with [`paseo script`](/doc
   "scripts": {
     "web": {
       "type": "service",
-      "command": "npm run dev -- --port $PASEO_PORT",
+      "command": "npm run dev -- --port $KIVOTOS_PORT",
       "port": 3000
     },
     "api": {
       "type": "service",
-      "command": "npm run api -- --port $PASEO_PORT"
+      "command": "npm run api -- --port $KIVOTOS_PORT"
     }
   }
 }
 ```
 
-Omit `port` to let Paseo auto-assign one. Bind your process to `$PASEO_PORT` rather than hard-coding, each worktree gets a distinct port so multiple copies of the same service coexist.
+Omit `port` to let Kivotos auto-assign one. Bind your process to `$KIVOTOS_PORT` rather than hard-coding, each worktree gets a distinct port so multiple copies of the same service coexist.
 
 ### Dynamic port allocation
 
-By default, Paseo asks the OS for an available ephemeral port. Configure a range globally in
-`~/.paseo/config.json` or per project in `paseo.json`:
+By default, Kivotos asks the OS for an available ephemeral port. Configure a range globally in
+`~/.kivotos/config.json` or per project in `kivotos.json`:
 
 ```json
-// ~/.paseo/config.json
+// ~/.kivotos/config.json
 {
   "worktrees": {
     "servicePorts": { "range": "3000-4000" }
@@ -165,7 +165,7 @@ By default, Paseo asks the OS for an available ephemeral port. Configure a range
 ```
 
 ```json
-// paseo.json
+// kivotos.json
 {
   "worktree": {
     "servicePorts": { "range": "3000-4000" }
@@ -186,12 +186,12 @@ For an external allocator, configure `portScript` instead:
 }
 ```
 
-Paseo runs the executable in the workspace directory with four arguments: service name, workspace
+Kivotos runs the executable in the workspace directory with four arguments: service name, workspace
 ID, branch name, and worktree path. Since the script is executed directly without a shell, `portScript` must point to a real executable (such as a compiled binary or a script with a proper shebang line like `#!/bin/bash`) rather than an inline shell command or pipeline. If you need shell evaluation or pipelines, wrap them in a small executable script. A missing branch is passed as an empty string. The same values
-are available as `PASEO_SCRIPTNAME`, `PASEO_WORKSPACE_ID`, `PASEO_BRANCH_NAME`, and
-`PASEO_WORKTREE_PATH`. It must print one valid TCP port to stdout. `portScript` wins over `range` in
-the same block. Paseo trusts the external allocator, so the returned port may already be in use, for
-example by a service Paseo will attach to.
+are available as `KIVOTOS_SCRIPTNAME`, `KIVOTOS_WORKSPACE_ID`, `KIVOTOS_BRANCH_NAME`, and
+`KIVOTOS_WORKTREE_PATH`. It must print one valid TCP port to stdout. `portScript` wins over `range` in
+the same block. Kivotos trusts the external allocator, so the returned port may already be in use, for
+example by a service Kivotos will attach to.
 
 ### Reverse proxy
 
@@ -211,15 +211,15 @@ http://<script>--<project>.localhost:<daemon-port>
 Services launched from the same workspace see each other's ports and proxy URLs. Given `web` and `api` above, each process gets:
 
 ```
-PASEO_PORT=3000                         # this service's port
-PASEO_URL=http://web--my-app.localhost:6767  # this service's proxy URL
-PASEO_SERVICE_API_PORT=51732
-PASEO_SERVICE_API_URL=http://api--my-app.localhost:6767
-PASEO_SERVICE_WEB_PORT=3000
-PASEO_SERVICE_WEB_URL=http://web--my-app.localhost:6767
+KIVOTOS_PORT=3000                         # this service's port
+KIVOTOS_URL=http://web--my-app.localhost:6767  # this service's proxy URL
+KIVOTOS_SERVICE_API_PORT=51732
+KIVOTOS_SERVICE_API_URL=http://api--my-app.localhost:6767
+KIVOTOS_SERVICE_WEB_PORT=3000
+KIVOTOS_SERVICE_WEB_URL=http://web--my-app.localhost:6767
 ```
 
-Script names are upper-cased and non-alphanumerics become `_`. Point your frontend at `$PASEO_SERVICE_API_URL` instead of hard-coding a port.
+Script names are upper-cased and non-alphanumerics become `_`. Point your frontend at `$KIVOTOS_SERVICE_API_URL` instead of hard-coding a port.
 
 ## Terminals
 
@@ -240,25 +240,25 @@ Open terminals automatically when a worktree is created. Useful for tailing logs
 
 Setup, teardown, scripts, and services all see:
 
-- `$PASEO_SOURCE_CHECKOUT_PATH`, the original repo root
-- `$PASEO_WORKTREE_PATH`, the worktree directory
-- `$PASEO_BRANCH_NAME`, the worktree's branch
-- `$PASEO_WORKTREE_PORT`, legacy per-worktree port (prefer `$PASEO_PORT` inside services)
+- `$KIVOTOS_SOURCE_CHECKOUT_PATH`, the original repo root
+- `$KIVOTOS_WORKTREE_PATH`, the worktree directory
+- `$KIVOTOS_BRANCH_NAME`, the worktree's branch
+- `$KIVOTOS_WORKTREE_PORT`, legacy per-worktree port (prefer `$KIVOTOS_PORT` inside services)
 
 Services additionally get:
 
-- `$PASEO_PORT`, this service's assigned port
-- `$PASEO_URL`, this service's proxy URL
-- `$PASEO_SERVICE_<NAME>_PORT` / `_URL`, peer service ports and URLs
+- `$KIVOTOS_PORT`, this service's assigned port
+- `$KIVOTOS_URL`, this service's proxy URL
+- `$KIVOTOS_SERVICE_<NAME>_PORT` / `_URL`, peer service ports and URLs
 - `$HOST`, `127.0.0.1` for local-only daemons, `0.0.0.0` when the daemon binds all interfaces
 
 ## Manage the workspace
 
 ```bash
-paseo workspace ls
-paseo run --workspace <workspace-id> "implement auth"
-paseo workspace rename <workspace-id> "Auth rework"
-paseo workspace archive <workspace-id>
+kivotos workspace ls
+kivotos run --workspace <workspace-id> "implement auth"
+kivotos workspace rename <workspace-id> "Auth rework"
+kivotos workspace archive <workspace-id>
 ```
 
-For the common case, `paseo run --new-workspace worktree --worktree-mode branch-off --new-branch feature/auth --base origin/main "implement auth"` creates both the workspace and its first agent.
+For the common case, `kivotos run --new-workspace worktree --worktree-mode branch-off --new-branch feature/auth --base origin/main "implement auth"` creates both the workspace and its first agent.

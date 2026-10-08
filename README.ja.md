@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Paseo logo">
+  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Kivotos logo">
 </p>
 
-<h1 align="center">Paseo</h1>
+<h1 align="center">Kivotos</h1>
 
 <p align="center">
   <a href="README.md">English</a> ·
@@ -12,11 +12,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/getpaseo/kivotos/stargazers">
+    <img src="https://img.shields.io/github/stars/getkivotos/kivotos?style=flat&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
+  <a href="https://github.com/getpaseo/kivotos/releases">
+    <img src="https://img.shields.io/github/v/release/getkivotos/kivotos?style=flat&logo=github" alt="GitHub release">
   </a>
   <a href="https://x.com/moboudra">
     <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
@@ -24,7 +24,7 @@
   <a href="https://discord.gg/jz8T2uahpH">
     <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
   </a>
-  <a href="https://www.reddit.com/r/PaseoAI/">
+  <a href="https://www.reddit.com/r/KivotosAI/">
     <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
   </a>
 </p>
@@ -32,11 +32,11 @@
 <p align="center">Claude Code、Codex、Copilot、OpenCode、Pi のエージェントを、ひとつのインターフェースで。</p>
 
 <p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Paseo アプリのスクリーンショット" width="100%">
+  <img src="https://paseo.sh/hero-mockup.png" alt="Kivotos アプリのスクリーンショット" width="100%">
 </p>
 
 <p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Paseo モバイルアプリ" width="100%">
+  <img src="https://paseo.sh/mobile-mockup.png" alt="Kivotos モバイルアプリ" width="100%">
 </p>
 
 > [!NOTE]
@@ -51,11 +51,11 @@
 - **マルチプロバイダー:** Claude Code、Codex、Copilot、OpenCode、Pi を同一のインターフェースで利用。タスクに合ったモデルを選べます。
 - **音声コントロール:** 音声モードでタスクを口述したり問題を話し合ったりできます。ハンズフリーが必要なときに便利です。
 - **クロスデバイス:** iOS、Android、デスクトップ、Web、CLI に対応。机で作業を始め、スマートフォンで確認し、ターミナルから自動化できます。
-- **プライバシー優先:** Paseo にはテレメトリー・トラッキング・強制ログインは一切ありません。
+- **プライバシー優先:** Kivotos にはテレメトリー・トラッキング・強制ログインは一切ありません。
 
 ## はじめかた
 
-Paseo はコーディングエージェントを管理するローカルサーバー（デーモン）を起動します。デスクトップアプリ・モバイルアプリ・Web アプリ・CLI などのクライアントがこのデーモンに接続します。
+Kivotos はコーディングエージェントを管理するローカルサーバー（デーモン）を起動します。デスクトップアプリ・モバイルアプリ・Web アプリ・CLI などのクライアントがこのデーモンに接続します。
 
 ### 前提条件
 
@@ -69,17 +69,17 @@ Paseo はコーディングエージェントを管理するローカルサー�
 
 ### デスクトップアプリ（推奨）
 
-[paseo.sh/download](https://paseo.sh/download) または [GitHub のリリースページ](https://github.com/getpaseo/paseo/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
+[paseo.sh/download](https://paseo.sh/download) または [GitHub のリリースページ](https://github.com/getpaseo/kivotos/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
 
 スマートフォンから接続するには、Settings 画面に表示される QR コードをスキャンしてください。
 
 ### CLI / ヘッドレス
 
-CLI をインストールして Paseo を起動します。
+CLI をインストールして Kivotos を起動します。
 
 ```bash
-npm install -g @getpaseo/cli
-paseo
+npm install -g @kivotos/cli
+kivotos
 ```
 
 ターミナルに QR コードが表示されます。どのクライアントからでも接続できます。サーバーやリモートマシンでの利用に適しています。
@@ -94,40 +94,40 @@ paseo
 アプリでできることはすべてターミナルからも実行できます。
 
 ```bash
-paseo run --provider claude/opus-4.6 "implement user authentication"
-paseo run --provider codex/gpt-5.4 --worktree feature-x "implement feature X"
+kivotos run --provider claude/opus-4.6 "implement user authentication"
+kivotos run --provider codex/gpt-5.4 --worktree feature-x "implement feature X"
 
-paseo ls                           # 実行中のエージェントを一覧表示
-paseo attach abc123                # ライブ出力をストリーミング
-paseo send abc123 "also add tests" # 追加タスクを送信
+kivotos ls                           # 実行中のエージェントを一覧表示
+kivotos attach abc123                # ライブ出力をストリーミング
+kivotos send abc123 "also add tests" # 追加タスクを送信
 
 # リモートデーモンで実行
-paseo --host workstation.local:6767 run "run the full test suite"
+kivotos --host workstation.local:6767 run "run the full test suite"
 ```
 
 詳細は[完全な CLI リファレンス](https://paseo.sh/docs/cli)を参照してください。
 
 ## スキル
 
-スキルはエージェントに Paseo を使って他のエージェントをオーケストレーションする方法を教えます。
+スキルはエージェントに Kivotos を使って他のエージェントをオーケストレーションする方法を教えます。
 
 ```bash
-npx skills add getpaseo/paseo
+npx skills add getkivotos/kivotos
 ```
 
 どのエージェントとの会話でも使用できます。
 
-- `/paseo-handoff` — エージェント間で作業を引き継ぎます。私はこれを使って Claude で計画し、Codex に実装を引き継いでいます。
-- `/paseo-advisor` — 単一のエージェントをアドバイザーとして起動し、作業を委任せずにセカンドオピニオンを得ます。
-- `/paseo-committee` — 対照的な2つのエージェントで委員会を構成し、一歩引いた視点で根本原因を分析して計画を作成します。
+- `/kivotos-handoff` — エージェント間で作業を引き継ぎます。私はこれを使って Claude で計画し、Codex に実装を引き継いでいます。
+- `/kivotos-advisor` — 単一のエージェントをアドバイザーとして起動し、作業を委任せずにセカンドオピニオンを得ます。
+- `/kivotos-committee` — 対照的な2つのエージェントで委員会を構成し、一歩引いた視点で根本原因を分析して計画を作成します。
 
 ## 開発
 
 モノレポのパッケージ構成：
 
-- `packages/server`: Paseo デーモン（エージェントプロセスのオーケストレーション、WebSocket API、MCP サーバー）
+- `packages/server`: Kivotos デーモン（エージェントプロセスのオーケストレーション、WebSocket API、MCP サーバー）
 - `packages/app`: Expo クライアント（iOS、Android、Web）
-- `packages/cli`: デーモンおよびエージェントワークフロー向け `paseo` CLI
+- `packages/cli`: デーモンおよびエージェントワークフロー向け `kivotos` CLI
 - `packages/desktop`: Electron デスクトップアプリ
 - `packages/relay`: リモート接続用リレーパッケージ
 - `packages/website`: マーケティングサイトとドキュメント（`paseo.sh`）
@@ -153,14 +153,14 @@ npm run typecheck
 
 ## スポンサー
 
-Paseo は一人で開発しており、使ってくれる人たちの支援で成り立っています。[GitHub Sponsors](https://github.com/sponsors/boudra) で支援できます。企業として毎月[スポンサー](https://paseo.sh/sponsor#spot)になっていただくと、ロゴをここと paseo.sh のホームページに掲載します。
+Kivotos は一人で開発しており、使ってくれる人たちの支援で成り立っています。[GitHub Sponsors](https://github.com/sponsors/boudra) で支援できます。企業として毎月[スポンサー](https://paseo.sh/sponsor#spot)になっていただくと、ロゴをここと paseo.sh のホームページに掲載します。
 
 <!-- Sponsor logos go here, in the same order as packages/website/src/data/sponsors.ts -->
 
 ## 関連プロジェクト
 
-- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — Elixir 製の公式分散リレー
-- [paseo-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.paseo-vscode) — VS Code 拡張機能
+- [getkivotos/kivotos-relay](https://github.com/getpaseo/kivotos-relay) — Elixir 製の公式分散リレー
+- [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code 拡張機能
 
 ## ライセンス
 

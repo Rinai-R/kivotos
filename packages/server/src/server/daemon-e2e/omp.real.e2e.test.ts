@@ -14,7 +14,7 @@ import {
   formatOmpVersionSupport,
 } from "../agent/providers/omp/agent.js";
 import { DaemonClient } from "../test-utils/daemon-client.js";
-import { createTestPaseoDaemon, type TestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon, type TestKivotosDaemon } from "../test-utils/kivotos-daemon.js";
 import { createRealProviderClients, getRealProviderConfig } from "./real-provider-test-config.js";
 
 const execFileAsync = promisify(execFile);
@@ -24,10 +24,10 @@ const SHELL_TOOL_PATTERN = /(?:bash|shell|%!)/i;
 const roots = new Set<string>();
 
 interface Harness {
-  daemon: TestPaseoDaemon;
+  daemon: TestKivotosDaemon;
   client: DaemonClient;
   cwd: string;
-  paseoHomeRoot: string;
+  kivotosHomeRoot: string;
   staticDir: string;
 }
 
@@ -52,7 +52,7 @@ async function preflight(): Promise<void> {
 // OMP exits at startup when no model is usable at all, so the home offers one offline
 // model, and an agent on any other provider's model has no credentials.
 function createOfflineOmpHome(): string {
-  const home = mkdtempSync(path.join(tmpdir(), "paseo-real-omp-offline-"));
+  const home = mkdtempSync(path.join(tmpdir(), "kivotos-real-omp-offline-"));
   roots.add(home);
   const agentDir = path.join(home, ".omp", "agent");
   mkdirSync(agentDir, { recursive: true });
@@ -80,12 +80,12 @@ function createOfflineOmpHome(): string {
 }
 
 async function createHarness(options: { ompHome?: string } = {}): Promise<Harness> {
-  const cwd = mkdtempSync(path.join(tmpdir(), "paseo-real-omp-"));
-  const paseoHomeRoot = mkdtempSync(path.join(tmpdir(), "paseo-real-omp-home-"));
-  const staticDir = mkdtempSync(path.join(tmpdir(), "paseo-real-omp-static-"));
-  for (const root of [cwd, paseoHomeRoot, staticDir]) roots.add(root);
+  const cwd = mkdtempSync(path.join(tmpdir(), "kivotos-real-omp-"));
+  const kivotosHomeRoot = mkdtempSync(path.join(tmpdir(), "kivotos-real-omp-home-"));
+  const staticDir = mkdtempSync(path.join(tmpdir(), "kivotos-real-omp-static-"));
+  for (const root of [cwd, kivotosHomeRoot, staticDir]) roots.add(root);
   const logger = pino({ level: process.env.OMP_E2E_LOG_LEVEL ?? "silent" });
-  const daemon = await createTestPaseoDaemon({
+  const daemon = await createTestKivotosDaemon({
     agentClients: options.ompHome
       ? {
           omp: new OmpAgentClient({
@@ -98,7 +98,7 @@ async function createHarness(options: { ompHome?: string } = {}): Promise<Harnes
       : createRealProviderClients(["omp"], logger),
     providerOverrides: { omp: { enabled: true } },
     logger,
-    paseoHomeRoot,
+    kivotosHomeRoot,
     staticDir,
     cleanup: false,
   });
@@ -110,13 +110,13 @@ async function createHarness(options: { ompHome?: string } = {}): Promise<Harnes
   await client.fetchAgents({
     subscribe: {},
   });
-  return { daemon, client, cwd, paseoHomeRoot, staticDir };
+  return { daemon, client, cwd, kivotosHomeRoot, staticDir };
 }
 
 async function closeHarness(harness: Harness): Promise<void> {
   await harness.client.close().catch(() => undefined);
   await harness.daemon.close().catch(() => undefined);
-  for (const root of [harness.cwd, harness.paseoHomeRoot, harness.staticDir]) {
+  for (const root of [harness.cwd, harness.kivotosHomeRoot, harness.staticDir]) {
     rmSync(root, { recursive: true, force: true });
     roots.delete(root);
   }
@@ -493,7 +493,7 @@ describe("daemon E2E (real OMP)", () => {
   );
 
   test(
-    "native Paseo host tools execute through RPC-UI",
+    "native Kivotos host tools execute through RPC-UI",
     async () => {
       const harness = await createHarness();
       try {
@@ -501,7 +501,7 @@ describe("daemon E2E (real OMP)", () => {
         const items = await promptAndFinish(
           harness,
           agent.id,
-          "Use the Paseo host tool list_agents exactly once. Find the agent titled native-host-tool in the result, then reply exactly HOST_TOOL_OK:<its id>.",
+          "Use the Kivotos host tool list_agents exactly once. Find the agent titled native-host-tool in the result, then reply exactly HOST_TOOL_OK:<its id>.",
         );
         const hostTools = completedTools(items, /^list_agents$/i);
         expect(hostTools).toHaveLength(1);
@@ -523,7 +523,7 @@ describe("daemon E2E (real OMP)", () => {
     "a compaction shows as a compaction row after a daemon restart",
     async () => {
       const harness = await createHarness();
-      let restarted: TestPaseoDaemon | null = null;
+      let restarted: TestKivotosDaemon | null = null;
       let restartedClient: DaemonClient | null = null;
       try {
         const agent = await createAgent(harness, "compact-restart");
@@ -539,11 +539,11 @@ describe("daemon E2E (real OMP)", () => {
 
         await harness.client.close();
         await harness.daemon.close();
-        restarted = await createTestPaseoDaemon({
+        restarted = await createTestKivotosDaemon({
           agentClients: createRealProviderClients(["omp"], pino({ level: "silent" })),
           providerOverrides: { omp: { enabled: true } },
           logger: pino({ level: "silent" }),
-          paseoHomeRoot: harness.paseoHomeRoot,
+          kivotosHomeRoot: harness.kivotosHomeRoot,
           staticDir: harness.staticDir,
           cleanup: false,
         });

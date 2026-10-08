@@ -9,10 +9,10 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "darwin",
         isPackaged: true,
-        executablePath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
-        shimPath: "/Applications/Paseo.app/Contents/Resources/bin/paseo",
+        executablePath: "/Applications/Kivotos.app/Contents/MacOS/Kivotos",
+        shimPath: "/Applications/Kivotos.app/Contents/Resources/bin/kivotos",
       }),
-    ).toBe("/Applications/Paseo.app/Contents/Resources/bin/paseo");
+    ).toBe("/Applications/Kivotos.app/Contents/Resources/bin/kivotos");
   });
 
   it("prefers the original AppImage path on linux", () => {
@@ -20,11 +20,11 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "linux",
         isPackaged: true,
-        executablePath: "/tmp/.mount_paseo123/paseo",
-        shimPath: "/tmp/.mount_paseo123/resources/bin/paseo",
-        appImagePath: "/home/user/Applications/Paseo.AppImage",
+        executablePath: "/tmp/.mount_kivotos123/kivotos",
+        shimPath: "/tmp/.mount_kivotos123/resources/bin/kivotos",
+        appImagePath: "/home/user/Applications/Kivotos.AppImage",
       }),
-    ).toBe("/home/user/Applications/Paseo.AppImage");
+    ).toBe("/home/user/Applications/Kivotos.AppImage");
   });
 
   it("uses the bundled shim for packaged linux installs outside an AppImage", () => {
@@ -32,10 +32,10 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "linux",
         isPackaged: true,
-        executablePath: "/opt/Paseo/Paseo",
-        shimPath: "/opt/Paseo/resources/bin/paseo",
+        executablePath: "/opt/Kivotos/Kivotos",
+        shimPath: "/opt/Kivotos/resources/bin/kivotos",
       }),
-    ).toBe("/opt/Paseo/resources/bin/paseo");
+    ).toBe("/opt/Kivotos/resources/bin/kivotos");
   });
 
   it("falls back to the shim on windows and in development", () => {
@@ -43,25 +43,25 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "win32",
         isPackaged: true,
-        executablePath: "C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\Paseo.exe",
-        shimPath: "C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd",
+        executablePath: "C:\\Users\\user\\AppData\\Local\\Programs\\Kivotos\\Kivotos.exe",
+        shimPath: "C:\\Users\\user\\AppData\\Local\\Programs\\Kivotos\\resources\\bin\\kivotos.cmd",
       }),
-    ).toBe("C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd");
+    ).toBe("C:\\Users\\user\\AppData\\Local\\Programs\\Kivotos\\resources\\bin\\kivotos.cmd");
 
     expect(
       resolveCliInstallSourcePath({
         platform: "linux",
         isPackaged: false,
-        executablePath: "/opt/Paseo/paseo",
-        shimPath: "/opt/Paseo/resources/bin/paseo",
+        executablePath: "/opt/Kivotos/kivotos",
+        shimPath: "/opt/Kivotos/resources/bin/kivotos",
       }),
-    ).toBe("/opt/Paseo/resources/bin/paseo");
+    ).toBe("/opt/Kivotos/resources/bin/kivotos");
   });
 });
 
 describe("CLI executable selection", () => {
   const resolveWorkspaceCli = () =>
-    createRequire(import.meta.url).resolve("@getpaseo/cli/bin/paseo");
+    createRequire(import.meta.url).resolve("@kivotos/cli/bin/kivotos");
 
   it("uses the workspace CLI for an unpackaged Electron launcher", () => {
     expect(
@@ -79,17 +79,17 @@ describe("CLI executable selection", () => {
       resolveCliShimPath({
         platform: "linux",
         isPackaged: true,
-        executablePath: "/opt/Paseo/paseo",
+        executablePath: "/opt/Kivotos/kivotos",
         resolveWorkspaceCli,
       }),
-    ).toBe(path.join("/opt/Paseo", "resources", "bin", "paseo"));
+    ).toBe(path.join("/opt/Kivotos", "resources", "bin", "kivotos"));
     expect(
       resolveCliShimPath({
         platform: "darwin",
         isPackaged: true,
-        executablePath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+        executablePath: "/Applications/Kivotos.app/Contents/MacOS/Kivotos",
         resolveWorkspaceCli,
       }),
-    ).toBe(path.join("/Applications/Paseo.app", "Contents", "Resources", "bin", "paseo"));
+    ).toBe(path.join("/Applications/Kivotos.app", "Contents", "Resources", "bin", "kivotos"));
   });
 });

@@ -1,5 +1,5 @@
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
-import type { JsonValue } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@kivotos/protocol/agent-types";
+import type { JsonValue } from "@kivotos/protocol/agent-types";
 import type { WorkspaceFileTabTarget } from "@/workspace/file-open";
 
 export interface WorkspaceDraftTabSetup {

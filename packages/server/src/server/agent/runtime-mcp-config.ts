@@ -1,21 +1,21 @@
 import type { AgentSessionConfig, McpServerConfig } from "./agent-sdk-types.js";
 
-const PASEO_MCP_SERVER_NAME = "paseo";
-const PASEO_MCP_PATHNAME = "/mcp/agents";
+const KIVOTOS_MCP_SERVER_NAME = "kivotos";
+const KIVOTOS_MCP_PATHNAME = "/mcp/agents";
 
-export function stripInternalPaseoMcpServer(config: AgentSessionConfig): AgentSessionConfig {
+export function stripInternalKivotosMcpServer(config: AgentSessionConfig): AgentSessionConfig {
   const mcpServers = config.mcpServers;
   if (!mcpServers) {
     return config;
   }
 
-  const paseoServer = mcpServers[PASEO_MCP_SERVER_NAME];
-  if (!paseoServer || !isInternalPaseoMcpServer(paseoServer)) {
+  const kivotosServer = mcpServers[KIVOTOS_MCP_SERVER_NAME];
+  if (!kivotosServer || !isInternalKivotosMcpServer(kivotosServer)) {
     return config;
   }
 
   const nextMcpServers = { ...mcpServers };
-  delete nextMcpServers[PASEO_MCP_SERVER_NAME];
+  delete nextMcpServers[KIVOTOS_MCP_SERVER_NAME];
 
   const next = { ...config };
   if (Object.keys(nextMcpServers).length > 0) {
@@ -26,7 +26,7 @@ export function stripInternalPaseoMcpServer(config: AgentSessionConfig): AgentSe
   return next;
 }
 
-export function withRuntimePaseoMcpServer(params: {
+export function withRuntimeKivotosMcpServer(params: {
   config: AgentSessionConfig;
   agentId: string;
   mcpBaseUrl: string | null;
@@ -37,15 +37,15 @@ export function withRuntimePaseoMcpServer(params: {
    */
   mcpAuthToken: string | null;
 }): AgentSessionConfig {
-  const storedConfig = stripInternalPaseoMcpServer(params.config);
-  if (!params.mcpBaseUrl || storedConfig.mcpServers?.[PASEO_MCP_SERVER_NAME]) {
+  const storedConfig = stripInternalKivotosMcpServer(params.config);
+  if (!params.mcpBaseUrl || storedConfig.mcpServers?.[KIVOTOS_MCP_SERVER_NAME]) {
     return storedConfig;
   }
 
   return {
     ...storedConfig,
     mcpServers: {
-      [PASEO_MCP_SERVER_NAME]: {
+      [KIVOTOS_MCP_SERVER_NAME]: {
         type: "http",
         url: `${params.mcpBaseUrl}?callerAgentId=${params.agentId}`,
         ...(params.mcpAuthToken
@@ -57,13 +57,13 @@ export function withRuntimePaseoMcpServer(params: {
   };
 }
 
-function isInternalPaseoMcpServer(config: McpServerConfig): boolean {
+function isInternalKivotosMcpServer(config: McpServerConfig): boolean {
   if (config.type !== "http" && config.type !== "sse") {
     return false;
   }
 
   try {
-    return new URL(config.url).pathname === PASEO_MCP_PATHNAME;
+    return new URL(config.url).pathname === KIVOTOS_MCP_PATHNAME;
   } catch {
     return false;
   }

@@ -14,21 +14,21 @@
 #   bash packages/app/maestro/test-workspace-create-android-crash.sh
 #
 # Optional environment:
-#   PASEO_MAESTRO_APP_ID=sh.paseo.debug
-#   PASEO_MAESTRO_DIRECT_ENDPOINT=127.0.0.1:6767
-#   PASEO_MAESTRO_DAEMON_WS_URL=ws://127.0.0.1:6767/ws
-#   PASEO_MAESTRO_PROJECT_PATH=/path/to/git/repo
+#   KIVOTOS_MAESTRO_APP_ID=sh.kivotos.debug
+#   KIVOTOS_MAESTRO_DIRECT_ENDPOINT=127.0.0.1:6767
+#   KIVOTOS_MAESTRO_DAEMON_WS_URL=ws://127.0.0.1:6767/ws
+#   KIVOTOS_MAESTRO_PROJECT_PATH=/path/to/git/repo
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 FLOW_TEMPLATE="$REPO_ROOT/packages/app/maestro/workspace-create-android-crash.yaml"
 FLOW_TEMPLATE_DIR="$REPO_ROOT/packages/app/maestro"
-OUT_DIR="/tmp/paseo-workspace-create-android-$(date +%s)"
+OUT_DIR="/tmp/kivotos-workspace-create-android-$(date +%s)"
 CLIENT_EXPORTS="$REPO_ROOT/packages/client/dist/daemon-client.js"
 
-export PASEO_MAESTRO_APP_ID="${PASEO_MAESTRO_APP_ID:-sh.paseo.debug}"
-export PASEO_MAESTRO_DIRECT_ENDPOINT="${PASEO_MAESTRO_DIRECT_ENDPOINT:-127.0.0.1:6767}"
-export PASEO_MAESTRO_DAEMON_WS_URL="${PASEO_MAESTRO_DAEMON_WS_URL:-ws://127.0.0.1:6767/ws}"
+export KIVOTOS_MAESTRO_APP_ID="${KIVOTOS_MAESTRO_APP_ID:-sh.kivotos.debug}"
+export KIVOTOS_MAESTRO_DIRECT_ENDPOINT="${KIVOTOS_MAESTRO_DIRECT_ENDPOINT:-127.0.0.1:6767}"
+export KIVOTOS_MAESTRO_DAEMON_WS_URL="${KIVOTOS_MAESTRO_DAEMON_WS_URL:-ws://127.0.0.1:6767/ws}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -48,9 +48,9 @@ render_flow() {
   local target="$2"
   mkdir -p "$(dirname "$target")"
   perl -0pe '
-    s/\$\{PASEO_MAESTRO_APP_ID\}/$ENV{PASEO_MAESTRO_APP_ID}/g;
-    s/\$\{PASEO_MAESTRO_DIRECT_ENDPOINT\}/$ENV{PASEO_MAESTRO_DIRECT_ENDPOINT}/g;
-    s/\$\{PASEO_MAESTRO_PROJECT_NAME\}/$ENV{PASEO_MAESTRO_PROJECT_NAME}/g;
+    s/\$\{KIVOTOS_MAESTRO_APP_ID\}/$ENV{KIVOTOS_MAESTRO_APP_ID}/g;
+    s/\$\{KIVOTOS_MAESTRO_DIRECT_ENDPOINT\}/$ENV{KIVOTOS_MAESTRO_DIRECT_ENDPOINT}/g;
+    s/\$\{KIVOTOS_MAESTRO_PROJECT_NAME\}/$ENV{KIVOTOS_MAESTRO_PROJECT_NAME}/g;
   ' "$source" > "$target"
 }
 
@@ -70,31 +70,31 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-if [ -z "${PASEO_MAESTRO_PROJECT_PATH:-}" ]; then
-  PROJECT_PARENT="$(mktemp -d /tmp/paseo-maestro-project-XXXXXX)"
+if [ -z "${KIVOTOS_MAESTRO_PROJECT_PATH:-}" ]; then
+  PROJECT_PARENT="$(mktemp -d /tmp/kivotos-maestro-project-XXXXXX)"
   PROJECT_BASENAME="aaa-workspace-create-android-$(basename "$PROJECT_PARENT")"
-  export PASEO_MAESTRO_PROJECT_PATH="$PROJECT_PARENT/$PROJECT_BASENAME"
-  mkdir -p "$PASEO_MAESTRO_PROJECT_PATH"
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" init >/dev/null
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" checkout -b main >/dev/null 2>&1 || true
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" config user.name "Paseo Maestro"
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" config user.email "maestro@getpaseo.local"
-  printf "# Workspace create Android repro\n" > "$PASEO_MAESTRO_PROJECT_PATH/README.md"
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" add README.md
-  git -C "$PASEO_MAESTRO_PROJECT_PATH" commit -m "Initial commit" >/dev/null
+  export KIVOTOS_MAESTRO_PROJECT_PATH="$PROJECT_PARENT/$PROJECT_BASENAME"
+  mkdir -p "$KIVOTOS_MAESTRO_PROJECT_PATH"
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" init >/dev/null
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" checkout -b main >/dev/null 2>&1 || true
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" config user.name "Kivotos Maestro"
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" config user.email "maestro@kivotos.local"
+  printf "# Workspace create Android repro\n" > "$KIVOTOS_MAESTRO_PROJECT_PATH/README.md"
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" add README.md
+  git -C "$KIVOTOS_MAESTRO_PROJECT_PATH" commit -m "Initial commit" >/dev/null
 else
   PROJECT_PARENT=""
 fi
 
-export PASEO_MAESTRO_PROJECT_NAME="${PASEO_MAESTRO_PROJECT_NAME:-$(basename "$PASEO_MAESTRO_PROJECT_PATH")}"
+export KIVOTOS_MAESTRO_PROJECT_NAME="${KIVOTOS_MAESTRO_PROJECT_NAME:-$(basename "$KIVOTOS_MAESTRO_PROJECT_PATH")}"
 
 echo "=== Workspace Create Android Crash Harness ==="
 echo "Output dir: $OUT_DIR"
-echo "App id: $PASEO_MAESTRO_APP_ID"
-echo "Android direct endpoint: $PASEO_MAESTRO_DIRECT_ENDPOINT"
-echo "Daemon websocket: $PASEO_MAESTRO_DAEMON_WS_URL"
-echo "Project: $PASEO_MAESTRO_PROJECT_PATH"
-echo "Project name: $PASEO_MAESTRO_PROJECT_NAME"
+echo "App id: $KIVOTOS_MAESTRO_APP_ID"
+echo "Android direct endpoint: $KIVOTOS_MAESTRO_DIRECT_ENDPOINT"
+echo "Daemon websocket: $KIVOTOS_MAESTRO_DAEMON_WS_URL"
+echo "Project: $KIVOTOS_MAESTRO_PROJECT_PATH"
+echo "Project name: $KIVOTOS_MAESTRO_PROJECT_NAME"
 
 FLOW="$OUT_DIR/workspace-create-android-crash.rendered.yaml"
 render_flow_tree
@@ -111,8 +111,8 @@ import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 
 const repoRoot = process.env.REPO_ROOT;
-const projectPath = process.env.PASEO_MAESTRO_PROJECT_PATH;
-const daemonUrl = process.env.PASEO_MAESTRO_DAEMON_WS_URL;
+const projectPath = process.env.KIVOTOS_MAESTRO_PROJECT_PATH;
+const daemonUrl = process.env.KIVOTOS_MAESTRO_DAEMON_WS_URL;
 if (!repoRoot || !projectPath || !daemonUrl) {
   throw new Error("Missing required environment for daemon project setup.");
 }

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   createSshTunnel: vi.fn(),
 }));
 
-vi.mock("@getpaseo/client/internal/daemon-client", () => ({
+vi.mock("@kivotos/client/internal/daemon-client", () => ({
   DaemonClient: class {
     lastError = null;
 

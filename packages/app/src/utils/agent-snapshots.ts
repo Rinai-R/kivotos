@@ -1,6 +1,6 @@
-import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
-import type { AgentPermissionRequest } from "@getpaseo/protocol/agent-types";
-import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
+import type { AgentSnapshotPayload } from "@kivotos/protocol/messages";
+import type { AgentPermissionRequest } from "@kivotos/protocol/agent-types";
+import { getParentAgentIdFromLabels } from "@kivotos/protocol/agent-labels";
 import {
   TURN_LIVENESS_IDLE,
   type ActiveTurnIdentity,

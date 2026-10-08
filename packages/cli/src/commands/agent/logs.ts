@@ -6,9 +6,9 @@ import {
   fetchProjectedTimelineItems,
   LIVE_HISTORY_FETCH_TIMEOUT_MS,
 } from "../../utils/timeline.js";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
-import { curateAgentActivity } from "@getpaseo/server/agent-activity";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
+import type { AgentTimelineItem } from "@kivotos/protocol/agent-types";
+import { curateAgentActivity } from "@kivotos/server/agent-activity";
 
 export function addLogsOptions(cmd: Command): Command {
   return cmd
@@ -94,7 +94,7 @@ export async function runLogsCommand(
 ): Promise<AgentLogsResult> {
   if (!id) {
     console.error("Error: Agent ID required");
-    console.error("Usage: paseo agent logs <id>");
+    console.error("Usage: kivotos agent logs <id>");
     process.exit(1);
   }
 
@@ -104,7 +104,7 @@ export async function runLogsCommand(
     const fetchResult = await client.fetchAgent({ agentId: id });
     if (!fetchResult) {
       console.error(`Error: No agent found matching: ${id}`);
-      console.error("Use `paseo ls` to list available agents");
+      console.error("Use `kivotos ls` to list available agents");
       await client.close();
       process.exit(1);
     }

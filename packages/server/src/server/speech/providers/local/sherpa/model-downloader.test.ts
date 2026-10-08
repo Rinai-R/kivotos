@@ -18,7 +18,7 @@ import { ensureSherpaOnnxModel, getSherpaOnnxModelDir } from "./model-downloader
 import { getSherpaOnnxModelSpec } from "./model-catalog.js";
 
 function makeTmpDir(): string {
-  return mkdtempSync(path.join(tmpdir(), "paseo-speech-models-"));
+  return mkdtempSync(path.join(tmpdir(), "kivotos-speech-models-"));
 }
 
 const logger = pino({ level: "silent" });

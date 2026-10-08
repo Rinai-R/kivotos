@@ -9,7 +9,7 @@ export function getLocalBinDir(): string {
 }
 
 export function getCliTargetPath(): string {
-  const filename = process.platform === "win32" ? "paseo.cmd" : "paseo";
+  const filename = process.platform === "win32" ? "kivotos.cmd" : "kivotos";
   return path.join(getLocalBinDir(), filename);
 }
 
@@ -18,6 +18,6 @@ export function getBundledCliShimPath(): string {
     platform: process.platform,
     isPackaged: app.isPackaged,
     executablePath: app.getPath("exe"),
-    resolveWorkspaceCli: () => createRequire(__filename).resolve("@getpaseo/cli/bin/paseo"),
+    resolveWorkspaceCli: () => createRequire(__filename).resolve("@kivotos/cli/bin/kivotos"),
   });
 }

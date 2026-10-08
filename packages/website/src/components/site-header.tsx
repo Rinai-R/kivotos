@@ -8,8 +8,8 @@ export function SiteHeader() {
   return (
     <header className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
       <a href="/" className="flex items-center gap-3">
-        <img src="/logo.svg" alt="Paseo" className="w-6 h-6" />
-        <span className="text-lg font-medium">Paseo</span>
+        <img src="/logo.svg" alt="Kivotos" className="w-6 h-6" />
+        <span className="text-lg font-medium">Kivotos</span>
       </a>
       <div className="flex flex-wrap items-center justify-center gap-4">
         {PLUGINS_LINKED && (
@@ -60,7 +60,7 @@ export function SiteHeader() {
           <DiscordIcon width="18" height="18" />
         </a>
         <a
-          href="https://github.com/getpaseo/paseo"
+          href="https://github.com/getpaseo/kivotos"
           target="_blank"
           rel="noopener noreferrer"
           aria-label={stars ? `GitHub, ${stars} stars` : "GitHub"}

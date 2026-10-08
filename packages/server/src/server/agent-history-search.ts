@@ -1,5 +1,5 @@
-import type { AgentSnapshotPayload, ProjectPlacementPayload } from "@getpaseo/protocol/messages";
-import { scoreTextFields } from "@getpaseo/protocol/search/text-match";
+import type { AgentSnapshotPayload, ProjectPlacementPayload } from "@kivotos/protocol/messages";
+import { scoreTextFields } from "@kivotos/protocol/search/text-match";
 
 export interface AgentHistorySearchCandidate {
   agent: AgentSnapshotPayload;

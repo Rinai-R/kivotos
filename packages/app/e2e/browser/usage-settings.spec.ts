@@ -1,4 +1,4 @@
-import type { UsageReportEntry } from "@getpaseo/protocol/messages";
+import type { UsageReportEntry } from "@kivotos/protocol/messages";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell, openSettings } from "../support/helpers/app";
 import { getServerId } from "../support/helpers/server-id";

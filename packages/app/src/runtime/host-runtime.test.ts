@@ -9,11 +9,11 @@ import type {
   ConnectionState,
   FetchAgentsEntry,
   FetchAgentsOptions,
-} from "@getpaseo/client/internal/daemon-client";
-import { DaemonAuthenticationError } from "@getpaseo/client/internal/daemon-client";
-import type { ConnectionOffer } from "@getpaseo/protocol/connection-offer";
-import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
-import type { AgentPermissionRequest } from "@getpaseo/protocol/agent-types";
+} from "@kivotos/client/internal/daemon-client";
+import { DaemonAuthenticationError } from "@kivotos/client/internal/daemon-client";
+import type { ConnectionOffer } from "@kivotos/protocol/connection-offer";
+import type { SessionOutboundMessage } from "@kivotos/protocol/messages";
+import type { AgentPermissionRequest } from "@kivotos/protocol/agent-types";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import { defaultHostAppearance } from "@/hosts/appearance";
 import { useSessionStore, type Agent } from "@/stores/session-store";
@@ -274,7 +274,7 @@ class FakeDaemonClient {
 
 afterEach(() => {
   vi.useRealTimers();
-  delete (globalThis as Record<string, unknown>).__PASEO_INITIAL_DAEMON_CONNECTION__;
+  delete (globalThis as Record<string, unknown>).__KIVOTOS_INITIAL_DAEMON_CONNECTION__;
   delete (globalThis as { window?: unknown }).window;
 });
 
@@ -387,7 +387,7 @@ function makeFetchAgentsEntry(input: {
         currentBranch: null,
         remoteUrl: null,
         worktreeRoot: null,
-        isPaseoOwnedWorktree: false,
+        isKivotosOwnedWorktree: false,
         mainRepoRoot: null,
       },
     },
@@ -1757,8 +1757,8 @@ describe("HostRuntimeStore", () => {
     const host = makeHost({ connections: [makeHost().connections[0]!] });
     const revocation = createDeferred<void>();
     const storage = createMemoryHostRuntimeStorage({
-      "@paseo:daemon-registry": JSON.stringify([host]),
-      "@paseo:e2e": "1",
+      "@kivotos:daemon-registry": JSON.stringify([host]),
+      "@kivotos:e2e": "1",
     });
     const store = new HostRuntimeStore({
       storage,
@@ -1783,8 +1783,8 @@ describe("HostRuntimeStore", () => {
     const host = makeHost({ connections: [makeHost().connections[0]!] });
     const revokedServerIds: string[] = [];
     const storage = createMemoryHostRuntimeStorage({
-      "@paseo:daemon-registry": JSON.stringify([host]),
-      "@paseo:e2e": "1",
+      "@kivotos:daemon-registry": JSON.stringify([host]),
+      "@kivotos:e2e": "1",
     });
     const store = new HostRuntimeStore({
       storage,
@@ -1813,8 +1813,8 @@ describe("HostRuntimeStore", () => {
         return backingStore.read(...args);
       },
     };
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:e2e", "1");
     const session = useSessionStore.getState();
 
     const store = new HostRuntimeStore({
@@ -1892,7 +1892,7 @@ describe("HostRuntimeStore", () => {
   it("exposes the default appearance for a host stored before the field existed", async () => {
     const storage = createMemoryHostRuntimeStorage();
     await storage.setItem(
-      "@paseo:daemon-registry",
+      "@kivotos:daemon-registry",
       JSON.stringify([
         {
           serverId: "srv_legacy",
@@ -1904,7 +1904,7 @@ describe("HostRuntimeStore", () => {
         },
       ]),
     );
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:e2e", "1");
     const store = createAppearanceStore(storage);
 
     const registryLoaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
@@ -1919,8 +1919,8 @@ describe("HostRuntimeStore", () => {
   it("records a chosen host color and writes it through to storage", async () => {
     const host = makeHost({ serverId: "srv_appearance", updatedAt: new Date(0).toISOString() });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:e2e", "1");
     const store = createAppearanceStore(storage);
 
     const registryLoaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
@@ -1938,7 +1938,7 @@ describe("HostRuntimeStore", () => {
     expect(updated?.appearance).toEqual({ color: "teal", badgeDisplay: null });
     expect(updated?.updatedAt).not.toBe(host.updatedAt);
 
-    const persisted = await storage.getItem("@paseo:daemon-registry");
+    const persisted = await storage.getItem("@kivotos:daemon-registry");
     expect(JSON.parse(persisted ?? "[]")[0].appearance).toEqual({
       color: "teal",
       badgeDisplay: null,
@@ -1953,8 +1953,8 @@ describe("HostRuntimeStore", () => {
       appearance: { color: "amber", badgeDisplay: null },
     });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:e2e", "1");
     const store = createAppearanceStore(storage);
 
     const registryLoaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
@@ -1970,7 +1970,7 @@ describe("HostRuntimeStore", () => {
 
     expect(store.getHosts()[0]?.appearance).toEqual({ color: "amber", badgeDisplay: "icon" });
 
-    const persisted = await storage.getItem("@paseo:daemon-registry");
+    const persisted = await storage.getItem("@kivotos:daemon-registry");
     expect(JSON.parse(persisted ?? "[]")[0].appearance).toEqual({
       color: "amber",
       badgeDisplay: "icon",
@@ -1982,8 +1982,8 @@ describe("HostRuntimeStore", () => {
   it("keeps host appearance unchanged when persistence fails", async () => {
     const host = makeHost({ serverId: "srv_appearance" });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:e2e", "1");
     const store = createAppearanceStore(storage);
 
     const registryLoaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
@@ -2003,8 +2003,8 @@ describe("HostRuntimeStore", () => {
   it("serializes overlapping host appearance writes", async () => {
     const host = makeHost({ serverId: "srv_appearance" });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
-    await storage.setItem("@paseo:e2e", "1");
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:e2e", "1");
     const store = createAppearanceStore(storage);
 
     const registryLoaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
@@ -2029,7 +2029,7 @@ describe("HostRuntimeStore", () => {
     await Promise.all([color, display]);
 
     expect(store.getHosts()[0]?.appearance).toEqual({ color: "teal", badgeDisplay: "icon" });
-    const persistedHosts = JSON.parse((await storage.getItem("@paseo:daemon-registry")) ?? "[]");
+    const persistedHosts = JSON.parse((await storage.getItem("@kivotos:daemon-registry")) ?? "[]");
     expect(persistedHosts[0]?.appearance).toEqual({ color: "teal", badgeDisplay: "icon" });
     store.syncHosts([]);
   });
@@ -2364,7 +2364,7 @@ describe("HostRuntimeStore", () => {
         entries: [
           makeFetchAgentsEntry({
             id: "agent-recent",
-            cwd: "/workspaces/paseo",
+            cwd: "/workspaces/kivotos",
             updatedAt: "2026-03-04T12:00:00.000Z",
             title: "Recent agent",
           }),
@@ -2377,7 +2377,7 @@ describe("HostRuntimeStore", () => {
         entries: [
           makeFetchAgentsEntry({
             id: "agent-stale-attention",
-            cwd: "/workspaces/paseo-pr67-review",
+            cwd: "/workspaces/kivotos-pr67-review",
             updatedAt: "2026-02-20T08:00:00.000Z",
             title: "Needs triage",
             requiresAttention: true,
@@ -3366,7 +3366,7 @@ describe("HostRuntimeStore", () => {
     useSessionStore.getState().setAgents(host.serverId, () => {
       const stale = makeFetchAgentsEntry({
         id: "agent-archived",
-        cwd: "/workspaces/paseo",
+        cwd: "/workspaces/kivotos",
         updatedAt: "2026-03-30T15:29:00.000Z",
         archivedAt: null,
         title: "Stale active copy",
@@ -3533,7 +3533,7 @@ describe("HostRuntimeStore", () => {
 
     await store.upsertDirectConnection({
       serverId: "srv_tls_password",
-      endpoint: "example.paseo.test:7443",
+      endpoint: "example.kivotos.test:7443",
       useTls: true,
       password: "shared-secret",
       label: "tls host",
@@ -3542,9 +3542,9 @@ describe("HostRuntimeStore", () => {
     const host = store.getHosts().find((entry) => entry.serverId === "srv_tls_password");
     expect(host?.connections).toEqual([
       {
-        id: "direct:example.paseo.test:7443",
+        id: "direct:example.kivotos.test:7443",
         type: "directTcp",
-        endpoint: "example.paseo.test:7443",
+        endpoint: "example.kivotos.test:7443",
         useTls: true,
       },
     ]);
@@ -3914,8 +3914,8 @@ describe("HostRuntimeStore", () => {
     });
     const store = createPairingStore({
       storage: createMemoryHostRuntimeStorage({
-        "@paseo:daemon-registry": JSON.stringify([savedHost]),
-        "@paseo:e2e": "1",
+        "@kivotos:daemon-registry": JSON.stringify([savedHost]),
+        "@kivotos:e2e": "1",
       }),
     });
     const requests = answerHostConfirmations(store, true);
@@ -4016,7 +4016,7 @@ describe("readInitialDaemonConnectionHint", () => {
   });
 
   it("parses a valid listen-only hint", () => {
-    (globalThis as Record<string, unknown>).__PASEO_INITIAL_DAEMON_CONNECTION__ = {
+    (globalThis as Record<string, unknown>).__KIVOTOS_INITIAL_DAEMON_CONNECTION__ = {
       listen: "localhost:6767",
     };
     expect(readInitialDaemonConnectionHint({ isWebRuntime: true })).toEqual({
@@ -4026,21 +4026,21 @@ describe("readInitialDaemonConnectionHint", () => {
   });
 
   it("preserves useTls when explicitly true", () => {
-    (globalThis as Record<string, unknown>).__PASEO_INITIAL_DAEMON_CONNECTION__ = {
-      listen: "paseo.example.com:443",
+    (globalThis as Record<string, unknown>).__KIVOTOS_INITIAL_DAEMON_CONNECTION__ = {
+      listen: "kivotos.example.com:443",
       useTls: true,
     };
     expect(readInitialDaemonConnectionHint({ isWebRuntime: true })).toEqual({
-      listen: "paseo.example.com:443",
+      listen: "kivotos.example.com:443",
       useTls: true,
     });
   });
 
   it("ignores invalid shapes", () => {
-    (globalThis as Record<string, unknown>).__PASEO_INITIAL_DAEMON_CONNECTION__ = "localhost:6767";
+    (globalThis as Record<string, unknown>).__KIVOTOS_INITIAL_DAEMON_CONNECTION__ = "localhost:6767";
     expect(readInitialDaemonConnectionHint({ isWebRuntime: true })).toBeNull();
 
-    (globalThis as Record<string, unknown>).__PASEO_INITIAL_DAEMON_CONNECTION__ = {
+    (globalThis as Record<string, unknown>).__KIVOTOS_INITIAL_DAEMON_CONNECTION__ = {
       useTls: true,
     };
     expect(readInitialDaemonConnectionHint({ isWebRuntime: true })).toBeNull();
@@ -4056,7 +4056,7 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
       ],
     });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
     let remoteProbeStarted = false;
     let finishDesktopStart: (() => void) | undefined;
     const desktopStartPending = new Promise<void>((resolve) => {
@@ -4102,7 +4102,7 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
       connections: [{ id: "direct:localhost:6799", type: "directTcp", endpoint: "localhost:6799" }],
     });
     const storage = createMemoryHostRuntimeStorage();
-    await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
+    await storage.setItem("@kivotos:daemon-registry", JSON.stringify([host]));
     const credentialRequests: string[] = [];
     const store = new HostRuntimeStore({
       storage,

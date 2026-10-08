@@ -12,21 +12,21 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir, uptime } from "node:os";
 import { join } from "node:path";
-import { runLocalPaseo } from "./helpers/local-cli.ts";
+import { runLocalKivotos } from "./helpers/local-cli.ts";
 
 console.log("=== Daemon lock left behind by a reboot ===\n");
 
-const paseoHome = await mkdtemp(join(tmpdir(), "paseo-stale-boot-lock-"));
+const kivotosHome = await mkdtemp(join(tmpdir(), "kivotos-stale-boot-lock-"));
 const env = {
-  PASEO_HOME: paseoHome,
-  PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD: "0",
-  PASEO_DICTATION_ENABLED: "0",
-  PASEO_VOICE_MODE_ENABLED: "0",
+  KIVOTOS_HOME: kivotosHome,
+  KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD: "0",
+  KIVOTOS_DICTATION_ENABLED: "0",
+  KIVOTOS_VOICE_MODE_ENABLED: "0",
 };
 
 // Stands in for the process that inherits the supervisor's PID after a reboot. It records a
 // signal rather than dying of it, so a late delivery cannot slip past the assertion.
-const signalMarker = join(paseoHome, "bystander-signalled");
+const signalMarker = join(kivotosHome, "bystander-signalled");
 const bystander = spawn(
   process.execPath,
   [
@@ -45,7 +45,7 @@ assert(bystander.pid, "bystander process should have a pid");
 try {
   const beforeThisBoot = new Date(Date.now() - uptime() * 1000 - 60 * 60_000);
   await writeFile(
-    join(paseoHome, "paseo.pid"),
+    join(kivotosHome, "kivotos.pid"),
     JSON.stringify({
       pid: bystander.pid,
       startedAt: beforeThisBoot.toISOString(),
@@ -57,8 +57,8 @@ try {
     }),
   );
 
-  const statusResult = await runLocalPaseo(
-    ["daemon", "status", "--home", paseoHome, "--json"],
+  const statusResult = await runLocalKivotos(
+    ["daemon", "status", "--home", kivotosHome, "--json"],
     env,
   );
   assert.strictEqual(
@@ -75,7 +75,7 @@ try {
   assert.strictEqual(status.pid, null, "status should not report the reused pid as the daemon");
   console.log("✓ daemon status reports stopped\n");
 
-  const stopResult = await runLocalPaseo(["daemon", "stop", "--home", paseoHome], env);
+  const stopResult = await runLocalKivotos(["daemon", "stop", "--home", kivotosHome], env);
   assert.strictEqual(
     stopResult.exitCode,
     0,
@@ -90,7 +90,7 @@ try {
   console.log("✓ daemon stop leaves the process holding that pid alone\n");
 } finally {
   bystander.kill("SIGKILL");
-  await rm(paseoHome, { recursive: true, force: true });
+  await rm(kivotosHome, { recursive: true, force: true });
 }
 
 console.log("=== Daemon lock left behind by a reboot passed ===");

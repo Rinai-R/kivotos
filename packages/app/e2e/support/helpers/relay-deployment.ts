@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { parseConnectionOfferFromUrl } from "@getpaseo/protocol/connection-offer";
+import { parseConnectionOfferFromUrl } from "@kivotos/protocol/connection-offer";
 import type { LocalElixirRelay } from "./local-elixir-relay";
 import type { PackagedWebDaemon } from "./packaged-web-daemon";
 import { expectRunningAgentChrome } from "./agent-stream";
@@ -52,13 +52,13 @@ export async function connectDaemonWebAppOnlyThroughRelay(
     const html = await response.text();
     await route.fulfill({
       response,
-      body: html.replace(/<script>window\.__PASEO_INITIAL_DAEMON_CONNECTION__=.*?<\/script>/, ""),
+      body: html.replace(/<script>window\.__KIVOTOS_INITIAL_DAEMON_CONNECTION__=.*?<\/script>/, ""),
     });
   });
   await page.addInitScript(
     ({ storedHost, preferences }) => {
-      localStorage.setItem("@paseo:daemon-registry", JSON.stringify([storedHost]));
-      localStorage.setItem("@paseo:create-agent-preferences", JSON.stringify(preferences));
+      localStorage.setItem("@kivotos:daemon-registry", JSON.stringify([storedHost]));
+      localStorage.setItem("@kivotos:create-agent-preferences", JSON.stringify(preferences));
     },
     { storedHost: host, preferences: buildCreateAgentPreferences() },
   );

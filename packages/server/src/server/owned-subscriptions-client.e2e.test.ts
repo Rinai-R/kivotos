@@ -2,22 +2,22 @@ import { WebSocket } from "ws";
 import {
   DaemonClient as PublicDaemonClient,
   type WebSocketLike,
-} from "@getpaseo/client/internal/daemon-client";
+} from "@kivotos/client/internal/daemon-client";
 import { expect, test } from "vitest";
-import { createPaseoApi } from "@getpaseo/client";
+import { createKivotosApi } from "@kivotos/client";
 import { DaemonClient } from "./test-utils/daemon-client.js";
-import { createTestPaseoDaemon } from "./test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon } from "./test-utils/kivotos-daemon.js";
 
 test("two SDK facades own combined agent lists and disposal preserves the other facade", async () => {
-  const daemon = await createTestPaseoDaemon({ mcpEnabled: false });
+  const daemon = await createTestKivotosDaemon({ mcpEnabled: false });
   const client = new DaemonClient({
     url: `ws://127.0.0.1:${daemon.port}/ws`,
     appVersion: "0.8.0",
     capabilities: { owned_subscriptions: true },
   });
   const admin = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws`, appVersion: "0.8.0" });
-  const app = createPaseoApi(client);
-  const plugin = createPaseoApi(client);
+  const app = createKivotosApi(client);
+  const plugin = createKivotosApi(client);
   try {
     await admin.connect();
     await client.connect();
@@ -84,10 +84,10 @@ test("two SDK facades own combined agent lists and disposal preserves the other 
 });
 
 test("public SDK scope cancellation during bootstrap releases the returned ID", async () => {
-  const daemon = await createTestPaseoDaemon({ mcpEnabled: false });
+  const daemon = await createTestKivotosDaemon({ mcpEnabled: false });
   const client = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
   const lifetime = new AbortController();
-  const api = createPaseoApi(client, { signal: lifetime.signal });
+  const api = createKivotosApi(client, { signal: lifetime.signal });
   try {
     await client.connect();
     const listing = api.agents.list({ subscribe: {} });
@@ -105,7 +105,7 @@ test("public SDK scope cancellation during bootstrap releases the returned ID", 
 });
 
 test("a restored public SDK timeline leaves missed history to the consumer", async () => {
-  const daemon = await createTestPaseoDaemon({ mcpEnabled: false });
+  const daemon = await createTestKivotosDaemon({ mcpEnabled: false });
   const sockets: WebSocket[] = [];
   const makeClient = (observer: boolean) =>
     new PublicDaemonClient({
@@ -123,7 +123,7 @@ test("a restored public SDK timeline leaves missed history to the consumer", asy
     });
   const observer = makeClient(true);
   const actor = makeClient(false);
-  const api = createPaseoApi(observer);
+  const api = createKivotosApi(observer);
   const received: unknown[] = [];
   try {
     await actor.connect();

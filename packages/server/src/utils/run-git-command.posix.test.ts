@@ -8,7 +8,7 @@ import { runGitCommand } from "./run-git-command.js";
 const tempDirs: string[] = [];
 
 function makeTempRepo(): string {
-  const repo = mkdtempSync(path.join(tmpdir(), "paseo-git-fsmonitor-"));
+  const repo = mkdtempSync(path.join(tmpdir(), "kivotos-git-fsmonitor-"));
   tempDirs.push(repo);
   return repo;
 }

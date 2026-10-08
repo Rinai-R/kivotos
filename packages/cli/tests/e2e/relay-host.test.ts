@@ -4,10 +4,10 @@ import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildRelayWebSocketUrl } from "@getpaseo/protocol/daemon-endpoints";
-import { parseConnectionOfferFromUrl } from "@getpaseo/protocol/connection-offer";
-import { generateLocalPairingOffer } from "@getpaseo/server/pairing";
-import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import { buildRelayWebSocketUrl } from "@kivotos/protocol/daemon-endpoints";
+import { parseConnectionOfferFromUrl } from "@kivotos/protocol/connection-offer";
+import { generateLocalPairingOffer } from "@kivotos/server/pairing";
+import { DaemonClient } from "@kivotos/client/internal/daemon-client";
 import { WebSocket } from "ws";
 import { getAvailablePort } from "../helpers/network.ts";
 import { createE2ETestContext } from "../helpers/test-daemon.ts";
@@ -180,14 +180,14 @@ async function waitForDaemonRelayRegistered(offerUrl: string, timeoutMs = 30_000
     ctx = await createE2ETestContext({
       timeout: 60_000,
       env: {
-        PASEO_RELAY_ENABLED: "true",
-        PASEO_RELAY_ENDPOINT: relayEndpoint,
-        PASEO_RELAY_PUBLIC_ENDPOINT: relayEndpoint,
+        KIVOTOS_RELAY_ENABLED: "true",
+        KIVOTOS_RELAY_ENDPOINT: relayEndpoint,
+        KIVOTOS_RELAY_PUBLIC_ENDPOINT: relayEndpoint,
       },
     });
 
     const offer = await generateLocalPairingOffer({
-      paseoHome: ctx.paseoHome,
+      kivotosHome: ctx.kivotosHome,
       relayEnabled: true,
       relayEndpoint,
       relayPublicEndpoint: relayEndpoint,
@@ -210,17 +210,17 @@ async function waitForDaemonRelayRegistered(offerUrl: string, timeoutMs = 30_000
     }
   }, SHUTDOWN_TIMEOUT_MS);
 
-  it("runs `paseo --host <offer-url> ls` over the relay and matches direct ls output", async () => {
+  it("runs `kivotos --host <offer-url> ls` over the relay and matches direct ls output", async () => {
     if (!ctx) throw new Error("test context not initialized");
 
-    const direct = await ctx.paseo(["ls", "--json"]);
+    const direct = await ctx.kivotos(["ls", "--json"]);
     expect(direct.exitCode, `direct ls failed: ${direct.stderr}`).toBe(0);
     const directAgents = JSON.parse(direct.stdout.trim() || "[]");
     expect(Array.isArray(directAgents)).toBe(true);
 
-    const relay = await ctx.paseo(["ls", "--json", "--host", offerUrl], {
+    const relay = await ctx.kivotos(["ls", "--json", "--host", offerUrl], {
       timeout: 30_000,
-      env: { PASEO_HOST: offerUrl },
+      env: { KIVOTOS_HOST: offerUrl },
     });
     expect(relay.exitCode, `relay ls failed: ${relay.stderr}\nstdout: ${relay.stdout}`).toBe(0);
     const relayAgents = JSON.parse(relay.stdout.trim() || "[]");

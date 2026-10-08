@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@kivotos/protocol/agent-types";
 import { CombinedModelSelector } from "@/components/combined-model-selector";
 import { ExternalLink } from "@/components/ui/external-link";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";

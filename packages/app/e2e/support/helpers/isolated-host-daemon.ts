@@ -9,7 +9,7 @@ import { killProcessTree, spawnTsx } from "./spawn-node";
 export interface IsolatedHostDaemon {
   serverId: string;
   port: number;
-  paseoHome: string;
+  kivotosHome: string;
   getPid(): number | undefined;
   restart(): Promise<void>;
   close(): Promise<void>;
@@ -21,7 +21,7 @@ export interface IsolatedHostDaemonOptions {
     enabled: boolean;
     endpoint?: string;
   };
-  paseoHome?: string;
+  kivotosHome?: string;
   preserveHome?: boolean;
   publishedVersion?: string;
 }
@@ -93,11 +93,11 @@ export async function startIsolatedHostDaemon(
   const metroPort = process.env.E2E_METRO_PORT;
   if (!metroPort) throw new Error("E2E_METRO_PORT is required to start an isolated host daemon");
 
-  const paseoHome =
-    options.paseoHome ?? (await mkdtemp(path.join(tmpdir(), "paseo-e2e-secondary-host-")));
+  const kivotosHome =
+    options.kivotosHome ?? (await mkdtemp(path.join(tmpdir(), "kivotos-e2e-secondary-host-")));
   let publishedPackageRoot: string | null = null;
   if (options.publishedVersion) {
-    publishedPackageRoot = await mkdtemp(path.join(tmpdir(), "paseo-e2e-published-server-"));
+    publishedPackageRoot = await mkdtemp(path.join(tmpdir(), "kivotos-e2e-published-server-"));
     await writeFile(
       path.join(publishedPackageRoot, "package.json"),
       `${JSON.stringify({ private: true })}\n`,
@@ -117,13 +117,13 @@ export async function startIsolatedHostDaemon(
           "--no-audit",
           "--no-fund",
           "--no-package-lock",
-          `@getpaseo/server@${options.publishedVersion}`,
+          `@kivotos/server@${options.publishedVersion}`,
         ],
         { cwd: publishedPackageRoot, stdio: "ignore" },
       );
     } catch (error) {
       if (!options.preserveHome) {
-        await rm(paseoHome, { recursive: true, force: true });
+        await rm(kivotosHome, { recursive: true, force: true });
       }
       await rm(publishedPackageRoot, { recursive: true, force: true });
       throw error;
@@ -134,7 +134,7 @@ export async function startIsolatedHostDaemon(
       options.mutableRelay.endpoint ??
       (process.env.E2E_RELAY_PORT ? `127.0.0.1:${process.env.E2E_RELAY_PORT}` : "127.0.0.1:9");
     await writeFile(
-      path.join(paseoHome, "config.json"),
+      path.join(kivotosHome, "config.json"),
       `${JSON.stringify({
         version: 1,
         daemon: {
@@ -150,7 +150,7 @@ export async function startIsolatedHostDaemon(
     );
   }
   const serverDir = publishedPackageRoot
-    ? path.join(publishedPackageRoot, "node_modules", "@getpaseo", "server")
+    ? path.join(publishedPackageRoot, "node_modules", "@kivotos", "server")
     : path.resolve(__dirname, "../../../../server");
   const spawnDaemon = async (): Promise<ChildProcess> => {
     const spawnOptions: SpawnOptions = {
@@ -158,12 +158,12 @@ export async function startIsolatedHostDaemon(
       env: withDisabledE2ESpeechEnv({
         ...process.env,
         ...options.environment,
-        PASEO_HOME: paseoHome,
-        PASEO_SERVER_ID: serverId,
-        PASEO_LISTEN: `127.0.0.1:${port}`,
-        PASEO_CORS_ORIGINS: `http://localhost:${metroPort}`,
-        PASEO_RELAY_ENABLED: options.mutableRelay ? undefined : "0",
-        PASEO_NODE_ENV: "development",
+        KIVOTOS_HOME: kivotosHome,
+        KIVOTOS_SERVER_ID: serverId,
+        KIVOTOS_LISTEN: `127.0.0.1:${port}`,
+        KIVOTOS_CORS_ORIGINS: `http://localhost:${metroPort}`,
+        KIVOTOS_RELAY_ENABLED: options.mutableRelay ? undefined : "0",
+        KIVOTOS_NODE_ENV: "development",
         NODE_ENV: "development",
       }),
       stdio: ["ignore", "ignore", "pipe"],
@@ -196,7 +196,7 @@ export async function startIsolatedHostDaemon(
     child = await spawnDaemon();
   } catch (error) {
     if (!options.preserveHome) {
-      await rm(paseoHome, { recursive: true, force: true });
+      await rm(kivotosHome, { recursive: true, force: true });
     }
     if (publishedPackageRoot) {
       await rm(publishedPackageRoot, { recursive: true, force: true });
@@ -208,7 +208,7 @@ export async function startIsolatedHostDaemon(
   return {
     serverId,
     port,
-    paseoHome,
+    kivotosHome,
     getPid: () => child.pid,
     restart: async () => {
       if (closed) throw new Error(`Cannot restart closed isolated daemon ${serverId}`);
@@ -220,7 +220,7 @@ export async function startIsolatedHostDaemon(
       closed = true;
       await killProcessTree(child);
       if (!options.preserveHome) {
-        await rm(paseoHome, { recursive: true, force: true });
+        await rm(kivotosHome, { recursive: true, force: true });
       }
       if (publishedPackageRoot) {
         await rm(publishedPackageRoot, { recursive: true, force: true });

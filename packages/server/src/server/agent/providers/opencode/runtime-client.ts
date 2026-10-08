@@ -35,7 +35,7 @@ export function openCodeMajorVersion(output: string): 1 | 2 {
     const patch = Number(version[3]);
     if (minor < minimumMinor || (minor === minimumMinor && patch < minimumPatch))
       throw new Error(
-        `OpenCode ${version[1]}.${version[2]}.${version[3]} is too old for this Paseo integration. Update OpenCode to 2.${minimumMinor}.${minimumPatch} or newer, then refresh the provider in Paseo.`,
+        `OpenCode ${version[1]}.${version[2]}.${version[3]} is too old for this Kivotos integration. Update OpenCode to 2.${minimumMinor}.${minimumPatch} or newer, then refresh the provider in Kivotos.`,
       );
     return 2;
   }

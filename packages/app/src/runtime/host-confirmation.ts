@@ -1,4 +1,4 @@
-import type { ConnectionOffer } from "@getpaseo/protocol/connection-offer";
+import type { ConnectionOffer } from "@kivotos/protocol/connection-offer";
 import {
   hostHasConnection,
   relayConnectionFromOffer,

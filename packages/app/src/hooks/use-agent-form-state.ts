@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
+import type { AgentProviderDefinition } from "@kivotos/protocol/provider-manifest";
 import type {
   AgentMode,
   AgentModelDefinition,
   AgentProvider,
   ProviderSnapshotEntry,
-} from "@getpaseo/protocol/agent-types";
+} from "@kivotos/protocol/agent-types";
 import { buildProviderDefinitions } from "@/utils/provider-definitions";
 import {
   buildSelectableProviderSelectorProviders,

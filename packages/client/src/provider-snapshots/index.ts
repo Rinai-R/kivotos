@@ -1,7 +1,7 @@
 import type {
   GetProvidersSnapshotResponseMessage,
   SessionOutboundMessage,
-} from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/messages";
 
 type Update = Extract<SessionOutboundMessage, { type: "providers_snapshot_update" }>;
 type Snapshot = GetProvidersSnapshotResponseMessage["payload"];

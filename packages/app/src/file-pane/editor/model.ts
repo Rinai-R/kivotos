@@ -1,4 +1,4 @@
-import type { FileVersion, FileWriteResult } from "@getpaseo/protocol/messages";
+import type { FileVersion, FileWriteResult } from "@kivotos/protocol/messages";
 
 export type FileEditorStatus = "clean" | "dirty" | "saving" | "conflict" | "error";
 export type FileLineSeparator = "\n" | "\r\n" | "\r";

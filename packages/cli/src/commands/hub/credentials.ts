@@ -59,7 +59,7 @@ export class PrivateHubCredentialStore implements HubCredentialStore {
   private readonly filePath: string;
 
   constructor(env: Readonly<Record<string, string | undefined>> = process.env) {
-    this.filePath = path.join(resolvePaseoHome(env), "hub-credentials.json");
+    this.filePath = path.join(resolveKivotosHome(env), "hub-credentials.json");
   }
 
   active(): StoredHubCredential | null {
@@ -136,8 +136,8 @@ export class PrivateHubCredentialStore implements HubCredentialStore {
   }
 }
 
-function resolvePaseoHome(env: Readonly<Record<string, string | undefined>>): string {
-  const configured = env.PASEO_HOME ?? "~/.paseo";
+function resolveKivotosHome(env: Readonly<Record<string, string | undefined>>): string {
+  const configured = env.KIVOTOS_HOME ?? "~/.kivotos";
   const expanded = configured === "~" ? homedir() : configured.replace(/^~\//u, `${homedir()}/`);
   return path.resolve(expanded);
 }
@@ -158,13 +158,13 @@ function isMissingFile(error: unknown): boolean {
 function invalidCredentialFile(): HubCommandError {
   return new HubCommandError(
     "HUB_CREDENTIALS_INVALID",
-    "Stored Hub login is invalid. Run `paseo hub login <origin>` to replace it.",
+    "Stored Hub login is invalid. Run `kivotos hub login <origin>` to replace it.",
   );
 }
 
 function credentialStorageError(): HubCommandError {
   return new HubCommandError(
     "HUB_CREDENTIALS_UNAVAILABLE",
-    "Could not access the private Hub credential store under PASEO_HOME.",
+    "Could not access the private Hub credential store under KIVOTOS_HOME.",
   );
 }

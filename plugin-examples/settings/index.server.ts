@@ -1,4 +1,4 @@
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginServerContext } from "@kivotos/plugin/server";
 import { preferences } from "./shared/preferences";
 
 export default function contribute(server: PluginServerContext) {

@@ -7,8 +7,8 @@ import type { AgentStorage, StoredAgentRecord } from "./agent/agent-storage.js";
 import type { WorkspaceGitService } from "./workspace-git-service.js";
 import type { ForgeService } from "../services/forge-service.js";
 import {
-  deletePaseoWorktree,
-  isPaseoOwnedWorktreeCwd,
+  deleteKivotosWorktree,
+  isKivotosOwnedWorktreeCwd,
   runWorktreeTeardownCommands,
   WorktreeTeardownError,
 } from "../utils/worktree.js";
@@ -24,13 +24,13 @@ import { WorkspaceAutomationBlockedError } from "./workspace-automation-gate.js"
 
 export type ActiveWorkspaceRef = Pick<
   PersistedWorkspaceRecord,
-  "workspaceId" | "cwd" | "kind" | "worktreeRoot" | "isPaseoOwnedWorktree" | "mainRepoRoot"
+  "workspaceId" | "cwd" | "kind" | "worktreeRoot" | "isKivotosOwnedWorktree" | "mainRepoRoot"
 >;
 
 export interface ArchiveDependencies {
-  paseoHome?: string;
+  kivotosHome?: string;
   // Base directory that may hold worktrees across repositories.
-  paseoWorktreesBaseRoot?: string;
+  kivotosWorktreesBaseRoot?: string;
   github: ForgeService;
   workspaceGitService: Pick<WorkspaceGitService, "getSnapshot">;
   agentManager: Pick<AgentManager, "listAgents" | "getAgent" | "archiveAgent" | "archiveSnapshot">;
@@ -91,9 +91,9 @@ export async function requireActiveWorkspaceForArchive(
 
 interface BackingDirectory {
   path: string;
-  isPaseoOwnedWorktree: boolean;
+  isKivotosOwnedWorktree: boolean;
   mainRepoRoot: string | null;
-  paseoWorktreesRoot: string | null;
+  kivotosWorktreesRoot: string | null;
 }
 
 interface ArchiveTarget {
@@ -119,7 +119,7 @@ export async function resolveWorkspaceIdAtPath(
 
 // Resolves the in-scope record set, tears each down
 // (agents + terminals + record), then removes the backing directory iff it is
-// Paseo-owned AND no active workspace still references it.
+// Kivotos-owned AND no active workspace still references it.
 export async function archiveByScope(
   dependencies: ArchiveDependencies,
   request: ArchiveByScopeRequest,
@@ -269,22 +269,22 @@ async function stopWorkspaceSetups(
 
 async function resolveWorkspaceBackingDirectory(
   workspace: ActiveWorkspaceRef,
-  dependencies: Pick<ArchiveDependencies, "paseoHome" | "paseoWorktreesBaseRoot">,
+  dependencies: Pick<ArchiveDependencies, "kivotosHome" | "kivotosWorktreesBaseRoot">,
 ): Promise<BackingDirectory> {
-  if (workspace.isPaseoOwnedWorktree && workspace.worktreeRoot && workspace.mainRepoRoot) {
+  if (workspace.isKivotosOwnedWorktree && workspace.worktreeRoot && workspace.mainRepoRoot) {
     return {
       path: resolve(workspace.worktreeRoot),
-      isPaseoOwnedWorktree: true,
+      isKivotosOwnedWorktree: true,
       mainRepoRoot: workspace.mainRepoRoot,
-      paseoWorktreesRoot: null,
+      kivotosWorktreesRoot: null,
     };
   }
   if (workspace.kind !== "worktree") {
     return {
       path: resolve(workspace.cwd),
-      isPaseoOwnedWorktree: false,
+      isKivotosOwnedWorktree: false,
       mainRepoRoot: workspace.mainRepoRoot ?? null,
-      paseoWorktreesRoot: null,
+      kivotosWorktreesRoot: null,
     };
   }
 
@@ -299,18 +299,18 @@ async function resolveWorkspaceBackingDirectory(
 
 async function resolveBackingDirectory(
   cwd: string,
-  dependencies: Pick<ArchiveDependencies, "paseoHome" | "paseoWorktreesBaseRoot">,
+  dependencies: Pick<ArchiveDependencies, "kivotosHome" | "kivotosWorktreesBaseRoot">,
 ): Promise<BackingDirectory> {
   const options = {
-    paseoHome: dependencies.paseoHome,
-    worktreesRoot: dependencies.paseoWorktreesBaseRoot,
+    kivotosHome: dependencies.kivotosHome,
+    worktreesRoot: dependencies.kivotosWorktreesBaseRoot,
   };
-  const ownership = await isPaseoOwnedWorktreeCwd(cwd, options);
+  const ownership = await isKivotosOwnedWorktreeCwd(cwd, options);
   return {
     path: resolve(ownership.allowed && ownership.worktreePath ? ownership.worktreePath : cwd),
-    isPaseoOwnedWorktree: ownership.allowed,
+    isKivotosOwnedWorktree: ownership.allowed,
     mainRepoRoot: ownership.repoRoot ?? null,
-    paseoWorktreesRoot: ownership.worktreeRoot ?? null,
+    kivotosWorktreesRoot: ownership.worktreeRoot ?? null,
   };
 }
 
@@ -354,7 +354,7 @@ async function maybeRemoveDirectory(
   archivedWorkspaceIds: string[],
 ): Promise<boolean> {
   const backing = target.backing;
-  if (!backing?.isPaseoOwnedWorktree) {
+  if (!backing?.isKivotosOwnedWorktree) {
     return false;
   }
 
@@ -400,13 +400,13 @@ async function maybeRemoveDirectory(
   }
 
   try {
-    await deletePaseoWorktree({
+    await deleteKivotosWorktree({
       cwd: backing.mainRepoRoot,
       worktreePath: backing.path,
       teardownCwds: [],
-      worktreesRoot: backing.paseoWorktreesRoot ?? undefined,
-      paseoHome: dependencies.paseoHome,
-      worktreesBaseRoot: dependencies.paseoWorktreesBaseRoot,
+      worktreesRoot: backing.kivotosWorktreesRoot ?? undefined,
+      kivotosHome: dependencies.kivotosHome,
+      worktreesBaseRoot: dependencies.kivotosWorktreesBaseRoot,
     });
     dependencies.github.invalidate({ cwd: backing.path });
     return true;
@@ -519,7 +519,7 @@ async function isDirectoryUnreferenced(
   activeWorkspaces: ActiveWorkspaceRef[],
   targetDir: string,
   archivedWorkspaceIds: ReadonlySet<string>,
-  dependencies: Pick<ArchiveDependencies, "paseoHome" | "paseoWorktreesBaseRoot">,
+  dependencies: Pick<ArchiveDependencies, "kivotosHome" | "kivotosWorktreesBaseRoot">,
 ): Promise<boolean> {
   const target = resolve(targetDir);
   const matchesTarget = createRealpathAwarePathMatcher(target);

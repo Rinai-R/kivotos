@@ -1,15 +1,15 @@
-# @getpaseo/client
+# @kivotos/client
 
-TypeScript SDK for building integrations on top of a Paseo daemon.
+TypeScript SDK for building integrations on top of a Kivotos daemon.
 
 ```bash
-npm install @getpaseo/client
+npm install @kivotos/client
 ```
 
 ```ts
-import { createPaseoClient } from "@getpaseo/client";
+import { createKivotosClient } from "@kivotos/client";
 
-const client = createPaseoClient({ url: "ws://127.0.0.1:6767/ws" });
+const client = createKivotosClient({ url: "ws://127.0.0.1:6767/ws" });
 await client.connect();
 
 const agent = await client.agents.create({
@@ -24,7 +24,7 @@ console.log(result.lastMessage);
 await client.close();
 ```
 
-The public API is the package root. Imports under `@getpaseo/client/internal/*` are unsupported implementation details used by Paseo's own packages.
+The public API is the package root. Imports under `@kivotos/client/internal/*` are unsupported implementation details used by Kivotos's own packages.
 
 Read the [SDK documentation](https://paseo.sh/docs/sdk) for agents, workspaces, terminals, provider discovery, events, recipes, and the API reference. Runnable TypeScript patterns also live in [`examples/`](./examples/README.md).
 
@@ -41,4 +41,4 @@ Connecting alone does not subscribe to agent timelines or catalog events. See th
 
 ## Stability
 
-The high-level API exported from `@getpaseo/client` is the supported SDK surface. The SDK and daemon remain protocol-compatible across versions, but newly added capabilities can require a newer daemon.
+The high-level API exported from `@kivotos/client` is the supported SDK surface. The SDK and daemon remain protocol-compatible across versions, but newly added capabilities can require a newer daemon.

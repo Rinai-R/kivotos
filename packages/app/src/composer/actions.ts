@@ -1,6 +1,6 @@
 import type { SelectedFile } from "@/attachments/selected-file";
-import type { ForgeSearchItem } from "@getpaseo/protocol/messages";
-import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
+import type { ForgeSearchItem } from "@kivotos/protocol/messages";
+import type { ActiveTurnBehavior } from "@kivotos/protocol/messages";
 import type {
   AttachmentMetadata,
   ComposerAttachment,

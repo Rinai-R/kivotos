@@ -170,7 +170,7 @@ function createRuntimeBoundaryPlugin(target: PluginBuildTarget, pluginDirectory:
   const boundaryResolution = {};
   const linkedDependencyRoots = new Set<string>();
   return {
-    name: `paseo-plugin-${target}-runtime-boundary`,
+    name: `kivotos-plugin-${target}-runtime-boundary`,
     setup(buildContext) {
       const checked = new Set<string>();
       const imports = createPluginImportReader(pluginDirectory);
@@ -315,12 +315,12 @@ function runtimeSpecifierError(
   importer: string,
 ): OnResolveResult | null {
   let kind: string | null = null;
-  if (specifier === "@getpaseo/plugin/client/host") kind = "host-private";
+  if (specifier === "@kivotos/plugin/client/host") kind = "host-private";
   else if (
-    (specifier === "@getpaseo/plugin" ||
-      specifier.startsWith("@getpaseo/plugin/") ||
-      specifier === "@paseo/plugin" ||
-      specifier.startsWith("@paseo/plugin/")) &&
+    (specifier === "@kivotos/plugin" ||
+      specifier.startsWith("@kivotos/plugin/") ||
+      specifier === "@kivotos/plugin" ||
+      specifier.startsWith("@kivotos/plugin/")) &&
     !(PLUGIN_SDK_SPECIFIERS as readonly string[]).includes(specifier)
   )
     kind = "Unknown SDK";

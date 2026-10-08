@@ -1,6 +1,6 @@
-import type { PluginAgentPanelProps, PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import type { PluginTheme } from "@getpaseo/plugin";
-import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
+import type { PluginAgentPanelProps, PluginWorkspacePanelProps } from "@kivotos/plugin/client";
+import type { PluginTheme } from "@kivotos/plugin";
+import { PluginClientStateProvider } from "@kivotos/plugin/client/host";
 import { CircleAlert } from "lucide-react-native";
 import { useMemo } from "react";
 import { Text, View } from "react-native";

@@ -13,7 +13,7 @@ function plugin(input: {
     clientBundle: "bundle",
     lifetime: new AbortController(),
     queryClient: new QueryClient(),
-    paseo: {} as InstalledPlugin["paseo"],
+    kivotos: {} as InstalledPlugin["kivotos"],
     invoke: async () => undefined,
     cleanup: () => {},
     settingsScreens: [],

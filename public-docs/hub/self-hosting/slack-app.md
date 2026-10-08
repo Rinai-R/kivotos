@@ -30,7 +30,7 @@ Paste both tokens into Hub and choose **Connect Slack**. Hub verifies the instal
 Invite the bot to each channel it should watch:
 
 ```text
-/invite @Paseo
+/invite @Kivotos
 ```
 
 Now write a [Slack trigger](/docs/hub/triggers/slack).
@@ -47,8 +47,8 @@ Slack calls:
 
 | Provider setting | Hub URL                                               |
 | ---------------- | ----------------------------------------------------- |
-| Redirect URL     | `<PASEO_HUB_APP_URL>/api/integrations/slack/callback` |
-| Request URL      | `<PASEO_HUB_APP_URL>/api/integrations/slack/events`   |
+| Redirect URL     | `<KIVOTOS_HUB_APP_URL>/api/integrations/slack/callback` |
+| Request URL      | `<KIVOTOS_HUB_APP_URL>/api/integrations/slack/events`   |
 
 Start the installation from Hub. An installation started only from Slack is not bound to a Hub organization.
 

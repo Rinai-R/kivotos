@@ -1,7 +1,7 @@
 {
-  "name": "@getpaseo/protocol",
+  "name": "@kivotos/protocol",
   "version": "0.11.1",
-  "description": "Paseo shared protocol schemas and wire types",
+  "description": "Kivotos shared protocol schemas and wire types",
   "files": [
     "dist",
     "!dist/**/*.map",

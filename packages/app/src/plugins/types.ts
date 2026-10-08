@@ -1,11 +1,11 @@
-import type { PaseoApi } from "@getpaseo/client";
+import type { KivotosApi } from "@kivotos/client";
 import type { QueryClient } from "@tanstack/react-query";
-import type { PluginRequirements } from "@getpaseo/protocol/messages";
+import type { PluginRequirements } from "@kivotos/protocol/messages";
 import type {
   PluginAttachmentSourceContribution,
   PluginCleanup,
   PluginThemeContribution,
-} from "@getpaseo/plugin";
+} from "@kivotos/plugin";
 import type {
   PluginCommandCenterItemContribution,
   PluginClientSlashCommandContribution,
@@ -18,7 +18,7 @@ import type {
   PluginTimelineTransformerContribution,
   PluginPanelLocation,
   PluginWorkspacePanelContribution,
-} from "@getpaseo/plugin/client";
+} from "@kivotos/plugin/client";
 
 export type PluginSidebarSection = "header" | "footer";
 
@@ -46,8 +46,8 @@ export interface EvaluatedPlugin {
 
 export interface InstalledPlugin extends EvaluatedPlugin {
   lifetime: AbortController;
-  /** The plugin's one Paseo client, `usePaseo()` in every surface; disposed at teardown. */
-  paseo: PaseoApi;
+  /** The plugin's one Kivotos client, `useKivotos()` in every surface; disposed at teardown. */
+  kivotos: KivotosApi;
   /** Calls one of the plugin's server RPC methods on its host. */
   invoke(method: string, input: unknown): Promise<unknown>;
   serverId: string;

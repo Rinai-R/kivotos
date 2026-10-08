@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $env:PATH = "$ScriptDir\..\node_modules\.bin;$env:PATH"
 
-# Derive PASEO_HOME: stable name for worktrees, temporary dir otherwise
-if (-not $env:PASEO_HOME) {
+# Derive KIVOTOS_HOME: stable name for worktrees, temporary dir otherwise
+if (-not $env:KIVOTOS_HOME) {
     $GitDir = git rev-parse --git-dir 2>$null
     $GitCommonDir = git rev-parse --git-common-dir 2>$null
 
@@ -13,31 +13,31 @@ if (-not $env:PASEO_HOME) {
         # Inside a worktree — derive a stable home from the worktree name
         $WorktreeRoot = git rev-parse --show-toplevel
         $WorktreeName = (Split-Path -Leaf $WorktreeRoot).ToLower() -replace '[^a-z0-9-]', '-' -replace '-+', '-' -replace '^-|-$', ''
-        $env:PASEO_HOME = "$env:USERPROFILE\.paseo-$WorktreeName"
-        New-Item -ItemType Directory -Force -Path $env:PASEO_HOME | Out-Null
+        $env:KIVOTOS_HOME = "$env:USERPROFILE\.kivotos-$WorktreeName"
+        New-Item -ItemType Directory -Force -Path $env:KIVOTOS_HOME | Out-Null
     } else {
-        $env:PASEO_HOME = Join-Path ([System.IO.Path]::GetTempPath()) "paseo-dev-$([System.Guid]::NewGuid().ToString('N').Substring(0,6))"
-        New-Item -ItemType Directory -Force -Path $env:PASEO_HOME | Out-Null
+        $env:KIVOTOS_HOME = Join-Path ([System.IO.Path]::GetTempPath()) "kivotos-dev-$([System.Guid]::NewGuid().ToString('N').Substring(0,6))"
+        New-Item -ItemType Directory -Force -Path $env:KIVOTOS_HOME | Out-Null
         # Register cleanup on exit
-        $TempPaseoHome = $env:PASEO_HOME
+        $TempKivotosHome = $env:KIVOTOS_HOME
         Register-EngineEvent PowerShell.Exiting -Action {
-            Remove-Item -Recurse -Force $TempPaseoHome -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force $TempKivotosHome -ErrorAction SilentlyContinue
         } | Out-Null
     }
 }
 
 # Share speech models with the main install to avoid duplicate downloads
-if (-not $env:PASEO_LOCAL_MODELS_DIR) {
-    $env:PASEO_LOCAL_MODELS_DIR = "$env:USERPROFILE\.paseo\models\local-speech"
-    New-Item -ItemType Directory -Force -Path $env:PASEO_LOCAL_MODELS_DIR | Out-Null
+if (-not $env:KIVOTOS_LOCAL_MODELS_DIR) {
+    $env:KIVOTOS_LOCAL_MODELS_DIR = "$env:USERPROFILE\.kivotos\models\local-speech"
+    New-Item -ItemType Directory -Force -Path $env:KIVOTOS_LOCAL_MODELS_DIR | Out-Null
 }
 
 Write-Host @"
 ======================================================
-  Paseo Dev (Windows)
+  Kivotos Dev (Windows)
 ======================================================
-  Home:    $($env:PASEO_HOME)
-  Models:  $($env:PASEO_LOCAL_MODELS_DIR)
+  Home:    $($env:KIVOTOS_HOME)
+  Models:  $($env:KIVOTOS_LOCAL_MODELS_DIR)
   Daemon:  localhost:6768
 ======================================================
 "@
@@ -45,13 +45,13 @@ Write-Host @"
 # Allow any origin in dev so Electron on random ports all work.
 # SECURITY: wildcard CORS is unsafe in production — only acceptable here because
 # the daemon binds to localhost and this script is never used for production.
-$env:PASEO_CORS_ORIGINS = "*"
+$env:KIVOTOS_CORS_ORIGINS = "*"
 
 # Configure the app to auto-connect to this daemon on localhost
 $env:APP_VARIANT = "development"
 $env:EXPO_PUBLIC_LOCAL_DAEMON = "localhost:6768"
-$env:EXPO_PUBLIC_PASEO_DEV_BUILD_LABEL = (git branch --show-current).Trim()
-$env:PASEO_LISTEN = "127.0.0.1:6768"
+$env:EXPO_PUBLIC_KIVOTOS_DEV_BUILD_LABEL = (git branch --show-current).Trim()
+$env:KIVOTOS_LISTEN = "127.0.0.1:6768"
 $env:BROWSER = "none"
 
 # Run both with concurrently

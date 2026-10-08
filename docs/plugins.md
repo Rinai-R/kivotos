@@ -2,9 +2,9 @@
 
 Local plugins contribute daemon RPCs, native app surfaces, workspace panels, Command Center items,
 client slash commands, timeline items, header buttons, composer pills, app themes, composer attachment sources, and settings screens.
-Paseo executes `index.server.ts` in a subprocess and `index.client.tsx` in every connected app.
+Kivotos executes `index.server.ts` in a subprocess and `index.client.tsx` in every connected app.
 
-> **Trust every plugin you add.** `paseo plugin add` and `paseo plugin install` mean “I trust this codebase.” Plugins are unsandboxed: server code and preparation commands run with the daemon user's access on the daemon host, and client contributions run inside Paseo. The repository's dependencies and future updates are part of that trust decision. With `--host`, preparation runs on that remote daemon host.
+> **Trust every plugin you add.** `kivotos plugin add` and `kivotos plugin install` mean “I trust this codebase.” Plugins are unsandboxed: server code and preparation commands run with the daemon user's access on the daemon host, and client contributions run inside Kivotos. The repository's dependencies and future updates are part of that trust decision. With `--host`, preparation runs on that remote daemon host.
 
 ## Install a directory source
 
@@ -12,13 +12,13 @@ Create a typecheckable plugin project, install its development dependencies, the
 the daemon. `init` only writes the project files; it does not run the package manager.
 
 ```bash
-paseo plugin init /absolute/path/to/my-plugin
+kivotos plugin init /absolute/path/to/my-plugin
 cd /absolute/path/to/my-plugin
 npm install
 npm run typecheck
-paseo plugin install /absolute/path/to/my-plugin
-paseo plugin install /absolute/path/to/my-plugin --id another-runtime-id
-paseo plugin ls
+kivotos plugin install /absolute/path/to/my-plugin
+kivotos plugin install /absolute/path/to/my-plugin --id another-runtime-id
+kivotos plugin ls
 ```
 
 The daemon stores directory sources under the root `plugins` object:
@@ -38,16 +38,16 @@ The daemon stores directory sources under the root `plugins` object:
 
 Installed plugins are disabled unless `pluginsEnabled` is `true`. Built-in plugins remain active.
 Changing that root field is
-runtime-safe: run `paseo reload` after editing `config.json`. Enabling starts every configured,
+runtime-safe: run `kivotos reload` after editing `config.json`. Enabling starts every configured,
 enabled plugin; disabling tears them all down without restarting the daemon. Plugin source entries
 remain lifecycle-owned and do not reload from manual config edits.
 
-The directory contains a manifest declaring identity and Paseo requirements, one optional entry per runtime, runtime-owned
+The directory contains a manifest declaring identity and Kivotos requirements, one optional entry per runtime, runtime-owned
 directories, and local typechecking support. At least one entry is required.
 
 ```text
 my-plugin/
-  paseo-plugin.json
+  kivotos-plugin.json
   package.json
   tsconfig.json
   index.client.tsx
@@ -57,18 +57,18 @@ my-plugin/
   shared/greeting.ts
 ```
 
-The generated `package.json` installs `@getpaseo/plugin` and the other host modules as development
-dependencies for local typechecking and tests. Paseo compiles TypeScript and TSX and supplies the
+The generated `package.json` installs `@kivotos/plugin` and the other host modules as development
+dependencies for local typechecking and tests. Kivotos compiles TypeScript and TSX and supplies the
 runtime modules, so consumers do not install these packages when adding the plugin.
 
 ```json
 {
   "id": "my-plugin",
-  "requirements": { "paseo": ">=0.8.0" }
+  "requirements": { "kivotos": ">=0.8.0" }
 }
 ```
 
-Declare the supported Paseo range and keep it current when adopting newer APIs. See the
+Declare the supported Kivotos range and keep it current when adopting newer APIs. See the
 [requirements contract](../public-docs/plugins/reference.md#requirements), including legacy
 manifests and prerelease matching.
 
@@ -79,16 +79,16 @@ keys.
 
 Never enable plugins on a user's behalf without explicit permission. Before asking, check the
 target daemon's current `pluginsEnabled` value. State that plugins are trusted, unsandboxed code:
-backend code can access the daemon machine, while client contributions run inside the Paseo app.
+backend code can access the daemon machine, while client contributions run inside the Kivotos app.
 
-Source changes are explicit. Run `paseo plugin reload <id>` to stop and fully tear down the old
-plugin before compiling and starting from disk. A failed reload stays failed; Paseo does not restore
+Source changes are explicit. Run `kivotos plugin reload <id>` to stop and fully tear down the old
+plugin before compiling and starting from disk. A failed reload stays failed; Kivotos does not restore
 the old code. Use `enable`, `disable`, and `remove` to manage one plugin. Removing a directory source
 never deletes it. The global `pluginsEnabled` switch remains available.
 
 ## Built-in plugins
 
-Built-in plugins ship from `plugins/<id>/`, with `paseo-plugin.json`, `index.server.ts`,
+Built-in plugins ship from `plugins/<id>/`, with `kivotos-plugin.json`, `index.server.ts`,
 `server/`, and optional client entry and icon. Add the plugin ID to `builtinPlugins` in
 `packages/server/src/server/plugins/builtin/index.ts`; the workspace, build copy, and CI
 checks cover that registry. Unlisted directories do not load.
@@ -96,7 +96,7 @@ checks cover that registry. Unlisted directories do not load.
 Desktop packaging ships the entire built-in plugin directory as an external resource,
 including declarations. The external esbuild compiler cannot read Electron's `app.asar`
 filesystem, and packaging dependencies excludes `.d.ts` files needed for import validation.
-Built-ins can import only host modules (`@getpaseo/plugin/*`, `zod`) and Node built-ins:
+Built-ins can import only host modules (`@kivotos/plugin/*`, `zod`) and Node built-ins:
 outside the archive, nothing resolves an npm dependency, and the dist build test cannot catch
 one because it resolves through the repository's `node_modules`.
 The packaged-app smoke check requires every listed built-in to start without relying on
@@ -117,21 +117,21 @@ the bundled integration; an entry with `extends` shadows it with a custom provid
 
 ## Install from a registry
 
-`paseo plugin add owner/slug` installs the registry's reviewed artifact by default.
+`kivotos plugin add owner/slug` installs the registry's reviewed artifact by default.
 Browse published plugins at [paseo.sh/plugins](https://paseo.sh/plugins).
 Use `git:owner/repository` or a full Git URL for a Git source. Registry installs
 keep the registry URL and ID, so update checks use its approved pin. Explicit version/ref
 selection is unavailable for registry installs; install an explicit source to select your own.
 
 Registry overviews are untrusted author content, even before installation. Render them with
-`@getpaseo/protocol/plugin-overview`: no raw HTML, HTTPS-only links and images, no relative
+`@kivotos/protocol/plugin-overview`: no raw HTML, HTTPS-only links and images, no relative
 URLs, and isolated external links. The website adapter and corpus tests live in
 `packages/website/src/plugins/overview.tsx` and `overview.test.tsx`; the reusable corpus is
 `packages/protocol/tests/fixtures/plugin-overview.json`. A future app overview must share
 this policy. Installed-plugin descriptions in the app remain plain text.
 
 Use `host/owner/slug` for a registry at `https://host`, or set
-`PASEO_PLUGIN_REGISTRY` to change the default base (including a path prefix).
+`KIVOTOS_PLUGIN_REGISTRY` to change the default base (including a path prefix).
 Private registry credentials live in daemon config under
 `pluginRegistries: { "host": { "authorization": "Bearer token" } }`.
 Restart your daemon after changing these startup settings. Credentials go only to the registry,
@@ -146,10 +146,10 @@ GitHub repositories use `git:owner/repository` or `github:owner/repository`. Oth
 URL.
 
 ```bash
-paseo plugin install git:owner/repository
-paseo plugin install https://gitlab.com/group/repository.git
-paseo plugin install git:owner/monorepo:plugins/review
-paseo plugin install github:owner/repository --ref main
+kivotos plugin install git:owner/repository
+kivotos plugin install https://gitlab.com/group/repository.git
+kivotos plugin install git:owner/monorepo:plugins/review
+kivotos plugin install github:owner/repository --ref main
 ```
 
 Append `:relative/path` for a plugin below the repository root. `--ref` chooses the initial
@@ -186,13 +186,13 @@ session is stored in the daemon. PluginService owns activation/recovery and inde
 ### Declare Git preparation
 
 Most plugins should omit `build`. Use it only when the staged checkout must install a dependency
-that Paseo does not provide, generate source or assets, or perform another required preparation
+that Kivotos does not provide, generate source or assets, or perform another required preparation
 step:
 
 ```json
 {
   "id": "review",
-  "requirements": { "paseo": ">=0.8.0" },
+  "requirements": { "kivotos": ">=0.8.0" },
   "build": [
     ["npm", "ci"],
     ["npm", "run", "build"]
@@ -201,22 +201,22 @@ step:
 ```
 
 `build` is an optional list of argv arrays. Each array must contain at least one non-empty string;
-shell command strings are rejected. Paseo starts the executable directly, without a shell, from the
+shell command strings are rejected. Kivotos starts the executable directly, without a shell, from the
 plugin directory in the staged checkout. It never detects lockfiles or chooses a package manager.
 
-On install and every update, Paseo resolves the exact Git revision and manifest, runs the declared
+On install and every update, Kivotos resolves the exact Git revision and manifest, runs the declared
 commands, then validates, compiles, and activates the candidate. It logs each argv command and its
-output in the daemon log. If a command fails, the error includes its output, Paseo discards the
+output in the daemon log. If a command fails, the error includes its output, Kivotos discards the
 candidate, and the existing installed and running version stays untouched. On a remote daemon, all
 of this happens on the remote daemon host.
 
-Server contributions can write to stdout and stderr with normal Node logging. Paseo adds `[paseo]`
+Server contributions can write to stdout and stderr with normal Node logging. Kivotos adds `[kivotos]`
 entries for loading, ready, stopping, and stopped transitions. Compilation and load failures are
 recorded as stderr entries before a subprocess exists. Inspect the recent in-memory
-tail from the host plugin settings or with `paseo plugin logs <id>`. Git preparation commands are
-recorded in `$PASEO_HOME/daemon.log` before a plugin exists, rather than the plugin log tail. Reload, disable, and process
+tail from the host plugin settings or with `kivotos plugin logs <id>`. Git preparation commands are
+recorded in `$KIVOTOS_HOME/daemon.log` before a plugin exists, rather than the plugin log tail. Reload, disable, and process
 failure retain the tail; removing the plugin clears it. Daemon restarts do not retain the tail, but
-structured copies remain in `$PASEO_HOME/daemon.log`. Plugin output can contain secrets, so do not
+structured copies remain in `$KIVOTOS_HOME/daemon.log`. Plugin output can contain secrets, so do not
 log credentials or tokens.
 
 ## Contribute behavior and UI
@@ -232,9 +232,9 @@ wiring. Runtime code lives behind directory boundaries:
 
 Do not put any other code modules in the plugin root.
 
-Shared files import contract helpers and types from `@getpaseo/plugin`. Server handler files import
-`PluginHandlerContext` from `@getpaseo/plugin/server`. Client files import Paseo UI from
-`@getpaseo/plugin/client/react-native`. Its `Icon` resolves a Lucide name using the client's installed icon
+Shared files import contract helpers and types from `@kivotos/plugin`. Server handler files import
+`PluginHandlerContext` from `@kivotos/plugin/server`. Client files import Kivotos UI from
+`@kivotos/plugin/client/react-native`. Its `Icon` resolves a Lucide name using the client's installed icon
 set; an unknown name renders nothing so it cannot break the plugin surface.
 Its controlled modal keeps presentation metadata on `<Modal title="…" icon={…}>` and body UI in
 `<Modal.Content>`. Body layout, sheet-aware scrolling, and clipboard actions follow the
@@ -252,12 +252,12 @@ dependency; shared types must not refer to React components, hooks, Node APIs, o
 
 | Entry                                                | Owns                                                                       | May depend on          |
 | ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
-| `@getpaseo/plugin`                                   | Shared data, schemas, RPC/settings definitions, runtime-neutral helpers    | Shared code only       |
-| `@getpaseo/plugin/server`                            | Server contexts, lifecycle contracts, and CLI process launch               | Shared and server code |
-| `@getpaseo/plugin/server/provider`, `/server/acp`    | Server provider contracts and adapters                                     | Shared and server code |
-| `@getpaseo/plugin/client`                            | Client contribution contexts, hooks, navigation, and UI contribution types | Shared and client code |
-| `@getpaseo/plugin/client/react-native`, `/client/ui` | Host-provided UI components                                                | Shared and client code |
-| `@getpaseo/plugin/client/host`                       | App-owned rendering integration; not a plugin-author entry                 | Shared and client code |
+| `@kivotos/plugin`                                   | Shared data, schemas, RPC/settings definitions, runtime-neutral helpers    | Shared code only       |
+| `@kivotos/plugin/server`                            | Server contexts, lifecycle contracts, and CLI process launch               | Shared and server code |
+| `@kivotos/plugin/server/provider`, `/server/acp`    | Server provider contracts and adapters                                     | Shared and server code |
+| `@kivotos/plugin/client`                            | Client contribution contexts, hooks, navigation, and UI contribution types | Shared and client code |
+| `@kivotos/plugin/client/react-native`, `/client/ui` | Host-provided UI components                                                | Shared and client code |
+| `@kivotos/plugin/client/host`                       | App-owned rendering integration; not a plugin-author entry                 | Shared and client code |
 
 Server code imports shared helpers from the root and server capabilities from `/server`. Client
 code imports shared helpers from the root and client capabilities from `/client`. Neither runtime
@@ -287,7 +287,7 @@ pattern.
 
 ```ts
 // index.server.ts
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginServerContext } from "@kivotos/plugin/server";
 import { createGreeting } from "./server/greeting";
 import { greetRpc } from "./shared/greeting";
 
@@ -299,8 +299,8 @@ export default function contribute(server: PluginServerContext) {
 
 ```tsx
 // index.client.tsx
-import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
-import { SidebarRow } from "@getpaseo/plugin/client/ui";
+import type { PluginClientContext, PluginSidebarItemProps } from "@kivotos/plugin/client";
+import { SidebarRow } from "@kivotos/plugin/client/ui";
 import { Greeting } from "./client/greeting";
 
 function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
@@ -320,13 +320,13 @@ export default function contribute(client: PluginClientContext) {
 }
 ```
 
-The contribution function must return cleanup. Server cleanup may be async; Paseo waits for it when
+The contribution function must return cleanup. Server cleanup may be async; Kivotos waits for it when
 the plugin is reloaded, disabled, removed, disconnected, or shut down. Cleanup is for resources
-created by plugin code. Paseo removes registered contributions, unmounts surfaces, clears query
+created by plugin code. Kivotos removes registered contributions, unmounts surfaces, clears query
 state, rejects pending RPCs, closes the plugin's daemon session, and stops the subprocess. Cleanup
 errors are logged and do not interrupt host teardown.
 
-Paseo owns the route, screen header, Lucide icon validation, close action, theme DTO, layout facts,
+Kivotos owns the route, screen header, Lucide icon validation, close action, theme DTO, layout facts,
 and render error boundary. The contributed component owns the complete body below the header.
 The plugin owns the header's text through the screen's `title` (`resolvePluginScreenTitle` in
 `plugins/surface-contribution.ts`). A legacy `addSidebarItem` route (`/sidebar/<id>`) shows the
@@ -343,20 +343,20 @@ params.
 
 RPC contracts validate inputs and outputs in both the app and plugin subprocess. `useRpc` returns a
 typed async function. Use the host-provided `@tanstack/react-query` for request state and caching;
-Paseo gives each plugin installation its own query client.
+Kivotos gives each plugin installation its own query client.
 
-`usePaseo()` and the handler's `{ paseo }` context expose the same `PaseoApi`: projects,
+`useKivotos()` and the handler's `{ kivotos }` context expose the same `KivotosApi`: projects,
 workspaces, agents, terminals, providers, and daemon config. They do not expose connection lifecycle.
 
-`usePaseo()` is the plugin's one client: `InstalledPlugin.paseo`, created with the installation in
+`useKivotos()` is the plugin's one client: `InstalledPlugin.kivotos`, created with the installation in
 `packages/app/src/plugins/registry.ts` over the host's existing connection and passed to setup as
-`client.paseo`. Authors release their subscriptions in their own cleanup, and teardown (disable,
+`client.kivotos`. Authors release their subscriptions in their own cleanup, and teardown (disable,
 reload, removal, host removal) disposes the client, which ends the rest; nothing is created or
 disposed per mounted surface. See the
-[public example](../public-docs/plugins/reference.md#use-the-paseo-sdk). Switching the screen's host
-changes both `usePaseo()` and `useRpc()` to that host's installation. An offline selected host fails there and never falls through to another
+[public example](../public-docs/plugins/reference.md#use-the-kivotos-sdk). Switching the screen's host
+changes both `useKivotos()` and `useRpc()` to that host's installation. An offline selected host fails there and never falls through to another
 installation. A server handler owns an IPC-backed daemon session for the life of its subprocess.
-Use plugin RPC for plugin-specific backend behavior that is not a normal Paseo operation.
+Use plugin RPC for plugin-specific backend behavior that is not a normal Kivotos operation.
 
 Host-targeted clients and discovery are owned by `packages/app/src/plugins/hosts`, with per-installation
 bindings supplied by the bundle loader. Bind the imperative getter to that installation; do not
@@ -369,7 +369,7 @@ grace. During daemon startup, plugin sessions may connect while application WebS
 paused; the daemon accepts clients only after configured plugins have settled and the initial
 catalog is complete.
 
-When the same plugin contribution exists on multiple hosts, Paseo shows it once in the sidebar and
+When the same plugin contribution exists on multiple hosts, Kivotos shows it once in the sidebar and
 adds a host picker to the screen header. The selected host supplies the bundle, RPC transport, and
 query cache. Explicit SDK targets follow the [host API contract](../public-docs/plugins/reference.md#discover-hosts-and-target-another-host).
 
@@ -387,7 +387,7 @@ workspace only. Location controls hosting, not context. An agent panel target ke
 when moved between hosts. Explorer configuration can create workspace-context panels and remove
 existing agent-context instances, but it cannot create an agent panel without an agent-aware command.
 
-Command Center callbacks use the selected host's existing `PaseoApi` for normal Paseo operations.
+Command Center callbacks use the selected host's existing `KivotosApi` for normal Kivotos operations.
 They use typed plugin RPC only for plugin-specific backend work. Surface and panel navigation
 belongs to the app; plugins do not receive Expo Router or workspace-layout store access.
 See the public [navigation fields](../public-docs/plugins/reference.md#screens-and-sidebar-items)
@@ -411,8 +411,8 @@ Register a provider from `index.server.ts`. The provider connection is callback-
 of its sessions; plugin RPC is not part of the provider data path.
 
 ```ts
-import type { PluginServerContext } from "@getpaseo/plugin/server";
-import type { ProviderRegistration } from "@getpaseo/plugin/server/provider";
+import type { PluginServerContext } from "@kivotos/plugin/server";
+import type { ProviderRegistration } from "@kivotos/plugin/server/provider";
 import { createProvider } from "./server/provider";
 
 export default function contribute(server: PluginServerContext) {
@@ -459,7 +459,7 @@ need no change. See [catalogue ownership](providers.md#provider-snapshot-refresh
 `send()` resolves after acceptance. Publish operation completion, prompt disposition, turn state,
 configuration, permissions, persistence, and complete timeline snapshots through `onEvent()`.
 Route messages, structured commands, steering, and command side effects through `session.prompt`.
-Provider settings are toggle/select data that Paseo renders in the composer. Keep private options in
+Provider settings are toggle/select data that Kivotos renders in the composer. Keep private options in
 the opaque `ProviderSessionConfig.providerOptions` object on `session.open`.
 It contains the provider defaults and per-agent overrides merged by the daemon.
 Validate and apply it inside the provider; core does not know your option shape.
@@ -472,7 +472,7 @@ daemon launch from `connect` and the per-session env and MCP servers from `sessi
 no provider reload input.
 
 For an ACP command, register `runAcpProvider({ id, label, command })` from
-`@getpaseo/plugin/server/acp`. Its transformer hooks cover narrow vendor differences; do not translate the
+`@kivotos/plugin/server/acp`. Its transformer hooks cover narrow vendor differences; do not translate the
 whole provider event stream. The shim uses the resolved launch for every probe and session, overlaying
 only the supplied per-session env for sessions. The direct and ACP examples live in
 `plugin-examples/provider-direct`
@@ -488,12 +488,12 @@ owns author workflow, lifecycle, testing, and distribution guidance.
 It must resolve inside that directory to a regular SVG file no larger than 64 KiB. The SVG must be
 self-contained: scripts, styles, `foreignObject`, event-handler attributes, JavaScript URLs, and
 external `href` or `xlink:href` references are rejected. Fragment references such as `#mark` are
-allowed. Paseo reads and sanitizes the file when the plugin starts; the string is never an inline
+allowed. Kivotos reads and sanitizes the file when the plugin starts; the string is never an inline
 SVG or URL.
 
 ## Usage sources
 
-Register a usage source from `index.server.ts` with `server.registerUsageSource()`. Import `UsageSourceRegistration` and normalization helpers from `@getpaseo/plugin/server/usage`. The plugin owns account discovery, harness labels, and credential-store reads; the daemon owns account grouping and the fetch cache. Agent popovers use only the agent's own login. The host-wide Usage modal falls back across an account's logins; any success shows usage only, and all failures show every login's labeled error and remedy. Follow the [usage source discovery contract](../public-docs/plugins/reference.md#usage-sources). The resolved launch environment crosses into the trusted, unsandboxed plugin subprocess for session discovery. Usage queries never run lifecycle hooks. Inputs are validated in the plugin process and remain daemon-side. `icon` uses the same sanitized SVG file rules as provider icons.
+Register a usage source from `index.server.ts` with `server.registerUsageSource()`. Import `UsageSourceRegistration` and normalization helpers from `@kivotos/plugin/server/usage`. The plugin owns account discovery, harness labels, and credential-store reads; the daemon owns account grouping and the fetch cache. Agent popovers use only the agent's own login. The host-wide Usage modal falls back across an account's logins; any success shows usage only, and all failures show every login's labeled error and remedy. Follow the [usage source discovery contract](../public-docs/plugins/reference.md#usage-sources). The resolved launch environment crosses into the trusted, unsandboxed plugin subprocess for session discovery. Usage queries never run lifecycle hooks. Inputs are validated in the plugin process and remain daemon-side. `icon` uses the same sanitized SVG file rules as provider icons.
 
 The daemon calls discovery for `usage.list_reports`; the client gates this RPC on `server_info.features.usageSources`. The old `provider.usage.list` RPC maps discovered reports for older clients.
 
@@ -543,7 +543,7 @@ Native sheets teleport their children. Button surfaces rebuild the installation'
 query, and toast providers inside the surface content, including overflow pages from different
 plugins. Providers only around the trigger do not reach those bodies.
 
-Request observation with `client.paseo.agents.list({ subscribe: {} })` and consume the returned
+Request observation with `client.kivotos.agents.list({ subscribe: {} })` and consume the returned
 `subscription` handle. Plain `list()` and agent/workspace directory `.subscribe(handler)` listeners create no daemon
 demand. Provider and project `subscribe()` calls establish their own demand. On capable daemons, each
 list-and-subscribe call has its own server ID, even for the same query. Older daemons retain
@@ -562,12 +562,12 @@ built-in projection stay unchanged. The app transforms each source item while bu
 model, for both fetched history and live events, before native Markdown splitting and Overview
 tool grouping. Assistant callbacks receive the accumulated source text, never display fragments.
 Live assistant messages use `phase: "streaming"`; committing to history makes them `"complete"`.
-Paseo memoizes by source-item reference and phase and derives replacement IDs from source identity, so
+Kivotos memoizes by source-item reference and phase and derives replacement IDs from source identity, so
 streaming updates preserve mounted component identity.
 
 `query.itemType` selects one public `AgentTimelineItem.type`. The callback owns any detailed
 recognition and returns plain plugin item objects. `undefined` keeps the source item, `items`
-replaces it, and an empty array removes it. Output `data` must be JSON-compatible. Paseo adds the
+replaces it, and an empty array removes it. Output `data` must be JSON-compatible. Kivotos adds the
 runtime plugin ID, preserves the source timeline cursor and identity, validates renderer data with
 its Zod schema, and mounts the component inside the normal plugin runtime and error boundary. An
 optional output `id` distinguishes several stable replacements from the same source item; its output
@@ -580,7 +580,7 @@ See `plugin-examples/timeline-items` for the complete contract.
 A plugin subprocess can also append a canonical plugin row from a server handler:
 
 ```ts
-await paseo.agents.ref(agentId).timeline.append({
+await kivotos.agents.ref(agentId).timeline.append({
   type: "plugin",
   id: "review",
   kind: "review-result",
@@ -601,7 +601,7 @@ be rendered intact. The daemon advertises this RPC through
 
 `addSlashCommand` registers an agent- or workspace-context command in the composer. The
 callback runs in the app, receives the trimmed text after the command name as `args`, and receives
-the same `paseo`, `rpc`, `openScreen`, workspace, agent, and `openPanel` capabilities as the matching
+the same `kivotos`, `rpc`, `openScreen`, workspace, agent, and `openPanel` capabilities as the matching
 Command Center callback.
 
 ```ts
@@ -616,20 +616,20 @@ client.addSlashCommand({
 });
 ```
 
-Paseo owns the autocomplete row, input clearing, and error toast. It never sends the command text to
+Kivotos owns the autocomplete row, input clearing, and error toast. It never sends the command text to
 the agent. Built-in client commands win name and alias collisions, plugin commands win
 provider-command collisions, and the first plugin in stable catalog order wins collisions between
 plugins. Plugin slash commands do not run when the composer has attachments.
 
 ## Contribute composer attachments
 
-Register a declarative attachment source backed by a plugin RPC. Paseo owns the attachment menu,
+Register a declarative attachment source backed by a plugin RPC. Kivotos owns the attachment menu,
 search picker, drafts, selected pill, and submission. The plugin returns complete text snapshots;
 credentials and vendor API calls stay in the daemon handler.
 
 ```ts
 // index.server.ts
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginServerContext } from "@kivotos/plugin/server";
 import { search } from "./server/issues";
 import { searchIssues } from "./shared/issues";
 
@@ -641,7 +641,7 @@ export default function contribute(server: PluginServerContext) {
 
 ```tsx
 // index.client.tsx
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginClientContext } from "@kivotos/plugin/client";
 import { issues } from "./shared/issues";
 
 export default function contribute(client: PluginClientContext) {
@@ -673,7 +673,7 @@ subscription cleanup belongs in the plugin's contribution cleanup when it outliv
 
 ## Contribute a theme
 
-`addTheme` takes a small light or dark palette and a display name. Paseo expands it through the
+`addTheme` takes a small light or dark palette and a display name. Kivotos expands it through the
 same semantic builders as the built-in themes, so plugins do not depend on the complete app token
 contract. Unistyles needs every theme name at `StyleSheet.configure` time, so
 `packages/app/src/styles/theme.ts` reserves one light and one dark plugin slot. The appearance

@@ -1,12 +1,12 @@
 import { Command } from "commander";
-import { DaemonConnectionError } from "@getpaseo/client/internal/daemon-client";
+import { DaemonConnectionError } from "@kivotos/client/internal/daemon-client";
 import {
   readDaemonInstance,
   daemonLogPath,
   isSameDaemonInstance,
   DaemonInstanceError,
-} from "@getpaseo/server/daemon-control";
-import { readPersistedConfig, resolveConfigFromPersisted } from "@getpaseo/server/configuration";
+} from "@kivotos/server/daemon-control";
+import { readPersistedConfig, resolveConfigFromPersisted } from "@kivotos/server/configuration";
 import { connectToDaemon, buildDaemonConnectionCommandError } from "../../utils/client.js";
 import { withOutput, toCommandError, type CommandOptions } from "../../output/index.js";
 import { addJsonAndDaemonHostOptions } from "../../utils/command-options.js";

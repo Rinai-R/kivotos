@@ -21,7 +21,7 @@ function installed(
     clientBundle: serverId,
     lifetime: new AbortController(),
     queryClient: new QueryClient(),
-    paseo: {} as InstalledPlugin["paseo"],
+    kivotos: {} as InstalledPlugin["kivotos"],
     invoke: async () => undefined,
     settingsScreens: [],
     surfaces: [{ id: "surface", title: "Surface", Component: () => null }],

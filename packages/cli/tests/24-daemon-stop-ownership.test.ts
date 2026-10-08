@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Regression: `paseo daemon stop` must only act on daemon ownership state and
+ * Regression: `kivotos daemon stop` must only act on daemon ownership state and
  * must not discover/kill processes via home-scoped `ps` command heuristics.
  */
 
@@ -15,9 +15,9 @@ import { $ } from "zx";
 $.verbose = false;
 
 const testEnv = {
-  PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD: process.env.PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD ?? "0",
-  PASEO_DICTATION_ENABLED: process.env.PASEO_DICTATION_ENABLED ?? "0",
-  PASEO_VOICE_MODE_ENABLED: process.env.PASEO_VOICE_MODE_ENABLED ?? "0",
+  KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD: process.env.KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD ?? "0",
+  KIVOTOS_DICTATION_ENABLED: process.env.KIVOTOS_DICTATION_ENABLED ?? "0",
+  KIVOTOS_VOICE_MODE_ENABLED: process.env.KIVOTOS_VOICE_MODE_ENABLED ?? "0",
 };
 
 function sleep(ms: number): Promise<void> {
@@ -52,7 +52,7 @@ async function waitForRunning(pid: number, timeoutMs: number): Promise<void> {
 
 console.log("=== Daemon Stop Ownership Regression ===\n");
 
-const paseoHome = await mkdtemp(join(tmpdir(), "paseo-stop-ownership-"));
+const kivotosHome = await mkdtemp(join(tmpdir(), "kivotos-stop-ownership-"));
 let decoyProcess: ChildProcess | null = null;
 
 try {
@@ -69,7 +69,7 @@ try {
     {
       env: {
         ...process.env,
-        PASEO_HOME: paseoHome,
+        KIVOTOS_HOME: kivotosHome,
       },
       stdio: "ignore",
       detached: process.platform !== "win32",
@@ -85,7 +85,7 @@ try {
   console.log("Test 2: daemon stop should report not_running and leave decoy untouched");
 
   const stopResult =
-    await $`PASEO_HOME=${paseoHome} PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD=${testEnv.PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD} PASEO_DICTATION_ENABLED=${testEnv.PASEO_DICTATION_ENABLED} PASEO_VOICE_MODE_ENABLED=${testEnv.PASEO_VOICE_MODE_ENABLED} npx paseo daemon stop --home ${paseoHome} --json`.nothrow();
+    await $`KIVOTOS_HOME=${kivotosHome} KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD=${testEnv.KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD} KIVOTOS_DICTATION_ENABLED=${testEnv.KIVOTOS_DICTATION_ENABLED} KIVOTOS_VOICE_MODE_ENABLED=${testEnv.KIVOTOS_VOICE_MODE_ENABLED} npx kivotos daemon stop --home ${kivotosHome} --json`.nothrow();
   assert.strictEqual(stopResult.exitCode, 0, `stop should succeed: ${stopResult.stderr}`);
 
   const parsed = JSON.parse(stopResult.stdout) as { action?: unknown };
@@ -114,8 +114,8 @@ try {
     }
   }
 
-  await $`PASEO_HOME=${paseoHome} npx paseo daemon stop --home ${paseoHome} --force`.nothrow();
-  await rm(paseoHome, { recursive: true, force: true });
+  await $`KIVOTOS_HOME=${kivotosHome} npx kivotos daemon stop --home ${kivotosHome} --force`.nothrow();
+  await rm(kivotosHome, { recursive: true, force: true });
 }
 
 console.log("=== Daemon stop ownership regression test passed ===");

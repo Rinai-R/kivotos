@@ -1,8 +1,8 @@
 import {
   encodeTerminalKeyInput,
   type TerminalKeyInput,
-} from "@getpaseo/protocol/terminal-key-input";
-import type { TerminalInputModeState } from "@getpaseo/protocol/terminal-input-mode";
+} from "@kivotos/protocol/terminal-key-input";
+import type { TerminalInputModeState } from "@kivotos/protocol/terminal-input-mode";
 import { normalizeTerminalTransportKey } from "@/utils/terminal-keys";
 
 export interface TerminalKeyModifierState {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
-import type { AgentTimelineItem, ToolCallDetail } from "@getpaseo/protocol/agent-types";
+import type { AgentStreamEventPayload } from "@kivotos/protocol/messages";
+import type { AgentTimelineItem, ToolCallDetail } from "@kivotos/protocol/agent-types";
 import {
   createUserMessage,
   hydrateStreamState,
@@ -4087,7 +4087,7 @@ describe("processAgentStreamEvents", () => {
 
   it("keeps Claude image tool-result output before following assistant blocks while text streams", () => {
     const imageMarkdown =
-      "![Image](/tmp/paseo-attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png)";
+      "![Image](/tmp/kivotos-attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png)";
     const result = processAgentStreamEvents({
       events: [
         makeStreamReducerEvent(

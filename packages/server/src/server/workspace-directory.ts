@@ -10,15 +10,15 @@ import {
   deriveAgentStateBucket,
   getWorkspaceStateBucketPriority,
   type WorkspaceStateBucket,
-} from "@getpaseo/protocol/agent-state-bucket";
-import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
+} from "@kivotos/protocol/agent-state-bucket";
+import { getParentAgentIdFromLabels } from "@kivotos/protocol/agent-labels";
 import { SortablePager } from "./pagination/sortable-pager.js";
 import type { PersistedProjectRecord, PersistedWorkspaceRecord } from "./workspace-registry.js";
 import { resolveProjectDisplayName } from "./workspace-registry.js";
 import {
   deriveTerminalActivityStatusBucket,
   type TerminalActivity,
-} from "@getpaseo/protocol/terminal-activity";
+} from "@kivotos/protocol/terminal-activity";
 import type { ProviderSubagentDescriptor } from "./agent/provider-subagents/store.js";
 
 const FETCH_WORKSPACES_SORT_KEYS = [

@@ -1,11 +1,11 @@
 #!/usr/bin/env npx zx
 
 /**
- * Test runner for Paseo CLI E2E tests
+ * Test runner for Kivotos CLI E2E tests
  *
  * Runs all test phases as separate subprocesses with a bounded worker pool
  * so independent tests run concurrently. Each test file already isolates
- * its own daemon (ephemeral port + tmp PASEO_HOME), so parallelism is safe.
+ * its own daemon (ephemeral port + tmp KIVOTOS_HOME), so parallelism is safe.
  */
 
 import { spawn } from "child_process";
@@ -19,17 +19,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..", "..");
 
 // npm workspace scripts only add the local node_modules/.bin to PATH; hoisted
-// packages live in the root. Prepend it so `npx paseo` resolves locally.
+// packages live in the root. Prepend it so `npx kivotos` resolves locally.
 const rootNodeModulesBin = join(repoRoot, "node_modules", ".bin");
 const args = process.argv.slice(2);
 const testEnvDefaults = {
-  PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD: process.env.PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD ?? "0",
-  PASEO_DICTATION_ENABLED: process.env.PASEO_DICTATION_ENABLED ?? "0",
-  PASEO_VOICE_MODE_ENABLED: process.env.PASEO_VOICE_MODE_ENABLED ?? "0",
+  KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD: process.env.KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD ?? "0",
+  KIVOTOS_DICTATION_ENABLED: process.env.KIVOTOS_DICTATION_ENABLED ?? "0",
+  KIVOTOS_VOICE_MODE_ENABLED: process.env.KIVOTOS_VOICE_MODE_ENABLED ?? "0",
 };
 
 const DEFAULT_CONCURRENCY = 4;
-const concurrencyEnv = process.env.PASEO_CLI_TEST_CONCURRENCY;
+const concurrencyEnv = process.env.KIVOTOS_CLI_TEST_CONCURRENCY;
 const parsedConcurrency = concurrencyEnv ? Number.parseInt(concurrencyEnv, 10) : NaN;
 const concurrency =
   Number.isFinite(parsedConcurrency) && parsedConcurrency > 0
@@ -42,11 +42,11 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-const shardTotal = parsePositiveInt(process.env.PASEO_CLI_TEST_SHARD_TOTAL, 1);
-const shardIndexRaw = parsePositiveInt(process.env.PASEO_CLI_TEST_SHARD, 1);
+const shardTotal = parsePositiveInt(process.env.KIVOTOS_CLI_TEST_SHARD_TOTAL, 1);
+const shardIndexRaw = parsePositiveInt(process.env.KIVOTOS_CLI_TEST_SHARD, 1);
 if (shardIndexRaw < 1 || shardIndexRaw > shardTotal) {
   throw new Error(
-    `PASEO_CLI_TEST_SHARD=${shardIndexRaw} out of range for SHARD_TOTAL=${shardTotal}`,
+    `KIVOTOS_CLI_TEST_SHARD=${shardIndexRaw} out of range for SHARD_TOTAL=${shardTotal}`,
   );
 }
 const shardIndex = shardIndexRaw - 1;
@@ -104,7 +104,7 @@ async function writeJsonSummary({
     JSON.stringify(
       {
         suite: "cli-local",
-        command: "npm run test:local --workspace=@getpaseo/cli",
+        command: "npm run test:local --workspace=@kivotos/cli",
         counts: {
           passed,
           failed,
@@ -122,7 +122,7 @@ async function writeJsonSummary({
   );
 }
 
-console.log("🧪 Paseo CLI E2E Test Runner\n");
+console.log("🧪 Kivotos CLI E2E Test Runner\n");
 console.log("=".repeat(50));
 
 // Discover all test files
@@ -195,23 +195,23 @@ async function runSingleTest(testFile: string): Promise<TestOutcome> {
   const testPath = join(__dirname, testFile);
   const testName = testFile.replace(/\.test\.ts$/, "");
   const startedAt = Date.now();
-  const npmCache = await mkdtemp(join(tmpdir(), "paseo-cli-test-npm-cache-"));
-  const osHome = await mkdtemp(join(tmpdir(), "paseo-cli-test-os-home-"));
+  const npmCache = await mkdtemp(join(tmpdir(), "kivotos-cli-test-npm-cache-"));
+  const osHome = await mkdtemp(join(tmpdir(), "kivotos-cli-test-os-home-"));
 
   try {
     return await new Promise<TestOutcome>((resolve) => {
       const proc = spawn("npx", ["tsx", testPath], {
         env: {
           ...Object.fromEntries(
-            Object.entries(process.env).filter(([key]) => !key.startsWith("PASEO_")),
+            Object.entries(process.env).filter(([key]) => !key.startsWith("KIVOTOS_")),
           ),
           HOME: osHome,
           USERPROFILE: osHome,
           PATH: [rootNodeModulesBin, process.env.PATH].filter(Boolean).join(delimiter),
           npm_config_cache: npmCache,
-          PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD: testEnvDefaults.PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD,
-          PASEO_DICTATION_ENABLED: testEnvDefaults.PASEO_DICTATION_ENABLED,
-          PASEO_VOICE_MODE_ENABLED: testEnvDefaults.PASEO_VOICE_MODE_ENABLED,
+          KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD: testEnvDefaults.KIVOTOS_LOCAL_SPEECH_AUTO_DOWNLOAD,
+          KIVOTOS_DICTATION_ENABLED: testEnvDefaults.KIVOTOS_DICTATION_ENABLED,
+          KIVOTOS_VOICE_MODE_ENABLED: testEnvDefaults.KIVOTOS_VOICE_MODE_ENABLED,
         },
         stdio: ["ignore", "pipe", "pipe"],
       });

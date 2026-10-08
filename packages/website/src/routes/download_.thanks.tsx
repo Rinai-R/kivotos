@@ -18,8 +18,8 @@ export const Route = createFileRoute("/download_/thanks")({
   },
   head: () =>
     pageMeta(
-      "Thanks for downloading Paseo",
-      "Your Paseo download is starting. Join the community on Discord, GitHub, and Reddit, or sponsor Paseo.",
+      "Thanks for downloading Kivotos",
+      "Your Kivotos download is starting. Join the community on Discord, GitHub, and Reddit, or sponsor Kivotos.",
       "/download/thanks",
     ),
   component: DownloadThanks,
@@ -36,13 +36,13 @@ const COMMUNITY = [
     name: "GitHub",
     icon: <GitHubIcon className="h-6 w-6" />,
     body: "Star, report issues, contribute.",
-    href: "https://github.com/getpaseo/paseo",
+    href: "https://github.com/getpaseo/kivotos",
   },
   {
     name: "Reddit",
     icon: <RedditIcon className="h-6 w-6" />,
     body: "Workflows and questions.",
-    href: "https://www.reddit.com/r/PaseoAI/",
+    href: "https://www.reddit.com/r/KivotosAI/",
   },
 ];
 
@@ -55,7 +55,7 @@ function DownloadThanks() {
 
   return (
     <SiteShell width="default">
-      <h1 className="text-3xl font-medium tracking-tight mb-4">Thanks for downloading Paseo</h1>
+      <h1 className="text-3xl font-medium tracking-tight mb-4">Thanks for downloading Kivotos</h1>
       <p className="text-lg text-white/70 leading-relaxed max-w-2xl">
         Get help, share feedback, and follow along.
       </p>

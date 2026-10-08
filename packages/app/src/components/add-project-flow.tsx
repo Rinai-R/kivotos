@@ -1,6 +1,6 @@
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
-import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
+import type { WorkspaceProjectDescriptorPayload } from "@kivotos/protocol/messages";
 import {
   ArrowLeft,
   Folder,

@@ -5,8 +5,8 @@ import { handlePluginThumbnailRequest, pluginCardScreenshot } from "./thumbnails
 import { NewPluginCard, PluginCard } from "./plugin-card";
 import type { Plugin } from "./registry";
 
-const source = "https://cdn.jsdelivr.net/npm/paseo-example@1.2.3/preview.png";
-const video = "https://cdn.jsdelivr.net/npm/paseo-example@1.2.3/demo.mp4";
+const source = "https://cdn.jsdelivr.net/npm/kivotos-example@1.2.3/preview.png";
+const video = "https://cdn.jsdelivr.net/npm/kivotos-example@1.2.3/demo.mp4";
 const plugin: Plugin = {
   id: "acme/example",
   name: "Example",
@@ -16,7 +16,7 @@ const plugin: Plugin = {
   repository: { url: "https://github.com/acme/example" },
   artifact: {
     kind: "npm",
-    package: "paseo-example",
+    package: "kivotos-example",
     version: "1.2.3",
     resolved: "https://registry.npmjs.org/example.tgz",
     integrity: "sha512-YWJj",

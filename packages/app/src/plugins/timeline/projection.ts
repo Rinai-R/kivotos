@@ -1,4 +1,4 @@
-import type { AgentTimelineItem, ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
+import type { AgentTimelineItem, ToolCallTimelineItem } from "@kivotos/protocol/agent-types";
 import type { AgentToolCallData, PluginTimelineStreamItem, StreamItem } from "@/types/stream";
 import type { TimelineItemTransform } from "./model";
 

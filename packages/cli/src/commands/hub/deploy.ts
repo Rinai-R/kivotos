@@ -250,9 +250,9 @@ export function addHubDeployCommand(
     addHubResolutionHelp(
       hub
         .command("deploy")
-        .description("Deploy .paseo organization triggers or a legacy project bundle")
+        .description("Deploy .kivotos organization triggers or a legacy project bundle")
         .option("-p, --project <slug>", "Deploy a legacy bundle to this project slug")
-        .option("--hub <origin>", "Paseo Hub origin")
+        .option("--hub <origin>", "Kivotos Hub origin")
         .option("--api-key <secret>", "Organization API key")
         .option("--dry-run", "Validate without installing or activating"),
     ),

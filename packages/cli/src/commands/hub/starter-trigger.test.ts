@@ -8,37 +8,37 @@ describe("starter trigger connections", () => {
         {
           github: [
             {
-              slug: "github-getpaseo",
-              accountLogin: "getpaseo",
+              slug: "github-getkivotos",
+              accountLogin: "getkivotos",
               accountType: "Organization",
-              repositories: ["getpaseo/paseo"],
+              repositories: ["getkivotos/kivotos"],
             },
           ],
-          slack: [{ slug: "paseo", teamName: "Paseo" }],
-          discord: [{ slug: "paseo-discord", guildName: "Paseo Discord" }],
+          slack: [{ slug: "kivotos", teamName: "Kivotos" }],
+          discord: [{ slug: "kivotos-discord", guildName: "Kivotos Discord" }],
           daemons: [],
           linear: [],
         },
-        "getpaseo/paseo",
+        "getkivotos/kivotos",
       ),
     ).toEqual([
       {
-        id: "github:getpaseo/paseo",
-        label: "GitHub — getpaseo/paseo",
+        id: "github:getkivotos/kivotos",
+        label: "GitHub — getkivotos/kivotos",
         provider: "github",
-        filters: { connection: "github-getpaseo", repo: "getpaseo/paseo" },
+        filters: { connection: "github-getkivotos", repo: "getkivotos/kivotos" },
       },
       {
-        id: "slack:paseo",
-        label: "Slack — Paseo",
+        id: "slack:kivotos",
+        label: "Slack — Kivotos",
         provider: "slack",
-        filters: { connection: "paseo" },
+        filters: { connection: "kivotos" },
       },
       {
-        id: "discord:paseo-discord",
-        label: "Discord — Paseo Discord",
+        id: "discord:kivotos-discord",
+        label: "Discord — Kivotos Discord",
         provider: "discord",
-        filters: { connection: "paseo-discord" },
+        filters: { connection: "kivotos-discord" },
       },
     ]);
   });
@@ -49,10 +49,10 @@ describe("starter trigger connections", () => {
         {
           github: [
             {
-              slug: "github-getpaseo",
-              accountLogin: "getpaseo",
+              slug: "github-getkivotos",
+              accountLogin: "getkivotos",
               accountType: "Organization",
-              repositories: ["getpaseo/hub"],
+              repositories: ["getkivotos/hub"],
             },
           ],
           slack: [],
@@ -60,7 +60,7 @@ describe("starter trigger connections", () => {
           daemons: [],
           linear: [],
         },
-        "getpaseo/paseo",
+        "getkivotos/kivotos",
       ),
     ).toEqual([]);
   });

@@ -4,8 +4,8 @@
 .dev
 .playwright-mcp
 **/.playwright-mcp
-.paseo
-**/.paseo-provider-history
+.kivotos
+**/.kivotos-provider-history
 .plans
 .tasks
 .valknut

@@ -1,6 +1,6 @@
-import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
-import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
-import type { PluginTheme } from "@getpaseo/plugin";
+import { PluginClientStateProvider } from "@kivotos/plugin/client/host";
+import type { PluginTimelineItemProps } from "@kivotos/plugin/client";
+import type { PluginTheme } from "@kivotos/plugin";
 import React, { type ComponentType, useMemo } from "react";
 import { Text } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";

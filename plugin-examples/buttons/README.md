@@ -6,7 +6,7 @@ those same registrations. Switching agents moves the example to that agent's wor
 
 | Command Center command                | Header                                | Composer                        | Try                                                                                                                   |
 | ------------------------------------- | ------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Button examples: action**           | Refresh icon only                     | Refresh icon and label          | Refresh reads the workspace from the daemon and updates the label and tooltip. Paseo owns pending and error feedback. |
+| **Button examples: action**           | Refresh icon only                     | Refresh icon and label          | Refresh reads the workspace from the daemon and updates the label and tooltip. Kivotos owns pending and error feedback. |
 | **Button examples: menu**             | Wrench, Tools, chevron                | Wrench and Tools                | Refresh, a separator, custom details, a Display submenu, and a disabled item.                                         |
 | **Button examples: popover**          | Reactive status dot, Details, chevron | Reactive status dot and Details | Workspace data updates through `useWorkspace`; Done closes the surface.                                               |
 | **Button examples: hide / show**      | Hide or restore the button            | Hide or restore the pill        | Visibility changes through `registration.update({ visible })`.                                                        |
@@ -27,15 +27,15 @@ descriptors, updates, and React content. Return `.remove()` cleanup when the exa
 See the [button reference](../../public-docs/plugins/reference.md#button-descriptor) and
 [composer migration](../../public-docs/plugins/migration.md#composer-pills).
 
-From the repository root, `npm run typecheck --workspace=@getpaseo/plugin` checks this example
-against the SDK. Existing plugin projects must update `@getpaseo/plugin` before running their own
+From the repository root, `npm run typecheck --workspace=@kivotos/plugin` checks this example
+against the SDK. Existing plugin projects must update `@kivotos/plugin` before running their own
 `npm run typecheck` to detect the old `Component`/`onPress` pill shape and callable cleanup handle.
 
 The browser regression installs this exact directory in an isolated daemon and exercises both
 layouts, updates, and cleanup:
 
 ```sh
-npm run test:e2e --workspace=@getpaseo/app -- e2e/browser/plugin-button-example.spec.ts
+npm run test:e2e --workspace=@kivotos/app -- e2e/browser/plugin-button-example.spec.ts
 ```
 
 The captures use Chromium at desktop and phone widths; native iOS and Android were not exercised.

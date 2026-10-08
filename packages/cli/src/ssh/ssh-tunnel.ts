@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer, type Server, type Socket } from "node:net";
-import { buildSshTunnelArgs, type SshTransportTarget } from "@getpaseo/protocol/ssh-transport";
+import { buildSshTunnelArgs, type SshTransportTarget } from "@kivotos/protocol/ssh-transport";
 
 const SSH_STDERR_LIMIT = 8192;
 

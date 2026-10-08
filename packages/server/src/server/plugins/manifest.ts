@@ -1,10 +1,10 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { PluginIdSchema, PluginRequirementsSchema } from "@getpaseo/protocol/messages";
-import { validatePluginRequirements } from "@getpaseo/protocol/plugin-requirements";
+import { PluginIdSchema, PluginRequirementsSchema } from "@kivotos/protocol/messages";
+import { validatePluginRequirements } from "@kivotos/protocol/plugin-requirements";
 
-const MANIFEST_FILENAME = "paseo-plugin.json";
+const MANIFEST_FILENAME = "kivotos-plugin.json";
 const PluginBuildCommandSchema = z
   .array(z.string().refine((argument) => argument.trim().length > 0))
   .min(1);

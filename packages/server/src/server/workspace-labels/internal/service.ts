@@ -2,7 +2,7 @@ import {
   normalizeWorkspaceLabelName,
   workspaceLabelKey,
   type WorkspaceLabelDefinition,
-} from "@getpaseo/protocol/workspace-labels";
+} from "@kivotos/protocol/workspace-labels";
 import { WorkspaceLabelCatalogStore } from "./catalog-store.js";
 import {
   WorkspaceLabelSequence,

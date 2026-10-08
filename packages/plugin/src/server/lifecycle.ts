@@ -3,12 +3,12 @@ import type {
   AgentPermissionResponse,
   AgentTimelineItem,
   AgentSessionConfig,
-} from "@getpaseo/protocol/agent-types";
-import type { PaseoApi } from "@getpaseo/client";
-import type { WorkspaceCreateRequest } from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/agent-types";
+import type { KivotosApi } from "@kivotos/client";
+import type { WorkspaceCreateRequest } from "@kivotos/protocol/messages";
 
 export interface PluginHookContext {
-  paseo: PaseoApi;
+  kivotos: KivotosApi;
   signal: AbortSignal;
 }
 

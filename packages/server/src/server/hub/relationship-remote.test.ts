@@ -22,12 +22,12 @@ import {
 
 const openServers: ReturnType<typeof createServer>[] = [];
 const openUpgradeHubs: UpgradeRejectingHub[] = [];
-const openPaseoHomes: string[] = [];
+const openKivotosHomes: string[] = [];
 
 afterEach(async () => {
   for (const hub of openUpgradeHubs.splice(0)) hub.destroyConnections();
   await Promise.all(openServers.splice(0).map((server) => closeServer(server)));
-  await Promise.all(openPaseoHomes.splice(0).map((home) => rm(home, { recursive: true })));
+  await Promise.all(openKivotosHomes.splice(0).map((home) => rm(home, { recursive: true })));
 });
 
 test.each([401, 403, 404])(
@@ -97,11 +97,11 @@ test.each([
     const server = createServer();
     const webSockets = new WebSocketServer({ noServer: true });
     if (acknowledge) {
-      webSockets.on("headers", (headers) => headers.push("x-paseo-session-protocol: 1"));
+      webSockets.on("headers", (headers) => headers.push("x-kivotos-session-protocol: 1"));
     }
     let offeredProtocol: string | string[] | undefined;
     server.on("upgrade", (request, socket, head) => {
-      offeredProtocol = request.headers["x-paseo-session-protocol"];
+      offeredProtocol = request.headers["x-kivotos-session-protocol"];
       webSockets.handleUpgrade(request, socket, head, () => undefined);
     });
     openServers.push(server);
@@ -613,10 +613,10 @@ async function connectController(
   hub: UpgradeRejectingHub,
   clock: ManualRelationshipClock,
 ): Promise<HubRelationshipController> {
-  const paseoHome = await mkdtemp(path.join(tmpdir(), "paseo-hub-socket-"));
-  openPaseoHomes.push(paseoHome);
+  const kivotosHome = await mkdtemp(path.join(tmpdir(), "kivotos-hub-socket-"));
+  openKivotosHomes.push(kivotosHome);
   const controller = new HubRelationshipController({
-    paseoHome,
+    kivotosHome,
     hostname: "test-daemon.local",
     serverId: "server-1",
     daemonPublicKey: "daemon-public-key",

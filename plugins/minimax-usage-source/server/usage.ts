@@ -9,7 +9,7 @@ import {
   windowFromUsedPct,
   type UsageReport,
   type UsageWindow,
-} from "@getpaseo/plugin/server/usage";
+} from "@kivotos/plugin/server/usage";
 
 const ApiNumberSchema = z.coerce.number().finite();
 const ApiOptionalStringSchema = z.preprocess(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AgentModelDefinition, ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
-import type { AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
+import type { AgentModelDefinition, ProviderSnapshotEntry } from "@kivotos/protocol/agent-types";
+import type { AgentProviderDefinition } from "@kivotos/protocol/provider-manifest";
 import { i18n } from "@/i18n/i18next";
 import {
   buildProviderQualifiedDescription,

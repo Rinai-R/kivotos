@@ -20,7 +20,7 @@
 }:
 
 buildNpmPackage rec {
-  pname = "paseo";
+  pname = "kivotos";
   version = (builtins.fromJSON (builtins.readFile ../package.json)).version;
 
   src = lib.cleanSourceWith {
@@ -57,7 +57,7 @@ buildNpmPackage rec {
       && !(lib.hasSuffix ".e2e.test.ts" baseName)
       && baseName != "node_modules"
       && baseName != ".git"
-      && baseName != ".paseo"
+      && baseName != ".kivotos"
       && baseName != ".DS_Store";
   };
 
@@ -111,45 +111,45 @@ buildNpmPackage rec {
     # assets read at runtime. The trace script is the single source of
     # truth for what the daemon needs at $out — auditable in plain JS, no
     # npm hoisting / .bin / workspace-symlink footguns.
-    mkdir -p $out/lib/paseo
+    mkdir -p $out/lib/kivotos
     node scripts/trace-daemon.mjs > daemon-files.txt
 
     while IFS= read -r path; do
       [ -z "$path" ] && continue
-      mkdir -p "$out/lib/paseo/$(dirname "$path")"
-      cp -a "$path" "$out/lib/paseo/$path"
+      mkdir -p "$out/lib/kivotos/$(dirname "$path")"
+      cp -a "$path" "$out/lib/kivotos/$path"
     done < daemon-files.txt
 
     # Shell hooks invoke the retained CLI bin directly, without a system Node.
-    patchShebangs --build "$out/lib/paseo"
+    patchShebangs --build "$out/lib/kivotos"
 
     # Root package.json lets node resolve the workspace layout when the
     # CLI/server bin starts from $out.
-    cp package.json $out/lib/paseo/
+    cp package.json $out/lib/kivotos/
 
     # Web UI Assets
-    cp -r packages/server/dist/server/web-ui $out/lib/paseo/packages/server/dist/server/
+    cp -r packages/server/dist/server/web-ui $out/lib/kivotos/packages/server/dist/server/
 
     # Create wrapper for the server entry point (for systemd / direct use)
     mkdir -p $out/bin
-    # Keep Paseo's runtime mode separate from NODE_ENV, which belongs to spawned agents.
-    makeWrapper ${nodejs}/bin/node $out/bin/paseo-server \
-      --add-flags "$out/lib/paseo/packages/server/dist/scripts/supervisor-entrypoint.js" \
-      --set PASEO_NODE_ENV production
+    # Keep Kivotos's runtime mode separate from NODE_ENV, which belongs to spawned agents.
+    makeWrapper ${nodejs}/bin/node $out/bin/kivotos-server \
+      --add-flags "$out/lib/kivotos/packages/server/dist/scripts/supervisor-entrypoint.js" \
+      --set KIVOTOS_NODE_ENV production
 
     # Create wrapper for the CLI
-    makeWrapper ${nodejs}/bin/node $out/bin/paseo \
-      --add-flags "$out/lib/paseo/packages/cli/dist/index.js" \
-      --set NODE_PATH "$out/lib/paseo/node_modules"
+    makeWrapper ${nodejs}/bin/node $out/bin/kivotos \
+      --add-flags "$out/lib/kivotos/packages/cli/dist/index.js" \
+      --set NODE_PATH "$out/lib/kivotos/node_modules"
 
     runHook postInstall
   '';
 
   meta = {
     description = "Self-hosted daemon for Claude Code, Codex, and OpenCode";
-    homepage = "https://github.com/getpaseo/paseo";
+    homepage = "https://github.com/getpaseo/kivotos";
     license = lib.licenses.agpl3Plus;
-    mainProgram = "paseo";
+    mainProgram = "kivotos";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;
   };
 }

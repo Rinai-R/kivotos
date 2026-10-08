@@ -1,4 +1,4 @@
-import type { CheckoutPrStatusResponse, ForgeAuthState } from "@getpaseo/protocol/messages";
+import type { CheckoutPrStatusResponse, ForgeAuthState } from "@kivotos/protocol/messages";
 import { parseForgeAuthState } from "@/git/forge";
 
 type WireCheckoutPrStatusPayload = CheckoutPrStatusResponse["payload"];

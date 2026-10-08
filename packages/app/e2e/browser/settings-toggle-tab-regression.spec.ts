@@ -68,7 +68,7 @@ async function expectSendBehavior(
 ) {
   await expect
     .poll(async () => {
-      const raw = await page.evaluate(() => localStorage.getItem("@paseo:app-settings"));
+      const raw = await page.evaluate(() => localStorage.getItem("@kivotos:app-settings"));
       if (!raw) {
         return null;
       }

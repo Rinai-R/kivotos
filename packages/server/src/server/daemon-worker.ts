@@ -1,31 +1,31 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { createPaseoDaemon, formatListenTarget } from "./bootstrap.js";
+import { createKivotosDaemon, formatListenTarget } from "./bootstrap.js";
 import { loadConfig } from "./config.js";
-import { resolvePaseoHome } from "./paseo-home.js";
+import { resolveKivotosHome } from "./kivotos-home.js";
 import { createRootLogger } from "./logger.js";
 import type { DaemonLifecycleIntent } from "./bootstrap.js";
 import { getProcessDiagnostics } from "./process-diagnostics.js";
 
-process.title = "Paseo Daemon";
+process.title = "Kivotos Daemon";
 
 type SupervisorLifecycleMessage =
   | {
-      type: "paseo:shutdown";
+      type: "kivotos:shutdown";
       reason: string;
     }
   | {
-      type: "paseo:ready";
+      type: "kivotos:ready";
       listen: string;
       serverId: string;
     }
   | {
-      type: "paseo:restart";
+      type: "kivotos:restart";
       reason?: string;
     };
 
 interface BootstrapResult {
-  paseoHome: string;
+  kivotosHome: string;
   logger: ReturnType<typeof createRootLogger>;
   config: ReturnType<typeof loadConfig>;
 }
@@ -43,12 +43,12 @@ function isPidAlive(pid: number): boolean {
 }
 
 function writeWorkerLifecycleLog(
-  paseoHome: string,
+  kivotosHome: string,
   message: string,
   fields: Record<string, unknown> = {},
 ): void {
   try {
-    const logPath = path.join(paseoHome, "daemon.log");
+    const logPath = path.join(kivotosHome, "daemon.log");
     mkdirSync(path.dirname(logPath), { recursive: true });
     appendFileSync(
       logPath,
@@ -69,10 +69,10 @@ function writeWorkerLifecycleLog(
 
 function bootstrapFromEnvironment(): BootstrapResult {
   try {
-    const paseoHome = resolvePaseoHome();
-    const config = loadConfig(paseoHome);
-    const logger = createRootLogger({ log: config.log }, { paseoHome, file: false });
-    return { paseoHome, logger, config };
+    const kivotosHome = resolveKivotosHome();
+    const config = loadConfig(kivotosHome);
+    const logger = createRootLogger({ log: config.log }, { kivotosHome, file: false });
+    return { kivotosHome, logger, config };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`${message}\n`);
@@ -129,8 +129,8 @@ function applyCliFlagOverrides(config: ReturnType<typeof loadConfig>): void {
 }
 
 async function main() {
-  const { paseoHome, logger, config } = bootstrapFromEnvironment();
-  let daemon: Awaited<ReturnType<typeof createPaseoDaemon>> | null = null;
+  const { kivotosHome, logger, config } = bootstrapFromEnvironment();
+  let daemon: Awaited<ReturnType<typeof createKivotosDaemon>> | null = null;
   let shutdownPromise: Promise<number> | null = null;
   let exitHookInstalled = false;
 
@@ -214,7 +214,7 @@ async function main() {
         { clientId: intent.clientId, requestId: intent.requestId, reason: intent.reason },
         "Shutdown requested via websocket",
       );
-      if (sendSupervisorLifecycleMessage({ type: "paseo:shutdown", reason: intent.reason })) {
+      if (sendSupervisorLifecycleMessage({ type: "kivotos:shutdown", reason: intent.reason })) {
         return;
       }
       beginShutdown("shutdown lifecycle intent", { reason: intent.reason });
@@ -227,7 +227,7 @@ async function main() {
     );
     if (
       sendSupervisorLifecycleMessage({
-        type: "paseo:restart",
+        type: "kivotos:restart",
         ...(intent.reason ? { reason: intent.reason } : {}),
       })
     ) {
@@ -253,7 +253,7 @@ async function main() {
       }
       supervisorExitRequested = true;
 
-      writeWorkerLifecycleLog(paseoHome, "Supervisor liveness lost; worker exiting", {
+      writeWorkerLifecycleLog(kivotosHome, "Supervisor liveness lost; worker exiting", {
         reason,
         ...getProcessDiagnostics(),
         supervisorPid,
@@ -273,11 +273,11 @@ async function main() {
         return;
       }
       const type = (message as { type?: unknown }).type;
-      if (type === "paseo:supervisor-heartbeat") {
+      if (type === "kivotos:supervisor-heartbeat") {
         lastSupervisorHeartbeatAt = Date.now();
         return;
       }
-      if (type === "paseo:graceful-shutdown") {
+      if (type === "kivotos:graceful-shutdown") {
         const reason = (message as { reason?: unknown }).reason;
         beginShutdown("Supervisor shutdown request", {
           reason: typeof reason === "string" ? reason : "supervisor_requested_shutdown",
@@ -309,7 +309,7 @@ async function main() {
   installSupervisorLivenessGuard();
 
   try {
-    daemon = await createPaseoDaemon(
+    daemon = await createKivotosDaemon(
       {
         ...config,
         onLifecycleIntent: handleLifecycleIntent,
@@ -329,7 +329,7 @@ async function main() {
       throw new Error("Daemon did not expose a listen target after startup");
     }
     sendSupervisorLifecycleMessage({
-      type: "paseo:ready",
+      type: "kivotos:ready",
       listen,
       serverId: daemon.getServerId(),
     });

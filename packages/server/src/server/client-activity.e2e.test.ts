@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { createTestPaseoDaemon, type TestPaseoDaemon } from "./test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon, type TestKivotosDaemon } from "./test-utils/kivotos-daemon.js";
 import { DaemonClient } from "./test-utils/daemon-client.js";
-import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
+import type { AgentStreamEventPayload } from "@kivotos/protocol/messages";
 import type { AgentSnapshotPayload } from "./messages.js";
 import type { PushNotificationSender, PushPayload } from "./push/index.js";
 import { PRESENCE_THRESHOLD_MS } from "./agent-attention-policy.js";
@@ -35,14 +35,14 @@ describe("client activity tracking", () => {
   const TEST_PROVIDER = "claude";
   const TEST_MODEL = "haiku";
   const TEST_CWD = "/tmp";
-  let daemon: TestPaseoDaemon;
+  let daemon: TestKivotosDaemon;
   let client1: DaemonClient;
   let client2: DaemonClient;
   let pushNotifications: RecordingPushNotificationSender;
 
   beforeEach(async () => {
     pushNotifications = new RecordingPushNotificationSender();
-    daemon = await createTestPaseoDaemon({ pushNotificationSender: pushNotifications });
+    daemon = await createTestKivotosDaemon({ pushNotificationSender: pushNotifications });
   });
 
   afterEach(async () => {

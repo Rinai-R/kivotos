@@ -520,7 +520,7 @@ function pluginErrorRecord(directory: string) {
       properties: {
         error: {
           name: "UnknownError",
-          data: { message: "Failed to load plugin file:///paseo-plugin.mjs" },
+          data: { message: "Failed to load plugin file:///kivotos-plugin.mjs" },
         },
       },
     },

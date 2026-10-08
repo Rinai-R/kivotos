@@ -17,7 +17,7 @@ function release({
   const tag = `v${version}`;
   return {
     tag_name: tag,
-    assets: hasApk ? [{ name: `paseo-${tag}-android.apk` }] : [],
+    assets: hasApk ? [{ name: `kivotos-${tag}-android.apk` }] : [],
     prerelease,
     draft: false,
   };
@@ -35,10 +35,10 @@ function desktopRelease({
   return {
     tag_name: `v${version}`,
     assets: [
-      { name: `Paseo-${version}-arm64.dmg` },
-      { name: "Paseo-x86_64.AppImage" },
-      { name: `Paseo-Setup-${version}-x64.exe` },
-      { name: `Paseo-Setup-${version}-arm64.exe` },
+      { name: `Kivotos-${version}-arm64.dmg` },
+      { name: "Kivotos-x86_64.AppImage" },
+      { name: `Kivotos-Setup-${version}-x64.exe` },
+      { name: `Kivotos-Setup-${version}-arm64.exe` },
     ],
     prerelease,
     draft,
@@ -67,7 +67,7 @@ describe("selectReleaseChannels", () => {
 
     expect(channels.stable.version).toBe("0.2.5");
     expect(channels.beta?.version).toBe("0.3.0-beta.2");
-    expect(channels.beta?.windowsArm64Asset).toBe("Paseo-Setup-0.3.0-beta.2-arm64.exe");
+    expect(channels.beta?.windowsArm64Asset).toBe("Kivotos-Setup-0.3.0-beta.2-arm64.exe");
   });
 
   it("retires the beta channel once stable ships the same version", () => {

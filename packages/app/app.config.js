@@ -5,11 +5,11 @@ const withAndroidAsyncStorageSize = require("./plugins/with-android-async-storag
 const withAndroidProfileable = require("./plugins/with-android-profileable");
 const withFdroidAutolinking = require("./plugins/with-fdroid-autolinking");
 const withPasteInput = require("./plugins/with-paste-input");
-const withAndroidScroll = require("./modules/paseo-scroll/app.plugin");
+const withAndroidScroll = require("./modules/kivotos-scroll/app.plugin");
 const { getNativeReleaseVersion } = require("./native-release-version");
 const appVariant = process.env.APP_VARIANT ?? "production";
-const isFdroidBuild = process.env.PASEO_FDROID_BUILD === "1";
-const isProfileBuild = process.env.PASEO_PROFILE_BUILD === "1";
+const isFdroidBuild = process.env.KIVOTOS_FDROID_BUILD === "1";
+const isProfileBuild = process.env.KIVOTOS_PROFILE_BUILD === "1";
 
 const buildProfile = isFdroidBuild
   ? {
@@ -67,8 +67,8 @@ function resolveSecretFile(params) {
 
 const variants = {
   production: {
-    name: "Paseo",
-    packageId: "sh.paseo",
+    name: "Kivotos",
+    packageId: "sh.kivotos",
     googleServicesFile: resolveSecretFile({
       envKey: "GOOGLE_SERVICES_FILE_PROD",
       fallbackRelativePath: "./.secrets/google-services.prod.json",
@@ -79,8 +79,8 @@ const variants = {
     }),
   },
   development: {
-    name: "Paseo Debug",
-    packageId: "sh.paseo.debug",
+    name: "Kivotos Debug",
+    packageId: "sh.kivotos.debug",
     googleServicesFile: resolveSecretFile({
       envKey: "GOOGLE_SERVICES_FILE_DEBUG",
       fallbackRelativePath: "./.secrets/google-services.debug.json",
@@ -102,7 +102,7 @@ export default {
     version: nativeReleaseVersion.appVersion,
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "paseo",
+    scheme: "kivotos",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     ios: {
@@ -193,6 +193,6 @@ export default {
         projectId: "0e7f65ce-0367-46c8-a238-2b65963d235a",
       },
     },
-    owner: "getpaseo",
+    owner: "getkivotos",
   },
 };

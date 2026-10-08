@@ -31,7 +31,7 @@ console.log(result.status, result.lastMessage);
 | Status       | Meaning                                                           |
 | ------------ | ----------------------------------------------------------------- |
 | `idle`       | The turn completed and the agent can accept another prompt.       |
-| `permission` | The agent needs a person to answer a permission request in Paseo. |
+| `permission` | The agent needs a person to answer a permission request in Kivotos. |
 | `error`      | The provider ended the turn with an error.                        |
 | `timeout`    | The wait deadline elapsed; the agent may still be running.        |
 

@@ -1,9 +1,9 @@
-import type { AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
+import type { AgentProviderDefinition } from "@kivotos/protocol/provider-manifest";
 import type {
   AgentModelDefinition,
   AgentProvider,
   ProviderSnapshotEntry,
-} from "@getpaseo/protocol/agent-types";
+} from "@kivotos/protocol/agent-types";
 import {
   mergeProviderPreferences,
   type FormPreferences,

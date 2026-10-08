@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
+import type { AgentSnapshotPayload } from "@kivotos/protocol/messages";
 import { connectToDaemon } from "../../utils/client.js";
 import type { CommandOptions, ListResult, OutputSchema, CommandError } from "../../output/index.js";
 import { collectMultiple } from "../../utils/command-options.js";
@@ -161,10 +161,10 @@ export function buildAgentLsFetchOptions(
 
 /**
  * Agent ls command semantics:
- * - `paseo agent ls`    → active non-archived agents
- * - `paseo agent ls -g` → global non-archived agents
- * - `paseo agent ls -a` → active agents, including archived
- * - `paseo agent ls -ag` → global agents, including archived
+ * - `kivotos agent ls`    → active non-archived agents
+ * - `kivotos agent ls -g` → global non-archived agents
+ * - `kivotos agent ls -a` → active agents, including archived
+ * - `kivotos agent ls -ag` → global agents, including archived
  */
 export async function runLsCommand(
   options: AgentLsOptions,

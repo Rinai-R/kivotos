@@ -19,15 +19,15 @@ Root checkout dev is intentionally split across terminals:
 - `npm run dev:app` runs Expo on `http://localhost:8081` and connects to the dev daemon.
 - `npm run dev:desktop` runs its own Electron-flavored Expo server on the first free port from `8082` through `8089`. It never claims port `8081`.
 
-Desktop dev launches its desktop-managed daemon with `PASEO_NODE_ENV=development`,
+Desktop dev launches its desktop-managed daemon with `KIVOTOS_NODE_ENV=development`,
 so development-only providers such as Mock Load Test are available. Packaged
 desktop launches always force the daemon to production mode.
 
 The web and desktop dev launchers pass the current Git branch to Metro as
-`EXPO_PUBLIC_PASEO_DEV_BUILD_LABEL`. The expanded desktop sidebar shows it in
+`EXPO_PUBLIC_KIVOTOS_DEV_BUILD_LABEL`. The expanded desktop sidebar shows it in
 the titlebar row. Production builds leave the variable unset and show no label.
 
-`npm run dev` is only a shorthand for `npm run dev:server`. Keep `127.0.0.1:6767` for the packaged app and production-style `~/.paseo` state.
+`npm run dev` is only a shorthand for `npm run dev:server`. Keep `127.0.0.1:6767` for the packaged app and production-style `~/.kivotos` state.
 
 ## Nix desktop package
 
@@ -37,27 +37,27 @@ The flake exposes `packages.<system>.desktop` on Linux and macOS:
 nix build .#desktop
 ```
 
-Linux produces the `paseo-desktop` launcher and desktop entry. macOS produces
-`Applications/Paseo.app` plus the `paseo-desktop` launcher. Both use the nixpkgs
+Linux produces the `kivotos-desktop` launcher and desktop entry. macOS produces
+`Applications/Kivotos.app` plus the `kivotos-desktop` launcher. Both use the nixpkgs
 Electron runtime and the checkout's built daemon, client, and renderer rather
 than downloading a published desktop release.
 
-### PASEO_HOME
+### KIVOTOS_HOME
 
-`PASEO_HOME` is the directory that holds runtime state (agents, worktrees, workspace config, sockets, daemon log). Resolution rules:
+`KIVOTOS_HOME` is the directory that holds runtime state (agents, worktrees, workspace config, sockets, daemon log). Resolution rules:
 
-- The **server itself** (e.g. when launched by the desktop app or `npm run start`) defaults to `~/.paseo` (see `packages/server/src/server/paseo-home.ts`).
-- **Repo dev scripts** default to `$ROOT/.dev/paseo-home`, where `$ROOT` is the current checkout or worktree root. This keeps all dev state scoped to the checkout instead of the packaged desktop app.
-- **`npm run cli -- ...`** runs through the same dev-home wrapper as the dev scripts, so the in-repo CLI automatically targets the current checkout's `.dev/paseo-home` and configured dev daemon endpoint.
-- **Paseo-created worktrees** seed `$PASEO_WORKTREE_PATH/.dev/paseo-home` from `$PASEO_SOURCE_CHECKOUT_PATH/.dev/paseo-home` by copying durable JSON metadata. Runtime files like pid files, sockets, and logs are not copied.
+- The **server itself** (e.g. when launched by the desktop app or `npm run start`) defaults to `~/.kivotos` (see `packages/server/src/server/kivotos-home.ts`).
+- **Repo dev scripts** default to `$ROOT/.dev/kivotos-home`, where `$ROOT` is the current checkout or worktree root. This keeps all dev state scoped to the checkout instead of the packaged desktop app.
+- **`npm run cli -- ...`** runs through the same dev-home wrapper as the dev scripts, so the in-repo CLI automatically targets the current checkout's `.dev/kivotos-home` and configured dev daemon endpoint.
+- **Kivotos-created worktrees** seed `$KIVOTOS_WORKTREE_PATH/.dev/kivotos-home` from `$KIVOTOS_SOURCE_CHECKOUT_PATH/.dev/kivotos-home` by copying durable JSON metadata. Runtime files like pid files, sockets, and logs are not copied.
 - **This repo's worktree setup** also best-effort seeds `packages/app/ios` and the newest `.dev/ios-build` entry from the source checkout so iOS simulator services can reuse native project and Xcode cache state when it is safe enough to do so.
 
 Override knobs:
 
 ```bash
-PASEO_HOME=~/.paseo-blue npm run dev          # explicit home
-PASEO_DEV_SEED_HOME=/path/to/home npm run dev # seed from a different source home
-PASEO_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived worktree home
+KIVOTOS_HOME=~/.kivotos-blue npm run dev          # explicit home
+KIVOTOS_DEV_SEED_HOME=/path/to/home npm run dev # seed from a different source home
+KIVOTOS_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived worktree home
 ```
 
 ### Daemon endpoints
@@ -68,7 +68,7 @@ PASEO_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived wor
 - Root checkout desktop dev Expo: first free port from `8082` through `8089`.
 - `npm run dev` (Windows): `localhost:6767` for the daemon.
 
-In Paseo-managed worktree services, use the injected service environment rather than hardcoded root checkout ports.
+In Kivotos-managed worktree services, use the injected service environment rather than hardcoded root checkout ports.
 
 ### Expo Router
 
@@ -78,21 +78,21 @@ startup routing, remembered workspace restore, or active workspace selection.
 
 ### iOS simulator preview service
 
-Paseo worktrees expose the native iOS dev app through the `ios-simulator` service in `paseo.json`. The service URL serves the simulator preview at `/.sim`, so the preview link is `${PASEO_URL}/.sim`.
+Kivotos worktrees expose the native iOS dev app through the `ios-simulator` service in `kivotos.json`. The service URL serves the simulator preview at `/.sim`, so the preview link is `${KIVOTOS_URL}/.sim`.
 
 **Prerequisites (macOS only).** The service shells out to the Apple toolchain, so beyond the `npm ci` that worktree setup runs you must install:
 
 - **Xcode** (the full app, not just the Command Line Tools) — install it from the Mac App Store, or from `developer.apple.com/download` for a specific version. It provides `xcodebuild` and `xcrun simctl`; accept its license and let first-run component installation finish before starting the service.
-- **An iOS Simulator runtime with at least one iPhone device type**. Recent Xcode versions may not bundle a runtime — add one via Xcode → Settings → Components (older Xcode: "Platforms"). The service targets `iPhone 16 Pro` by default (override with `PASEO_IOS_DEVICE_TYPE`) and falls back to any iPhone; it fails with `No iPhone simulator device type is installed` when none exist.
+- **An iOS Simulator runtime with at least one iPhone device type**. Recent Xcode versions may not bundle a runtime — add one via Xcode → Settings → Components (older Xcode: "Platforms"). The service targets `iPhone 16 Pro` by default (override with `KIVOTOS_IOS_DEVICE_TYPE`) and falls back to any iPhone; it fails with `No iPhone simulator device type is installed` when none exist.
 - **Homebrew** — CocoaPods itself installs automatically: `expo prebuild` runs `pod install` on a cold worktree, and when the CocoaPods CLI is missing the runner installs it for you. It tries `gem install cocoapods` first and falls back to Homebrew (`brew install cocoapods`), so having Homebrew available lets that fallback succeed without a manual step.
 
 `serve-sim`, Expo, and Metro come from `npm ci`, and CocoaPods installs itself on the first prebuild as described above.
 
-The service is designed for concurrent worktrees: it derives a deterministic simulator identity from the worktree path, uses the worktree's assigned `PASEO_PORT`, pins `serve-sim` to that simulator UDID, and only tears down that worktree's helper/simulator state. It must not rely on the globally booted simulator or any fixed Metro port.
+The service is designed for concurrent worktrees: it derives a deterministic simulator identity from the worktree path, uses the worktree's assigned `KIVOTOS_PORT`, pins `serve-sim` to that simulator UDID, and only tears down that worktree's helper/simulator state. It must not rely on the globally booted simulator or any fixed Metro port.
 
 Worktree setup best-effort seeds the generated iOS project and newest native build cache from the source checkout before the service runs. The service still validates the native project by running Expo prebuild and Xcode; the seed only avoids paying all setup/build cost from a cold worktree every time.
 
-Starting the service must not create, focus, reveal, or leave behind macOS Simulator.app windows — a guard hides Simulator.app every 250ms, so the native window vanishes if you focus it. The user-visible surface is the interactive `/.sim` preview: a `serve-sim` stream (60 FPS MJPEG + a WebSocket control channel) that Metro mounts at `basePath: "/.sim"` (`packages/app/metro.config.cjs`) and that forwards taps and gestures, so first-launch prompts like "Open in PaseoDebug?" are answered there, not in the native window. Open the `${PASEO_URL}/.sim` link the service prints — not `serve-sim`'s raw stream port (`:3100`), which is view-only. Because the stream sits behind the daemon proxy it is convenient for remote viewing but laggy up close; for fast local dev at the Mac, use the native simulator path below.
+Starting the service must not create, focus, reveal, or leave behind macOS Simulator.app windows — a guard hides Simulator.app every 250ms, so the native window vanishes if you focus it. The user-visible surface is the interactive `/.sim` preview: a `serve-sim` stream (60 FPS MJPEG + a WebSocket control channel) that Metro mounts at `basePath: "/.sim"` (`packages/app/metro.config.cjs`) and that forwards taps and gestures, so first-launch prompts like "Open in KivotosDebug?" are answered there, not in the native window. Open the `${KIVOTOS_URL}/.sim` link the service prints — not `serve-sim`'s raw stream port (`:3100`), which is view-only. Because the stream sits behind the daemon proxy it is convenient for remote viewing but laggy up close; for fast local dev at the Mac, use the native simulator path below.
 
 **Troubleshooting.** If `xcrun simctl` fails with `unable to find utility "simctl"`, the active developer directory is still the Command Line Tools even though Xcode is installed. Point it at Xcode: `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, then confirm with `xcrun --find simctl`.
 
@@ -106,10 +106,10 @@ npm run ios        # → expo run:ios (packages/app): builds and launches the ap
 
 `expo run:ios` starts its own Metro and gives you the normal Simulator.app window (full speed, native touch, no stream).
 
-**Pointing the app at a daemon.** The client resolves its local daemon from `EXPO_PUBLIC_LOCAL_DAEMON` (`packages/app/src/runtime/host-runtime.ts`); when unset it falls back to `localhost:6767`, the production `~/.paseo` daemon. To target a worktree's dev daemon instead, set it on the build command:
+**Pointing the app at a daemon.** The client resolves its local daemon from `EXPO_PUBLIC_LOCAL_DAEMON` (`packages/app/src/runtime/host-runtime.ts`); when unset it falls back to `localhost:6767`, the production `~/.kivotos` daemon. To target a worktree's dev daemon instead, set it on the build command:
 
 ```bash
-EXPO_PUBLIC_LOCAL_DAEMON=localhost:${PASEO_SERVICE_DAEMON_PORT} npm run ios   # worktree daemon running as a Paseo service
+EXPO_PUBLIC_LOCAL_DAEMON=localhost:${KIVOTOS_SERVICE_DAEMON_PORT} npm run ios   # worktree daemon running as a Kivotos service
 EXPO_PUBLIC_LOCAL_DAEMON=localhost:6768 npm run ios                          # standalone `npm run dev:server`
 ```
 
@@ -123,11 +123,11 @@ The iOS simulator shares the Mac's loopback, so `localhost:<port>` reaches the h
 renderer CPU profiles can be captured through CDP. By default it passes
 `--remote-debugging-port=0`, so Chromium atomically asks the OS for an available
 port and prints the selected DevTools endpoint. Set
-`PASEO_ELECTRON_REMOTE_DEBUGGING_PORT` when a QA workflow requires a validated,
+`KIVOTOS_ELECTRON_REMOTE_DEBUGGING_PORT` when a QA workflow requires a validated,
 fixed port.
 
 Desktop dev also scopes Electron `userData` to the current dev root. This prevents
-desktop-only environment inherited by terminals opened inside Paseo from coupling
+desktop-only environment inherited by terminals opened inside Kivotos from coupling
 a new worktree instance to the parent desktop instance's profile or single-instance
 lock.
 
@@ -141,17 +141,17 @@ With desktop dev running, verify the real BrowserWindow, titlebar clearance, ful
 transition, and 751-pixel settings split with:
 
 ```bash
-npm run verify:electron-cdp --workspace=@getpaseo/desktop
+npm run verify:electron-cdp --workspace=@kivotos/desktop
 ```
 
 The verifier reads the same `EXPO_PORT` and
-`PASEO_ELECTRON_REMOTE_DEBUGGING_PORT` environment names as desktop dev. Set an
+`KIVOTOS_ELECTRON_REMOTE_DEBUGGING_PORT` environment names as desktop dev. Set an
 explicit remote-debugging port for verifier runs, and set both when testing an
 isolated instance on non-default ports.
 
 When running a dedicated Electron QA instance against a non-default Expo port, set
 `EXPO_DEV_URL` explicitly. Desktop main defaults to `http://localhost:8081`, so
-`PASEO_PORT=57928` alone starts Metro on 57928 but Electron still loads 8081.
+`KIVOTOS_PORT=57928` alone starts Metro on 57928 but Electron still loads 8081.
 
 ### React render profiling
 
@@ -161,11 +161,11 @@ to measure with `RenderProfile`, then open the app with `?renderProfile=1`. When
 the query param is absent, `RenderProfile` returns children directly and records
 nothing.
 
-Captured samples are exposed on `globalThis.__PASEO_RENDER_PROFILE__`. Call
-`globalThis.__PASEO_RESET_RENDER_PROFILE__?.()` after warm-up and before the
+Captured samples are exposed on `globalThis.__KIVOTOS_RENDER_PROFILE__`. Call
+`globalThis.__KIVOTOS_RESET_RENDER_PROFILE__?.()` after warm-up and before the
 interaction you want to measure. If a memo comparator or subscription boundary
 needs explanation, call `recordRenderProfileReasons(id, reasons)` while profiling;
-reason counts are exposed on `globalThis.__PASEO_RENDER_PROFILE_REASONS__`.
+reason counts are exposed on `globalThis.__KIVOTOS_RENDER_PROFILE_REASONS__`.
 
 Use this workflow for any render investigation:
 
@@ -198,10 +198,10 @@ Existing scenario script: workspace agent/terminal tab switching. Start Expo on
 web, keep a daemon available, then run:
 
 ```bash
-PASEO_PROFILE_SERVER_ID=<server-id> \
-PASEO_PROFILE_WORKSPACE_ID=<workspace-path> \
-PASEO_PROFILE_AGENT_ID=<agent-id> \
-  npm run profile:workspace-tabs --workspace=@getpaseo/app
+KIVOTOS_PROFILE_SERVER_ID=<server-id> \
+KIVOTOS_PROFILE_WORKSPACE_ID=<workspace-path> \
+KIVOTOS_PROFILE_AGENT_ID=<agent-id> \
+  npm run profile:workspace-tabs --workspace=@kivotos/app
 ```
 
 This script opens the app with `?renderProfile=1`, creates a temporary terminal
@@ -210,57 +210,57 @@ Profiler timings, then removes the temporary terminal. It is an example of the
 workflow above, not the only way to use the profiler. Useful knobs:
 
 ```bash
-PASEO_PROFILE_APP_URL=http://localhost:19010 # Expo web URL
-PASEO_PROFILE_SWITCH_COUNT=1                # number of agent/terminal switch pairs
-PASEO_PROFILE_SWITCH_WAIT_MS=250            # delay after each click
-PASEO_PROFILE_IDLE_WAIT_MS=3000             # idle baseline before switching
-PASEO_PROFILE_DUMP_COMMITS=1                # include per-commit profiler samples
+KIVOTOS_PROFILE_APP_URL=http://localhost:19010 # Expo web URL
+KIVOTOS_PROFILE_SWITCH_COUNT=1                # number of agent/terminal switch pairs
+KIVOTOS_PROFILE_SWITCH_WAIT_MS=250            # delay after each click
+KIVOTOS_PROFILE_IDLE_WAIT_MS=3000             # idle baseline before switching
+KIVOTOS_PROFILE_DUMP_COMMITS=1                # include per-commit profiler samples
 ```
 
 For warm workspace switching, point the benchmark at an app backed by seeded
 daemon state:
 
 ```bash
-PASEO_PROFILE_APP_URL=http://localhost:19010 \
-  npm run profile:workspace-switching --workspace=@getpaseo/app
+KIVOTOS_PROFILE_APP_URL=http://localhost:19010 \
+  npm run profile:workspace-switching --workspace=@kivotos/app
 ```
 
 The benchmark first warms `Cmd+1` through `Cmd+7`, then records a rapid seven-workspace
 burst. It separately warms the three-entry workspace deck LRU and records `Cmd+1` through
 `Cmd+3` without waits between keys. Both scenarios report keydown-to-activation latency and
-React commits on the same browser clock. Set `PASEO_PROFILE_WORKSPACE_DIGITS`,
-`PASEO_PROFILE_WORKSPACE_LRU_SIZE`, or `PASEO_PROFILE_WARM_QUIET_MS` to change the shape. Set
-`PASEO_PROFILE_DUMP_COMMITS=1` to include the nested component breakdown for every commit.
-Set `PASEO_PROFILE_RETAINED_REPEATS=5` to repeat the retained-LRU burst for a less noisy sample.
-Set `PASEO_PROFILE_CPU_PATH=/tmp/workspace-switch.cpuprofile` to run a separate retained-LRU
+React commits on the same browser clock. Set `KIVOTOS_PROFILE_WORKSPACE_DIGITS`,
+`KIVOTOS_PROFILE_WORKSPACE_LRU_SIZE`, or `KIVOTOS_PROFILE_WARM_QUIET_MS` to change the shape. Set
+`KIVOTOS_PROFILE_DUMP_COMMITS=1` to include the nested component breakdown for every commit.
+Set `KIVOTOS_PROFILE_RETAINED_REPEATS=5` to repeat the retained-LRU burst for a less noisy sample.
+Set `KIVOTOS_PROFILE_CPU_PATH=/tmp/workspace-switch.cpuprofile` to run a separate retained-LRU
 capture after the latency scenarios and write a raw CDP CPU profile without contaminating their
 timings.
-Set `PASEO_PROFILE_TRACE_PATH=/tmp/workspace-switch.trace.json` to run another separate retained-LRU
+Set `KIVOTOS_PROFILE_TRACE_PATH=/tmp/workspace-switch.trace.json` to run another separate retained-LRU
 capture and write a Chromium Performance trace with User Timing marks and screenshots. Open the
-trace in the Chrome DevTools Performance panel. Set `PASEO_PROFILE_TRACE_INVALIDATIONS=1` only for a
+trace in the Chrome DevTools Performance panel. Set `KIVOTOS_PROFILE_TRACE_INVALIDATIONS=1` only for a
 focused invalidation capture; React Native's generated stacks make that mode highly intrusive.
-Set `PASEO_PROFILE_TRACE_FOCUS=1` to include focus targets, durations, and JavaScript call stacks in
+Set `KIVOTOS_PROFILE_TRACE_FOCUS=1` to include focus targets, durations, and JavaScript call stacks in
 the scenario report. This mode wraps `HTMLElement.focus`, so use it only for diagnosis.
 
 For the desktop Explorer sidebar toggle, run the app against the root checkout's daemon and use:
 
 ```bash
-npm run profile:explorer-toggle --workspace=@getpaseo/app
+npm run profile:explorer-toggle --workspace=@kivotos/app
 ```
 
-The harness verifies port `6768`, opens the Paseo workspace, creates and warms the Explorer pane,
+The harness verifies port `6768`, opens the Kivotos workspace, creates and warms the Explorer pane,
 records an idle control, then measures settled and 50 ms burst Cmd+E toggles. It reports
 input-to-DOM and input-to-paint latency, React commits, mounts, unmounts, and DOM mutations. Set
-`PASEO_PROFILE_TRACE_PATH=/tmp/explorer-toggle.trace.json` or
-`PASEO_PROFILE_CPU_PATH=/tmp/explorer-toggle.cpuprofile` for separate Chromium captures. Override
-the app URL, daemon port, workspace, or server with the corresponding `PASEO_PROFILE_*` variables.
+`KIVOTOS_PROFILE_TRACE_PATH=/tmp/explorer-toggle.trace.json` or
+`KIVOTOS_PROFILE_CPU_PATH=/tmp/explorer-toggle.cpuprofile` for separate Chromium captures. Override
+the app URL, daemon port, workspace, or server with the corresponding `KIVOTOS_PROFILE_*` variables.
 
 For sustained composer typing, run the paired composer-versus-textarea benchmark against a seeded
 daemon:
 
 ```bash
-PASEO_PROFILE_APP_URL=http://localhost:19010 \
-  npm run profile:composer-typing --workspace=@getpaseo/app
+KIVOTOS_PROFILE_APP_URL=http://localhost:19010 \
+  npm run profile:composer-typing --workspace=@kivotos/app
 ```
 
 The benchmark opens the first workspace, preserves its existing draft, and dispatches 300 printable
@@ -268,23 +268,23 @@ keys at a fixed 16 ms cadence without waiting for each key to paint. It measures
 `keydown` to the next paint opportunity, verifies that every character survived, alternates the
 composer and plain-textarea control across three runs, then restores the original draft. The report
 includes percentiles, frame coalescing, input processing, React work, long tasks, slow samples, and
-Playwright dispatch lateness. Set `PASEO_PROFILE_TYPING_KEYS`, `PASEO_PROFILE_TYPING_CADENCE_MS`,
-`PASEO_PROFILE_TYPING_REPEATS`, or `PASEO_PROFILE_WORKSPACE_DIGIT` to change the scenario. Optional
-`PASEO_PROFILE_CPU_PATH` and `PASEO_PROFILE_TRACE_PATH` captures run separately after the latency
+Playwright dispatch lateness. Set `KIVOTOS_PROFILE_TYPING_KEYS`, `KIVOTOS_PROFILE_TYPING_CADENCE_MS`,
+`KIVOTOS_PROFILE_TYPING_REPEATS`, or `KIVOTOS_PROFILE_WORKSPACE_DIGIT` to change the scenario. Optional
+`KIVOTOS_PROFILE_CPU_PATH` and `KIVOTOS_PROFILE_TRACE_PATH` captures run separately after the latency
 measurements so profiling overhead does not contaminate them.
 
-Set `PASEO_PROFILE_TYPING_SCENARIO=height-growth` to alternate `Shift+Enter` and printable input.
+Set `KIVOTOS_PROFILE_TYPING_SCENARIO=height-growth` to alternate `Shift+Enter` and printable input.
 That report includes input and composer height changes plus React work grouped into composer,
 stream, and ancestor/root scopes. Ancestor/root timings include descendant work because the Profiler
 boundaries are nested. A printable key after an empty newline should not change either height.
 
 ### Preview Windows and Linux window controls on macOS
 
-Desktop development can replace native macOS traffic lights with Paseo's custom controls:
+Desktop development can replace native macOS traffic lights with Kivotos's custom controls:
 
 ```bash
-PASEO_DESKTOP_WINDOW_CONTROLS=windows npm run dev:desktop
-PASEO_DESKTOP_WINDOW_CONTROLS=linux npm run dev:desktop
+KIVOTOS_DESKTOP_WINDOW_CONTROLS=windows npm run dev:desktop
+KIVOTOS_DESKTOP_WINDOW_CONTROLS=linux npm run dev:desktop
 ```
 
 The override is rejected in packaged builds. Restart the desktop process when changing it.
@@ -313,19 +313,19 @@ guards already prevent throttling from causing a false stall.
 
 ### Daemon logs
 
-Check `$PASEO_HOME/daemon.log` for daemon logs. The default level is `info`; set
-`PASEO_LOG_LEVEL=trace` before launching the daemon when you need full provider,
+Check `$KIVOTOS_HOME/daemon.log` for daemon logs. The default level is `info`; set
+`KIVOTOS_LOG_LEVEL=trace` before launching the daemon when you need full provider,
 session, and agent-manager traces for stuck-state debugging.
 
 The supervisor rotates `daemon.log`. Persisted `log.file.rotate` settings in
-`$PASEO_HOME/config.json` win first. Without persisted config, the optional
-`PASEO_LOG_ROTATE_SIZE` and `PASEO_LOG_ROTATE_COUNT` env vars override the
+`$KIVOTOS_HOME/config.json` win first. Without persisted config, the optional
+`KIVOTOS_LOG_ROTATE_SIZE` and `KIVOTOS_LOG_ROTATE_COUNT` env vars override the
 defaults. The default rotation is `10m` x `3` files everywhere.
 
 ### Git process pressure
 
 If Git refreshes consume too much CPU, disk, or antivirus capacity, especially on Windows, reduce
-the daemon-global Git process limits in `$PASEO_HOME/config.json`:
+the daemon-global Git process limits in `$KIVOTOS_HOME/config.json`:
 
 ```json
 {
@@ -338,17 +338,17 @@ the daemon-global Git process limits in `$PASEO_HOME/config.json`:
 }
 ```
 
-Reload the daemon with `paseo reload`. Environment-variable overrides still require a restart because
+Reload the daemon with `kivotos reload`. Environment-variable overrides still require a restart because
 the launch environment remains authoritative. Lower values reduce machine pressure but make Git-backed workspace state and
 Git RPCs wait longer. See [Git process limits](data-model.md#git-process-limits) for defaults,
 semantics, and environment-variable overrides.
 
 ### Agent Tool Catalog Measurement
 
-Measure the MCP `tools/list` payload that Paseo injects into agents with:
+Measure the MCP `tools/list` payload that Kivotos injects into agents with:
 
 ```bash
-npm run measure:agent-tools --workspace=@getpaseo/server
+npm run measure:agent-tools --workspace=@kivotos/server
 ```
 
 The command reports compact JSON bytes, estimated tokens, field totals, largest
@@ -371,14 +371,14 @@ exact ref also resolves through its stored branch name.
 
 Worktrees inherit committed Git state only; uncommitted source-checkout changes are not copied.
 
-## paseo.json service scripts
+## kivotos.json service scripts
 
 `worktree.setup` and `worktree.teardown` accept either a multiline shell script or an array
 of commands. Both run sequentially.
 
 Lifecycle commands run in the worktree through a stable script shell: `bash`
 resolved from `PATH` on macOS/Linux, and PowerShell with `-NoProfile` on
-Windows. They inherit the daemon environment plus Paseo's lifecycle variables;
+Windows. They inherit the daemon environment plus Kivotos's lifecycle variables;
 login and interactive shell startup files are not loaded, and Bash's `BASH_ENV`
 hook is unset. ACP single-string terminal commands use the same non-login Bash
 behavior on macOS/Linux, but preserve their existing `cmd.exe /c` string semantics
@@ -396,7 +396,7 @@ that reads what it needs from `process.env` and invoke it as
 ```json
 {
   "worktree": {
-    "setup": "npm ci\ncp \"$PASEO_SOURCE_CHECKOUT_PATH/.env\" .env\nnpm run db:migrate",
+    "setup": "npm ci\ncp \"$KIVOTOS_SOURCE_CHECKOUT_PATH/.env\" .env\nnpm run db:migrate",
     "teardown": "npm run db:drop || true"
   }
 }
@@ -406,10 +406,10 @@ Every `scripts` entry with `"type": "service"` receives these environment variab
 
 | Variable                    | Value                                                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `PASEO_SERVICE_<NAME>_URL`  | Proxied URL for a declared peer service. Prefer this for peer discovery; it survives peer restarts.                       |
-| `PASEO_SERVICE_<NAME>_PORT` | Raw ephemeral port for a declared peer service. Use only as a bypass escape hatch; it can go stale if that peer restarts. |
-| `PASEO_URL`                 | Self alias for `PASEO_SERVICE_<SELF>_URL`.                                                                                |
-| `PASEO_PORT`                | Self alias for `PASEO_SERVICE_<SELF>_PORT`.                                                                               |
+| `KIVOTOS_SERVICE_<NAME>_URL`  | Proxied URL for a declared peer service. Prefer this for peer discovery; it survives peer restarts.                       |
+| `KIVOTOS_SERVICE_<NAME>_PORT` | Raw ephemeral port for a declared peer service. Use only as a bypass escape hatch; it can go stale if that peer restarts. |
+| `KIVOTOS_URL`                 | Self alias for `KIVOTOS_SERVICE_<SELF>_URL`.                                                                                |
+| `KIVOTOS_PORT`                | Self alias for `KIVOTOS_SERVICE_<SELF>_PORT`.                                                                               |
 | `HOST`                      | Bind host for the service process.                                                                                        |
 
 Service proxy hostnames use the double-dash shape: `web--feature-auth--project.localhost` or, on the default branch, `web--project.localhost`. Optional public aliases use the same leftmost label under the configured public base host.
@@ -423,19 +423,19 @@ Service proxy hostnames use the double-dash shape: `web--feature-auth--project.l
   "scripts": {
     "web": {
       "type": "service",
-      "command": "PORT=$PASEO_PORT npm run dev:web"
+      "command": "PORT=$KIVOTOS_PORT npm run dev:web"
     }
   }
 }
 ```
 
 Service ports use OS ephemeral allocation by default. Set `worktrees.servicePorts` in
-`$PASEO_HOME/config.json`, or replace it for one project with `worktree.servicePorts` in
-`paseo.json`. The block accepts an inclusive `range` such as `"3000-4000"` or a `portScript`
+`$KIVOTOS_HOME/config.json`, or replace it for one project with `worktree.servicePorts` in
+`kivotos.json`. The block accepts an inclusive `range` such as `"3000-4000"` or a `portScript`
 executable. Since `portScript` is executed directly without a shell, it must point to a real executable (e.g., a binary or a script with a proper shebang like `#!/bin/sh`) rather than an inline shell command or shell pipeline. For inline shell commands or pipelines, wrap them in a small script. `portScript` runs in the workspace directory with four arguments: service name,
 workspace ID, branch name, and worktree path. A missing branch is passed as an empty string. The same
-values are available as `PASEO_SCRIPTNAME`, `PASEO_WORKSPACE_ID`, `PASEO_BRANCH_NAME`, and
-`PASEO_WORKTREE_PATH`. The script must print one valid TCP port. Paseo trusts the external allocator,
+values are available as `KIVOTOS_SCRIPTNAME`, `KIVOTOS_WORKSPACE_ID`, `KIVOTOS_BRANCH_NAME`, and
+`KIVOTOS_WORKTREE_PATH`. The script must print one valid TCP port. Kivotos trusts the external allocator,
 so the port may already be bound. `portScript` takes precedence when both values are present.
 
 ## Bundled daemon web UI
@@ -447,14 +447,14 @@ The daemon can optionally serve the browser web client from the same HTTP server
 Enable it in persistent configuration:
 
 ```bash
-paseo daemon config set features.webUi.enabled true
-paseo daemon start
+kivotos daemon config set features.webUi.enabled true
+kivotos daemon start
 ```
 
 Or set the environment variable:
 
 ```bash
-PASEO_WEB_UI_ENABLED=true paseo daemon run
+KIVOTOS_WEB_UI_ENABLED=true kivotos daemon run
 ```
 
 Or persist it in `config.json`:
@@ -487,13 +487,13 @@ Measured bundle size for a standard Expo web export:
 - gzip: 2.55 MiB
 - brotli: 1.93 MiB
 
-The desktop-managed daemon disables the bundled web UI by default (`PASEO_WEB_UI_ENABLED=false`) because the desktop app already ships the renderer as `app-dist`. Shipping the same assets again inside `@getpaseo/server` would duplicate the ~10.8 MiB install. Desktop packaging also excludes `node_modules/@getpaseo/server/dist/server/web-ui/**` from the packaged app.
+The desktop-managed daemon disables the bundled web UI by default (`KIVOTOS_WEB_UI_ENABLED=false`) because the desktop app already ships the renderer as `app-dist`. Shipping the same assets again inside `@kivotos/server` would duplicate the ~10.8 MiB install. Desktop packaging also excludes `node_modules/@kivotos/server/dist/server/web-ui/**` from the packaged app.
 
 ## Built workspace packages
 
 Package imports resolve through package exports to compiled `dist/` output, not sibling `src/` files. This is true in local dev and in published packages: the app, daemon, CLI, and SDK consumers should all exercise the same runtime paths.
 
-`npm run dev:server` builds the server-side workspace packages once, then keeps `@getpaseo/protocol` and `@getpaseo/client` fresh with TypeScript watch builds while the daemon runs. If you change protocol schemas or client code outside that watch workflow, rebuild the producer before trusting runtime behavior.
+`npm run dev:server` builds the server-side workspace packages once, then keeps `@kivotos/protocol` and `@kivotos/client` fresh with TypeScript watch builds while the daemon runs. If you change protocol schemas or client code outside that watch workflow, rebuild the producer before trusting runtime behavior.
 
 Use the named root build targets instead of remembering workspace dependency chains:
 
@@ -543,16 +543,16 @@ install.
 
 ## CLI reference
 
-Use `npm run cli` to run the in-repo CLI from source (`npx tsx packages/cli/src/index.ts`). The script wraps the CLI with `scripts/dev-home.sh`, so it automatically uses this checkout's `.dev/paseo-home` and dev daemon endpoint unless you pass an explicit override. The globally installed `paseo` binary on macOS is a symlink into the installed Paseo desktop app, not this checkout — use it to drive the desktop's built-in daemon, but use `npm run cli` when you want to talk to the CLI you are editing.
+Use `npm run cli` to run the in-repo CLI from source (`npx tsx packages/cli/src/index.ts`). The script wraps the CLI with `scripts/dev-home.sh`, so it automatically uses this checkout's `.dev/kivotos-home` and dev daemon endpoint unless you pass an explicit override. The globally installed `kivotos` binary on macOS is a symlink into the installed Kivotos desktop app, not this checkout — use it to drive the desktop's built-in daemon, but use `npm run cli` when you want to talk to the CLI you are editing.
 
-Canonical automation uses `paseo project create/ls/rename/delete`, `paseo workspace create/ls/rename/archive`, `paseo heartbeat create/update/delete`, and the full `paseo schedule` group. MCP heartbeat automation is intentionally smaller: create and delete only. Detach remains an explicit user lifecycle action rather than an agent tool. `paseo run --new-workspace local|worktree` composes workspace creation with agent creation. The old `paseo worktree` and `paseo run --worktree` forms are hidden compatibility aliases.
+Canonical automation uses `kivotos project create/ls/rename/delete`, `kivotos workspace create/ls/rename/archive`, `kivotos heartbeat create/update/delete`, and the full `kivotos schedule` group. MCP heartbeat automation is intentionally smaller: create and delete only. Detach remains an explicit user lifecycle action rather than an agent tool. `kivotos run --new-workspace local|worktree` composes workspace creation with agent creation. The old `kivotos worktree` and `kivotos run --worktree` forms are hidden compatibility aliases.
 
 ```bash
 npm run cli -- ls -a -g              # List all agents globally
 npm run cli -- ls -a -g --json       # Same, as JSON
 npm run cli -- inspect <id>          # Show detailed agent info
 npm run cli -- logs <id>             # View agent timeline
-npm run cli -- agent open <id>       # Focus an existing agent in Paseo Desktop
+npm run cli -- agent open <id>       # Focus an existing agent in Kivotos Desktop
 npm run cli -- daemon status         # Check daemon status
 npm run cli -- clone owner/repo --dir ~/workspace # Clone GitHub repo and register project
 ```
@@ -564,14 +564,14 @@ npm run cli -- --host localhost:7777 ls -a
 npm run cli -- --host ssh://user@host ls -a
 ```
 
-Set `PASEO_HOST` to use the same target across invocations. An explicit
-selector overrides both environment selectors. With both `PASEO_HOME` and `PASEO_HOST` set, pass an explicit selector. See [CLI target selection](../public-docs/cli.md#select-one-daemon).
+Set `KIVOTOS_HOST` to use the same target across invocations. An explicit
+selector overrides both environment selectors. With both `KIVOTOS_HOME` and `KIVOTOS_HOST` set, pass an explicit selector. See [CLI target selection](../public-docs/cli.md#select-one-daemon).
 
 In an SSH URI, the URL port is the SSH server port. The remote daemon defaults to `127.0.0.1:6767`; use `?daemonPort=7777` to override it. The transport runs non-interactively through the local OpenSSH client and never installs, starts, or configures the remote daemon. User-facing setup and troubleshooting live in [public-docs/connectivity.md](../public-docs/connectivity.md#ssh).
 
 Desktop integrations can focus an existing agent without creating one or
-sending a message. Use `paseo://h/<server-id>/agent/<agent-id>`, or run
-`paseo agent open <agent-id>`. The CLI reads the local daemon's server ID by
+sending a message. Use `kivotos://h/<server-id>/agent/<agent-id>`, or run
+`kivotos agent open <agent-id>`. The CLI reads the local daemon's server ID by
 default; pass `--server <server-id>` when targeting another server.
 
 ## Agent state
@@ -579,19 +579,19 @@ default; pass `--server <server-id>` when targeting another server.
 Agent data lives at:
 
 ```
-$PASEO_HOME/agents/{cwd-with-dashes}/{agent-id}.json
+$KIVOTOS_HOME/agents/{cwd-with-dashes}/{agent-id}.json
 ```
 
 Find an agent by ID:
 
 ```bash
-find $PASEO_HOME/agents -name "{agent-id}.json"
+find $KIVOTOS_HOME/agents -name "{agent-id}.json"
 ```
 
 Find by content:
 
 ```bash
-rg -l "some title text" $PASEO_HOME/agents/
+rg -l "some title text" $KIVOTOS_HOME/agents/
 ```
 
 ## Provider session files
@@ -612,20 +612,20 @@ Get the session ID from the agent JSON (`persistence.sessionId`), then:
 
 ## Testing with Playwright MCP
 
-Point Playwright MCP at the running Expo web target. For root checkout dev, `npm run dev:app` reserves `http://localhost:8081`. For Paseo-managed worktree app services, use the service URL or port shown by Paseo for that worktree.
+Point Playwright MCP at the running Expo web target. For root checkout dev, `npm run dev:app` reserves `http://localhost:8081`. For Kivotos-managed worktree app services, use the service URL or port shown by Kivotos for that worktree.
 
 Do NOT use browser history (back/forward). Always navigate by clicking UI elements or using `browser_navigate` with the full URL — the app uses client-side routing and browser history breaks state.
 
 ## App web deploys
 
 `packages/app` exports a single-page Expo web app and deploys the `dist/`
-directory to Cloudflare Pages with `npm run deploy:web --workspace=@getpaseo/app`.
+directory to Cloudflare Pages with `npm run deploy:web --workspace=@kivotos/app`.
 
 PWA install metadata lives in `packages/app/public/manifest.json` and is linked
 from `packages/app/public/index.html`. Keep the install icons in `public/` so
 Cloudflare serves them from stable root URLs after `expo export`.
 
-Do not add service-worker caching casually. Paseo is a live control surface for
+Do not add service-worker caching casually. Kivotos is a live control surface for
 agents, and an aggressive service worker can strand installed users on stale web
 code. If offline behavior becomes a product requirement, add it deliberately
 with an update strategy and test the installed-app upgrade path.

@@ -1,24 +1,24 @@
 import { projectTimelineRows } from "./timeline-projection.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
-import type { PluginSessionOpenRequest } from "@getpaseo/plugin/server";
+import type { PluginSessionOpenRequest } from "@kivotos/plugin/server";
 import { randomUUID } from "node:crypto";
 import { basename, resolve } from "node:path";
 import { stat } from "node:fs/promises";
 import {
   AGENT_LIFECYCLE_STATUSES,
   type AgentLifecycleStatus,
-} from "@getpaseo/protocol/agent-lifecycle";
+} from "@kivotos/protocol/agent-lifecycle";
 import {
   getParentAgentIdFromLabels,
   hasOpenAgentTab,
   isDelegatedAgent,
   isOpenAgentTabLabel,
   PARENT_AGENT_ID_LABEL,
-} from "@getpaseo/protocol/agent-labels";
+} from "@kivotos/protocol/agent-labels";
 import type { Logger } from "pino";
-import type { ToolPolicy } from "@getpaseo/protocol/agent-types";
-import type { ProviderPaseoToolsPolicy } from "@getpaseo/protocol/provider-config";
+import type { ToolPolicy } from "@kivotos/protocol/agent-types";
+import type { ProviderKivotosToolsPolicy } from "@kivotos/protocol/provider-config";
 import { z } from "zod";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
 
@@ -80,10 +80,10 @@ import {
 import { invokeRewindCapability, type RewindMode } from "./rewind/rewind.js";
 import { isSystemInjectedEnvelope } from "./agent-prompt.js";
 import { isStaleProviderSessionError } from "./stale-provider-session-error.js";
-import { stripInternalPaseoMcpServer, withRuntimePaseoMcpServer } from "./runtime-mcp-config.js";
+import { stripInternalKivotosMcpServer, withRuntimeKivotosMcpServer } from "./runtime-mcp-config.js";
 import { resolveCreateAgentTitles } from "./create-agent-title.js";
-import type { PaseoToolCatalogFactory } from "./tools/types.js";
-import { isPaseoToolPolicyEnabled } from "./paseo-tool-policy.js";
+import type { KivotosToolCatalogFactory } from "./tools/types.js";
+import { isKivotosToolPolicyEnabled } from "./kivotos-tool-policy.js";
 import {
   ProviderSubagentStore,
   type ProviderSubagentDescriptor,
@@ -165,7 +165,7 @@ async function assertUsableWorkingDirectory(cwd: string): Promise<void> {
 interface PreparedSessionConfig {
   storedConfig: AgentSessionConfig;
   launchConfig: AgentSessionConfig;
-  paseoToolPolicy: ProviderPaseoToolsPolicy | undefined;
+  kivotosToolPolicy: ProviderKivotosToolsPolicy | undefined;
 }
 
 interface NormalizeConfigOptions {
@@ -212,7 +212,7 @@ function buildStoredAgentConfig(record: StoredAgentRecord): AgentSessionConfig {
     config.systemPrompt = record.config.systemPrompt;
   }
   if (record.config.mcpServers != null) config.mcpServers = record.config.mcpServers;
-  return stripInternalPaseoMcpServer(config);
+  return stripInternalKivotosMcpServer(config);
 }
 
 export { AGENT_LIFECYCLE_STATUSES, type AgentLifecycleStatus };
@@ -326,9 +326,9 @@ export interface AgentManagerOptions {
   terminalManager?: TerminalManager | null;
   mcpBaseUrl?: string;
   mcpAuthToken?: string;
-  paseoToolsEnabled?: boolean;
-  paseoToolCatalogFactory?: PaseoToolCatalogFactory;
-  resolvePaseoToolPolicy?: (provider: AgentProvider) => ProviderPaseoToolsPolicy | undefined;
+  kivotosToolsEnabled?: boolean;
+  kivotosToolCatalogFactory?: KivotosToolCatalogFactory;
+  resolveKivotosToolPolicy?: (provider: AgentProvider) => ProviderKivotosToolsPolicy | undefined;
   appendSystemPrompt?: string;
   agentStreamCoalesceWindowMs?: number;
   rescueTimeouts?: AgentManagerRescueTimeouts;
@@ -740,12 +740,12 @@ export class AgentManager {
   private readonly agentStreamCoalescer: AgentStreamCoalescer;
   private mcpBaseUrl: string | null;
   private readonly mcpAuthToken: string | null;
-  private paseoToolsEnabled = true;
-  private paseoToolCatalogFactory: PaseoToolCatalogFactory | null = null;
-  private readonly paseoToolPolicies = new Map<string, ProviderPaseoToolsPolicy | undefined>();
-  private readonly resolvePaseoToolPolicy: (
+  private kivotosToolsEnabled = true;
+  private kivotosToolCatalogFactory: KivotosToolCatalogFactory | null = null;
+  private readonly kivotosToolPolicies = new Map<string, ProviderKivotosToolsPolicy | undefined>();
+  private readonly resolveKivotosToolPolicy: (
     provider: AgentProvider,
-  ) => ProviderPaseoToolsPolicy | undefined;
+  ) => ProviderKivotosToolsPolicy | undefined;
   private appendSystemPrompt: string;
   private onAgentAttention?: AgentAttentionCallback;
   private onAgentArchived?: AgentArchivedCallback;
@@ -764,8 +764,8 @@ export class AgentManager {
     this.onWorkspaceStateMayHaveChanged = options?.onWorkspaceStateMayHaveChanged;
     this.mcpBaseUrl = options?.mcpBaseUrl ?? null;
     this.mcpAuthToken = options?.mcpAuthToken ?? null;
-    this.configurePaseoTools(options);
-    this.resolvePaseoToolPolicy = options.resolvePaseoToolPolicy ?? (() => undefined);
+    this.configureKivotosTools(options);
+    this.resolveKivotosToolPolicy = options.resolveKivotosToolPolicy ?? (() => undefined);
     this.appendSystemPrompt = options.appendSystemPrompt ?? "";
     this.logger = options.logger.child({ module: "agent", component: "agent-manager" });
     this.rescueTimeouts = {
@@ -789,9 +789,9 @@ export class AgentManager {
     });
   }
 
-  private configurePaseoTools(options: AgentManagerOptions): void {
-    this.paseoToolsEnabled = options.paseoToolsEnabled ?? true;
-    this.paseoToolCatalogFactory = options.paseoToolCatalogFactory ?? null;
+  private configureKivotosTools(options: AgentManagerOptions): void {
+    this.kivotosToolsEnabled = options.kivotosToolsEnabled ?? true;
+    this.kivotosToolCatalogFactory = options.kivotosToolCatalogFactory ?? null;
   }
 
   registerClient(provider: AgentProvider, client: AgentClient): void {
@@ -852,16 +852,16 @@ export class AgentManager {
     this.acceptingAgentRegistrations = false;
   }
 
-  setPaseoToolsEnabled(enabled: boolean): void {
-    this.paseoToolsEnabled = enabled;
+  setKivotosToolsEnabled(enabled: boolean): void {
+    this.kivotosToolsEnabled = enabled;
   }
 
-  setPaseoToolCatalogFactory(factory: PaseoToolCatalogFactory | null): void {
-    this.paseoToolCatalogFactory = factory;
+  setKivotosToolCatalogFactory(factory: KivotosToolCatalogFactory | null): void {
+    this.kivotosToolCatalogFactory = factory;
   }
 
-  getPaseoToolPolicy(agentId: string): ProviderPaseoToolsPolicy | undefined {
-    return this.paseoToolPolicies.get(agentId);
+  getKivotosToolPolicy(agentId: string): ProviderKivotosToolsPolicy | undefined {
+    return this.kivotosToolPolicies.get(agentId);
   }
 
   /**
@@ -1254,7 +1254,7 @@ export class AgentManager {
       options = { ...options, env: request.env };
     }
     await this.deleteAgentState(resolvedAgentId);
-    const { storedConfig, launchConfig, paseoToolPolicy } = await this.prepareSessionConfig(
+    const { storedConfig, launchConfig, kivotosToolPolicy } = await this.prepareSessionConfig(
       config,
       resolvedAgentId,
       { env: options?.env },
@@ -1263,12 +1263,12 @@ export class AgentManager {
     const client = await this.requireAvailableClient({
       provider: storedConfig.provider,
     });
-    this.paseoToolPolicies.set(resolvedAgentId, paseoToolPolicy);
+    this.kivotosToolPolicies.set(resolvedAgentId, kivotosToolPolicy);
     const launchContext = await this.buildLaunchContext(
       resolvedAgentId,
       client,
       storedConfig.cwd,
-      paseoToolPolicy,
+      kivotosToolPolicy,
       options?.env,
       { reason: "create", purpose: "interactive", workspaceId: options.workspaceId ?? null },
     );
@@ -1369,7 +1369,7 @@ export class AgentManager {
       : resumeOptions;
     const purpose = currentResumeOptions?.purpose ?? "interactive";
 
-    const { storedConfig, launchConfig, paseoToolPolicy } = await this.prepareSessionConfig(
+    const { storedConfig, launchConfig, kivotosToolPolicy } = await this.prepareSessionConfig(
       mergedConfig,
       resolvedAgentId,
       { purpose },
@@ -1381,12 +1381,12 @@ export class AgentManager {
         `Provider '${handle.provider}' is not available. Please ensure the CLI is installed.`,
       );
     }
-    this.paseoToolPolicies.set(resolvedAgentId, paseoToolPolicy);
+    this.kivotosToolPolicies.set(resolvedAgentId, kivotosToolPolicy);
     const launchContext = await this.buildLaunchContext(
       resolvedAgentId,
       client,
       storedConfig.cwd,
-      paseoToolPolicy,
+      kivotosToolPolicy,
       undefined,
       {
         reason: "resume",
@@ -1435,19 +1435,19 @@ export class AgentManager {
       throw new Error(`Provider '${input.provider}' does not support importing sessions`);
     }
 
-    const { storedConfig, launchConfig, paseoToolPolicy } = await this.prepareSessionConfig(
+    const { storedConfig, launchConfig, kivotosToolPolicy } = await this.prepareSessionConfig(
       {
         provider: input.provider,
         cwd: input.cwd,
       },
       resolvedAgentId,
     );
-    this.paseoToolPolicies.set(resolvedAgentId, paseoToolPolicy);
+    this.kivotosToolPolicies.set(resolvedAgentId, kivotosToolPolicy);
     const launchContext = await this.buildLaunchContext(
       resolvedAgentId,
       client,
       storedConfig.cwd,
-      paseoToolPolicy,
+      kivotosToolPolicy,
       undefined,
       { reason: "import", purpose: "interactive", workspaceId: input.workspaceId },
     );
@@ -1462,7 +1462,7 @@ export class AgentManager {
     let handedToRegistration = false;
     try {
       const importedConfig = await this.normalizeConfig(
-        stripInternalPaseoMcpServer(imported.config),
+        stripInternalKivotosMcpServer(imported.config),
       );
       const timelineRows = buildImportedTimelineRows(imported.timeline);
       const initialTitle = resolveImportedAgentTitle(importedConfig, timelineRows);
@@ -1495,7 +1495,7 @@ export class AgentManager {
   // config swaps). When `rehydrateFromDisk` is set, the timeline is wiped so a
   // new epoch is minted and provider history is re-streamed — this is what the
   // user-facing "Reload agent" action wants when the on-disk session was
-  // mutated outside Paseo.
+  // mutated outside Kivotos.
   reloadAgentSession(
     agentId: string,
     overrides?: Partial<AgentSessionConfig>,
@@ -1532,17 +1532,17 @@ export class AgentManager {
       ...overrides,
       provider,
     } as AgentSessionConfig;
-    const { storedConfig, launchConfig, paseoToolPolicy } = await this.prepareSessionConfig(
+    const { storedConfig, launchConfig, kivotosToolPolicy } = await this.prepareSessionConfig(
       refreshConfig,
       agentId,
     );
-    const hadPreviousPaseoToolPolicy = this.paseoToolPolicies.has(agentId);
-    const previousPaseoToolPolicy = this.paseoToolPolicies.get(agentId);
+    const hadPreviousKivotosToolPolicy = this.kivotosToolPolicies.has(agentId);
+    const previousKivotosToolPolicy = this.kivotosToolPolicies.get(agentId);
     const launchContext = await this.buildLaunchContext(
       agentId,
       client,
       storedConfig.cwd,
-      paseoToolPolicy,
+      kivotosToolPolicy,
       undefined,
       { reason: "refresh", purpose: "interactive", workspaceId: existing.workspaceId },
     );
@@ -1566,7 +1566,7 @@ export class AgentManager {
       await this.persistSnapshot(closedExisting);
       this.assertAcceptingAgentRegistrations();
 
-      this.paseoToolPolicies.set(agentId, paseoToolPolicy);
+      this.kivotosToolPolicies.set(agentId, kivotosToolPolicy);
       session = handle
         ? await client.resumeSession(handle, providerLaunchConfig, launchContext)
         : await client.createSession(providerLaunchConfig, launchContext);
@@ -1608,10 +1608,10 @@ export class AgentManager {
       throw error;
     } finally {
       if (!handedToRegistration) {
-        if (hadPreviousPaseoToolPolicy) {
-          this.paseoToolPolicies.set(agentId, previousPaseoToolPolicy);
+        if (hadPreviousKivotosToolPolicy) {
+          this.kivotosToolPolicies.set(agentId, previousKivotosToolPolicy);
         } else {
-          this.paseoToolPolicies.delete(agentId);
+          this.kivotosToolPolicies.delete(agentId);
         }
         if (session) {
           await this.closeUnregisteredSession(session);
@@ -3730,7 +3730,7 @@ export class AgentManager {
 
   private discardRetainedAgentState(agentId: string): void {
     this.timelineStore.delete(agentId);
-    this.paseoToolPolicies.delete(agentId);
+    this.kivotosToolPolicies.delete(agentId);
     for (const event of this.providerSubagents.deleteParent(agentId)) {
       this.dispatch({ type: "provider_subagent", event });
     }
@@ -5161,25 +5161,25 @@ export class AgentManager {
     agentId: string,
     options: { env?: Record<string, string>; purpose?: AgentResumePurpose } = {},
   ): Promise<PreparedSessionConfig> {
-    const storedConfig = await this.normalizeConfig(stripInternalPaseoMcpServer(config), {
+    const storedConfig = await this.normalizeConfig(stripInternalKivotosMcpServer(config), {
       env: options.env,
       purpose: options.purpose,
     });
-    const paseoToolPolicy = this.paseoToolsEnabled
-      ? this.resolvePaseoToolPolicy(storedConfig.provider)
+    const kivotosToolPolicy = this.kivotosToolsEnabled
+      ? this.resolveKivotosToolPolicy(storedConfig.provider)
       : { enabled: false };
     const launchConfig = this.applyDaemonAppendSystemPrompt(
-      withRuntimePaseoMcpServer({
+      withRuntimeKivotosMcpServer({
         config: storedConfig,
         agentId,
         mcpBaseUrl:
-          this.paseoToolsEnabled && isPaseoToolPolicyEnabled(paseoToolPolicy)
+          this.kivotosToolsEnabled && isKivotosToolPolicyEnabled(kivotosToolPolicy)
             ? this.mcpBaseUrl
             : null,
         mcpAuthToken: this.mcpAuthToken,
       }),
     );
-    return { storedConfig, launchConfig, paseoToolPolicy };
+    return { storedConfig, launchConfig, kivotosToolPolicy };
   }
 
   private applyDaemonAppendSystemPrompt(config: AgentSessionConfig): AgentSessionConfig {
@@ -5199,7 +5199,7 @@ export class AgentManager {
     agentId: string,
     client: AgentClient,
     cwd: string,
-    paseoToolPolicy: ProviderPaseoToolsPolicy | undefined,
+    kivotosToolPolicy: ProviderKivotosToolsPolicy | undefined,
     env?: Record<string, string>,
     opening?: {
       reason: PluginSessionOpenRequest["reason"];
@@ -5224,19 +5224,19 @@ export class AgentManager {
       agentId,
       env: {
         ...env,
-        PASEO_AGENT_ID: agentId,
-        PASEO_AGENT_CWD: cwd,
+        KIVOTOS_AGENT_ID: agentId,
+        KIVOTOS_AGENT_CWD: cwd,
       },
     };
     if (
-      this.paseoToolsEnabled &&
-      isPaseoToolPolicyEnabled(paseoToolPolicy) &&
-      client.capabilities.supportsNativePaseoTools &&
-      this.paseoToolCatalogFactory
+      this.kivotosToolsEnabled &&
+      isKivotosToolPolicyEnabled(kivotosToolPolicy) &&
+      client.capabilities.supportsNativeKivotosTools &&
+      this.kivotosToolCatalogFactory
     ) {
-      context.paseoTools = await this.paseoToolCatalogFactory({
+      context.kivotosTools = await this.kivotosToolCatalogFactory({
         callerAgentId: agentId,
-        paseoToolPolicy,
+        kivotosToolPolicy,
       });
     }
     return context;
@@ -5246,7 +5246,7 @@ export class AgentManager {
     launchConfig: AgentSessionConfig,
     launchContext: AgentLaunchContext,
   ): AgentSessionConfig {
-    return launchContext.paseoTools ? stripInternalPaseoMcpServer(launchConfig) : launchConfig;
+    return launchContext.kivotosTools ? stripInternalKivotosMcpServer(launchConfig) : launchConfig;
   }
 
   private async requireAvailableClient(options: { provider: AgentProvider }): Promise<AgentClient> {

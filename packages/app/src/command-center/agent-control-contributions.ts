@@ -3,7 +3,7 @@ import type {
   AgentMode,
   AgentProvider,
   AgentSelectOption,
-} from "@getpaseo/protocol/agent-types";
+} from "@kivotos/protocol/agent-types";
 import type { ProviderSelectorProvider } from "@/provider-selection/provider-selection";
 import { formatAgentModeLabel, formatThinkingOptionLabel } from "@/agent-controls/labels";
 import {

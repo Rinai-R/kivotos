@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegalPage, PaseoLegalIdentity } from "~/components/legal-page";
+import { LegalPage, KivotosLegalIdentity } from "~/components/legal-page";
 import { pageMeta } from "~/meta";
 
 export const Route = createFileRoute("/privacy")({
   head: () =>
     pageMeta(
-      "Privacy Policy - Paseo",
-      "What stays on your machines, what the encrypted relay can see, and what Paseo Hub stores.",
+      "Privacy Policy - Kivotos",
+      "What stays on your machines, what the encrypted relay can see, and what Kivotos Hub stores.",
       "/privacy",
     ),
   component: Privacy,
@@ -16,26 +16,26 @@ function Privacy() {
   return (
     <LegalPage title="Privacy Policy" lastUpdated="August 29, 2026">
       <p>
-        Paseo is local-first. Installing or using the open-source software does not send us your
+        Kivotos is local-first. Installing or using the open-source software does not send us your
         code, prompts, files, terminal output, or agent conversations. This policy explains the
-        separate data boundaries for local Paseo, the optional official relay, the hosted Paseo Hub,
+        separate data boundaries for local Kivotos, the optional official relay, the hosted Kivotos Hub,
         and paseo.sh.
       </p>
 
       <section>
         <h2>Who is responsible</h2>
-        <PaseoLegalIdentity />
+        <KivotosLegalIdentity />
         <p>
           Mohamed Boudra Ziani is the data controller for personal data processed through the
-          official Paseo website, relay, and hosted Hub. Independently self-hosted daemons, Hubs,
+          official Kivotos website, relay, and hosted Hub. Independently self-hosted daemons, Hubs,
           and relays are controlled by their operators and are not covered by this policy.
         </p>
       </section>
 
       <section>
-        <h2>Local Paseo apps and daemons</h2>
+        <h2>Local Kivotos apps and daemons</h2>
         <p>
-          Paseo runs on your machines. It does not send us analytics, telemetry, advertising
+          Kivotos runs on your machines. It does not send us analytics, telemetry, advertising
           identifiers, or crash reports.
         </p>
         <p>
@@ -44,7 +44,7 @@ function Privacy() {
         </p>
         <p>
           Agents such as Claude Code, Codex, and OpenCode communicate with their providers using
-          credentials on your machine. Paseo does not manage or intercept those provider API calls.
+          credentials on your machine. Kivotos does not manage or intercept those provider API calls.
         </p>
       </section>
 
@@ -67,7 +67,7 @@ function Privacy() {
       </section>
 
       <section>
-        <h2>Paseo Hub</h2>
+        <h2>Kivotos Hub</h2>
         <p>When you create or use a hosted Hub account, we process:</p>
         <ul>
           <li>Your name, email, account credentials, sessions, IP address, and user agent</li>
@@ -93,9 +93,9 @@ function Privacy() {
       <section>
         <h2>Who controls workflow data</h2>
         <p>
-          Paseo controls account, billing, security, and service-operation data. When an
+          Kivotos controls account, billing, security, and service-operation data. When an
           organization uses Hub to process personal data in its workflows, that organization decides
-          why the data is processed and Paseo processes it on the organization&apos;s behalf.
+          why the data is processed and Kivotos processes it on the organization&apos;s behalf.
         </p>
       </section>
 
@@ -171,9 +171,9 @@ function Privacy() {
         <h2>Security</h2>
         <p>
           We use access controls, encrypted transport, and limited service permissions. No online
-          service can guarantee absolute security. Read Paseo&apos;s{" "}
+          service can guarantee absolute security. Read Kivotos&apos;s{" "}
           <a
-            href="https://github.com/getpaseo/paseo/blob/main/SECURITY.md"
+            href="https://github.com/getpaseo/kivotos/blob/main/SECURITY.md"
             target="_blank"
             rel="noopener noreferrer"
           >

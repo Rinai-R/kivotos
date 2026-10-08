@@ -1,7 +1,7 @@
-import { createPaseoClient, type PaseoClient } from "@getpaseo/client";
+import { createKivotosClient, type KivotosClient } from "@kivotos/client";
 
-export function createClient(url: string): PaseoClient {
-  return createPaseoClient({
+export function createClient(url: string): KivotosClient {
+  return createKivotosClient({
     url,
   });
 }

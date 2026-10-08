@@ -1,4 +1,4 @@
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
 
 export interface StartPushNotificationsInput {
   client: DaemonClient;

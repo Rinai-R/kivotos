@@ -1,6 +1,6 @@
 import { CancelledError, type QueryClient } from "@tanstack/react-query";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { GetProvidersSnapshotResponseMessage } from "@getpaseo/protocol/messages";
+import type { DaemonClient } from "@kivotos/client/internal/daemon-client";
+import type { GetProvidersSnapshotResponseMessage } from "@kivotos/protocol/messages";
 import {
   providerSnapshotCache,
   ProviderSnapshotCacheMissError,
@@ -9,7 +9,7 @@ import {
 import { queryClient as singletonQueryClient } from "./query-client";
 import { replaceProviderSnapshotIcons } from "@/data/provider-icons";
 import { agentCommandsQueryRoot } from "@/hooks/agent-commands-query";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@kivotos/protocol/agent-types";
 import { normalizeWorkspacePath } from "@/utils/workspace-identity";
 
 export const PROVIDERS_SNAPSHOT_QUERY_ROOT = "providersSnapshot";

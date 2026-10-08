@@ -2,8 +2,8 @@ import type {
   PluginTimelineData,
   PluginTimelineItem,
   PluginTimelineTransformResult,
-} from "@getpaseo/plugin";
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
+} from "@kivotos/plugin";
+import type { AgentTimelineItem } from "@kivotos/protocol/agent-types";
 import type { InstalledPlugin } from "../types";
 
 export interface InstalledPluginTimelineItem extends PluginTimelineItem {

@@ -1,7 +1,7 @@
-import type { PaseoAgentHandle, PaseoClient } from "@getpaseo/client";
+import type { KivotosAgentHandle, KivotosClient } from "@kivotos/client";
 
-export async function reviewInParallel(client: PaseoClient, cwd: string): Promise<string[]> {
-  const agents: PaseoAgentHandle[] = [];
+export async function reviewInParallel(client: KivotosClient, cwd: string): Promise<string[]> {
+  const agents: KivotosAgentHandle[] = [];
 
   try {
     agents.push(

@@ -58,11 +58,11 @@ describe("persistence hooks", () => {
           sandbox_workspace_write: { writable_roots: ["/tmp/shared"] },
         },
         toolPolicy: {
-          preapproved: [{ kind: "mcp", server: "paseo", tool: "report_status" }],
+          preapproved: [{ kind: "mcp", server: "kivotos", tool: "report_status" }],
         },
         systemPrompt: "Use speak first.",
         mcpServers: {
-          paseo: {
+          kivotos: {
             type: "stdio",
             command: "node",
             args: ["/tmp/bridge.mjs", "--socket", "/tmp/agent.sock"],
@@ -81,11 +81,11 @@ describe("persistence hooks", () => {
         sandbox_workspace_write: { writable_roots: ["/tmp/shared"] },
       },
       toolPolicy: {
-        preapproved: [{ kind: "mcp", server: "paseo", tool: "report_status" }],
+        preapproved: [{ kind: "mcp", server: "kivotos", tool: "report_status" }],
       },
       systemPrompt: "Use speak first.",
       mcpServers: {
-        paseo: {
+        kivotos: {
           type: "stdio",
           command: "node",
           args: ["/tmp/bridge.mjs", "--socket", "/tmp/agent.sock"],
@@ -103,7 +103,7 @@ describe("persistence hooks", () => {
         model: "gpt-5.4-mini",
         systemPrompt: "Confirm and speak first.",
         mcpServers: {
-          paseo: {
+          kivotos: {
             type: "stdio",
             command: "node",
             args: ["/tmp/bridge.mjs", "--socket", "/tmp/agent.sock"],
@@ -119,7 +119,7 @@ describe("persistence hooks", () => {
       model: "gpt-5.4-mini",
       systemPrompt: "Confirm and speak first.",
       mcpServers: {
-        paseo: {
+        kivotos: {
           type: "stdio",
           command: "node",
           args: ["/tmp/bridge.mjs", "--socket", "/tmp/agent.sock"],
@@ -128,13 +128,13 @@ describe("persistence hooks", () => {
     });
   });
 
-  test("buildConfigOverrides drops persisted internal paseo MCP server", () => {
+  test("buildConfigOverrides drops persisted internal kivotos MCP server", () => {
     const record = createRecord({
       config: {
         modeId: "default",
         model: "gpt-5.4-mini",
         mcpServers: {
-          paseo: {
+          kivotos: {
             type: "http",
             url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=stale-agent",
           },
@@ -154,24 +154,24 @@ describe("persistence hooks", () => {
     });
   });
 
-  test("buildConfigOverrides preserves user-provided paseo MCP server", () => {
+  test("buildConfigOverrides preserves user-provided kivotos MCP server", () => {
     const record = createRecord({
       config: {
         modeId: "default",
         model: "gpt-5.4-mini",
         mcpServers: {
-          paseo: {
+          kivotos: {
             type: "http",
-            url: "https://example.com/custom-paseo",
+            url: "https://example.com/custom-kivotos",
           },
         },
       },
     });
 
     expect(buildConfigOverrides(record).mcpServers).toEqual({
-      paseo: {
+      kivotos: {
         type: "http",
-        url: "https://example.com/custom-paseo",
+        url: "https://example.com/custom-kivotos",
       },
     });
   });

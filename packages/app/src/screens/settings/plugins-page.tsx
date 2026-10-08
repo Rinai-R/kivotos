@@ -1,11 +1,11 @@
-import { formatPluginInstallation } from "@getpaseo/protocol/plugin-source-reference";
+import { formatPluginInstallation } from "@kivotos/protocol/plugin-source-reference";
 import { PluginSettingsMenuItems } from "@/plugins/settings";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useMutation } from "@tanstack/react-query";
-import type { PluginListItem, PluginLogEntry } from "@getpaseo/protocol/messages";
+import type { PluginListItem, PluginLogEntry } from "@kivotos/protocol/messages";
 import { MoreHorizontal, Trash2 } from "lucide-react-native";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
 import { SettingsCard, SettingsRow } from "@/components/settings";

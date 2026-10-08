@@ -1,4 +1,4 @@
-import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
+import type { PluginSurfaceProps } from "@kivotos/plugin/client";
 import {
   Modal,
   ScrollView,
@@ -6,7 +6,7 @@ import {
   TextInput,
   copyText,
   useToast,
-} from "@getpaseo/plugin/client/react-native";
+} from "@kivotos/plugin/client/react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Pressable,
@@ -60,7 +60,7 @@ export function ModalExamples({ theme }: Pick<PluginSurfaceProps, "theme">) {
 
   const copy = useCallback(async () => {
     try {
-      await copyText("Copied from Paseo");
+      await copyText("Copied from Kivotos");
       toast.show("Text copied", { variant: "success" });
     } catch {
       toast.error("Could not copy text. Select the text and use Copy.");
@@ -96,7 +96,7 @@ export function ModalExamples({ theme }: Pick<PluginSurfaceProps, "theme">) {
   const form = (
     <View style={styles.form} testID="modal-example-form">
       <Text selectable style={color}>
-        Paseo clipboard example
+        Kivotos clipboard example
       </Text>
       <Pressable accessibilityRole="button" style={button} onPress={copy}>
         <Text style={color}>Copy text</Text>

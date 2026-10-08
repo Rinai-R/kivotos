@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type {
   AgentForkContextOptions,
   DaemonClient,
-} from "@getpaseo/client/internal/daemon-client";
+} from "@kivotos/client/internal/daemon-client";
 import type { WorkspaceComposerAttachment } from "@/attachments/types";
 import type { AssistantForkTarget } from "@/components/assistant-fork-menu";
 import type { ToastApi } from "@/components/toast-host";

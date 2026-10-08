@@ -6,13 +6,13 @@ import { loadConfig } from "./config.js";
 
 const roots: string[] = [];
 
-async function createPaseoHome(config: unknown): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paseo-config-plugins-"));
+async function createKivotosHome(config: unknown): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kivotos-config-plugins-"));
   roots.push(root);
-  const paseoHome = path.join(root, ".paseo");
-  await mkdir(paseoHome, { recursive: true });
-  await writeFile(path.join(paseoHome, "config.json"), JSON.stringify(config, null, 2));
-  return paseoHome;
+  const kivotosHome = path.join(root, ".kivotos");
+  await mkdir(kivotosHome, { recursive: true });
+  await writeFile(path.join(kivotosHome, "config.json"), JSON.stringify(config, null, 2));
+  return kivotosHome;
 }
 
 describe("daemon plugin config", () => {
@@ -21,13 +21,13 @@ describe("daemon plugin config", () => {
   });
 
   test("defaults plugins off when config is absent", async () => {
-    const home = await createPaseoHome({ version: 1 });
+    const home = await createKivotosHome({ version: 1 });
 
     expect(loadConfig(home, { env: {} }).pluginsEnabled).toBe(false);
   });
 
   test("loads the explicit plugin opt-in", async () => {
-    const home = await createPaseoHome({ version: 1, pluginsEnabled: true });
+    const home = await createKivotosHome({ version: 1, pluginsEnabled: true });
 
     expect(loadConfig(home, { env: {} }).pluginsEnabled).toBe(true);
   });

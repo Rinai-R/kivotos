@@ -25,7 +25,7 @@ interface ProviderLaunchCase {
   launchMode?: "spawnProcess" | "piRuntime";
 }
 
-const JSON_ARG = '{"mcpServers":{"paseo":{"type":"http","url":"http://127.0.0.1:6767/mcp"}}}';
+const JSON_ARG = '{"mcpServers":{"kivotos":{"type":"http","url":"http://127.0.0.1:6767/mcp"}}}';
 const tempDirs: string[] = [];
 
 function makeFixture(
@@ -33,10 +33,10 @@ function makeFixture(
   expectedArgs: string[],
   launchMode: "spawnProcess" | "piRuntime" = "spawnProcess",
 ) {
-  const root = mkdtempSync(path.join(tmpdir(), `paseo ${binaryName} launch `));
+  const root = mkdtempSync(path.join(tmpdir(), `kivotos ${binaryName} launch `));
   tempDirs.push(root);
 
-  const fakeDaemonNode = path.join(root, "Fake Paseo.exe");
+  const fakeDaemonNode = path.join(root, "Fake Kivotos.exe");
   copyFileSync(process.execPath, fakeDaemonNode);
 
   const assertScript = path.join(root, "assert-argv.js");

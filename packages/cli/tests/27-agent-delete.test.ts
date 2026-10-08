@@ -11,9 +11,9 @@
  */
 
 import assert from "node:assert";
-import { runLocalPaseo } from "./helpers/local-cli.ts";
+import { runLocalKivotos } from "./helpers/local-cli.ts";
 import { getAvailablePort } from "./helpers/network.ts";
-import { runPaseoCli, startTestDaemon } from "./helpers/test-daemon.ts";
+import { runKivotosCli, startTestDaemon } from "./helpers/test-daemon.ts";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -21,10 +21,10 @@ import { join } from "path";
 console.log("=== Delete Command Tests ===\n");
 
 const port = await getAvailablePort();
-const paseoHome = await mkdtemp(join(tmpdir(), "paseo-delete-test-home-"));
+const kivotosHome = await mkdtemp(join(tmpdir(), "kivotos-delete-test-home-"));
 
 async function runCli(args: string[]) {
-  return runLocalPaseo(["--host", `localhost:${port}`, ...args], { PASEO_HOME: paseoHome });
+  return runLocalKivotos(["--host", `localhost:${port}`, ...args], { KIVOTOS_HOME: kivotosHome });
 }
 
 async function runDelete(args: string[]) {
@@ -98,11 +98,11 @@ try {
   }
 
   {
-    console.log("Test 7: paseo --help shows delete command");
+    console.log("Test 7: kivotos --help shows delete command");
     const result = await runCli(["--help"]);
-    assert.strictEqual(result.exitCode, 0, "paseo --help should exit 0");
+    assert.strictEqual(result.exitCode, 0, "kivotos --help should exit 0");
     assert(result.stdout.includes("delete"), "help should mention delete command");
-    console.log("✓ paseo --help shows delete command\n");
+    console.log("✓ kivotos --help shows delete command\n");
   }
 
   {
@@ -118,7 +118,7 @@ try {
     console.log("Test 9: delete reports AGENT_NOT_FOUND for an unknown ID");
     const daemon = await startTestDaemon();
     try {
-      const result = await runPaseoCli(daemon, [
+      const result = await runKivotosCli(daemon, [
         "agent",
         "delete",
         "does-not-exist",
@@ -129,14 +129,14 @@ try {
       assert.notStrictEqual(result.exitCode, 0, "delete should fail for an unknown ID");
       const { error } = JSON.parse(result.stderr);
       assert.strictEqual(error.code, "AGENT_NOT_FOUND", result.stderr);
-      assert.match(error.details, /paseo ls/);
+      assert.match(error.details, /kivotos ls/);
     } finally {
       await daemon.stop();
     }
     console.log("✓ delete reports AGENT_NOT_FOUND for an unknown ID\n");
   }
 } finally {
-  await rm(paseoHome, { recursive: true, force: true });
+  await rm(kivotosHome, { recursive: true, force: true });
 }
 
 console.log("=== All delete tests passed ===");

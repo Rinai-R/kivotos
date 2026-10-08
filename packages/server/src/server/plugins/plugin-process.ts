@@ -5,9 +5,9 @@ import {
   type PluginProcessMessage,
   type PluginProcessRequest,
 } from "./plugin-process-protocol.js";
-import type { UsageSourceRegistration } from "@getpaseo/plugin/server/usage";
-import type { SettingsDefinition, PluginRpcContract } from "@getpaseo/plugin";
-import type { PluginHandlerContext, PluginServerContribution } from "@getpaseo/plugin/server";
+import type { UsageSourceRegistration } from "@kivotos/plugin/server/usage";
+import type { SettingsDefinition, PluginRpcContract } from "@kivotos/plugin";
+import type { PluginHandlerContext, PluginServerContribution } from "@kivotos/plugin/server";
 import { fileURLToPath } from "node:url";
 import type { ZodType } from "zod";
 import {
@@ -15,9 +15,9 @@ import {
   type ProviderConnection,
   type ProviderRegistration,
   ProviderStatusSchema,
-} from "@getpaseo/plugin/server/provider";
-import { createPaseoApi, type PaseoApi } from "@getpaseo/client";
-import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+} from "@kivotos/plugin/server/provider";
+import { createKivotosApi, type KivotosApi } from "@kivotos/client";
+import { DaemonClient } from "@kivotos/client/internal/daemon-client";
 import { createPluginDaemonTransportFactory } from "./daemon-transport.js";
 import { createPluginClientId } from "./plugin-session-identity.js";
 
@@ -72,7 +72,7 @@ export function createPluginWorker(options: {
   const pendingProviderConnections = new Map<string, { tombstoned: boolean }>();
   let cleanup: (() => void | Promise<void>) | null = null;
   let daemonClient: DaemonClient | null = null;
-  let paseo: PaseoApi | null = null;
+  let kivotos: KivotosApi | null = null;
   let stopping = false;
   function send(message: PluginProcessMessage): void {
     channel.send(message);
@@ -272,7 +272,7 @@ export function createPluginWorker(options: {
       reconnect: { enabled: true },
       transportFactory,
     });
-    paseo = createPaseoApi(daemonClient);
+    kivotos = createKivotosApi(daemonClient);
     await daemonClient.connect();
     settingsStore = message.settingsDirectory
       ? new PluginSettingsStore(message.settingsDirectory, (settingsId) =>
@@ -317,7 +317,7 @@ export function createPluginWorker(options: {
   async function shutdown(): Promise<void> {
     if (stopping) return;
     stopping = true;
-    const releaseApi = paseo
+    const releaseApi = kivotos
       ?.dispose()
       .catch((error) => console.error("Plugin API cleanup failed", error));
     hooks.close();
@@ -332,9 +332,9 @@ export function createPluginWorker(options: {
     await Promise.all([...providerConnections.keys()].map(closeProviderConnection));
     await releaseApi;
     await daemonClient?.close().catch(() => undefined);
-    await sendAndWait({ type: "paseo_close" });
+    await sendAndWait({ type: "kivotos_close" });
     daemonClient = null;
-    paseo = null;
+    kivotos = null;
     channel.disconnect();
   }
 
@@ -406,7 +406,7 @@ export function createPluginWorker(options: {
     if (message.type === "initialize") {
       void initialize(message).catch(async (error) => {
         send({ type: "fatal", error: describeError(error) });
-        await paseo
+        await kivotos
           ?.dispose()
           .catch((failure) => console.error("Plugin API cleanup failed", failure));
         await daemonClient?.close().catch(() => undefined);
@@ -477,7 +477,7 @@ export function createPluginWorker(options: {
       void closeProviderConnection(message.connectionId);
       return;
     }
-    if (message.type === "paseo_frame" || message.type === "paseo_close") return;
+    if (message.type === "kivotos_frame" || message.type === "kivotos_close") return;
     if (isHookMessage(message)) {
       handleHookMessage(message);
       return;
@@ -494,8 +494,8 @@ export function createPluginWorker(options: {
     void registered.contract.input
       .parseAsync(message.input)
       .then((input) => {
-        if (!paseo) throw new Error("Plugin Paseo API is unavailable");
-        return registered.handler(input, { paseo });
+        if (!kivotos) throw new Error("Plugin Kivotos API is unavailable");
+        return registered.handler(input, { kivotos });
       })
       .then((output) => registered.contract.output.parseAsync(output))
       .then(
@@ -514,15 +514,15 @@ export function createPluginWorker(options: {
       return;
     }
     if (message.type === "hook") {
-      if (!paseo) {
+      if (!kivotos) {
         send({
           type: "error",
           requestId: message.requestId,
-          error: "Plugin Paseo API is unavailable",
+          error: "Plugin Kivotos API is unavailable",
         });
         return;
       }
-      void hooks.invoke(message.requestId, message.kind, message.name, message.input, paseo).then(
+      void hooks.invoke(message.requestId, message.kind, message.name, message.input, kivotos).then(
         (output) => {
           return send({ type: "result", requestId: message.requestId, output });
         },

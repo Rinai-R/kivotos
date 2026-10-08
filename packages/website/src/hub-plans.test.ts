@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-// The documented `GET /api/billing/plans` response, copied from getpaseo/hub docs/public-api.md.
+// The documented `GET /api/billing/plans` response, copied from getkivotos/hub docs/public-api.md.
 import documentedResponse from "./hub-plans.fixture.json" with { type: "json" };
 import { formatPlanPrice, parseHubPlansResponse, planPriceQualifier } from "./hub-plans";
 

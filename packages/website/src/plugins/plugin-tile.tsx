@@ -1,4 +1,4 @@
-import { pluginOverviewUrl } from "@getpaseo/protocol/plugin-overview";
+import { pluginOverviewUrl } from "@kivotos/protocol/plugin-overview";
 import type { Plugin } from "./registry";
 
 const SIZE_CLASS = {

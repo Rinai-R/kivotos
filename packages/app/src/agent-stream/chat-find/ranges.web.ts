@@ -1,8 +1,8 @@
 const BLOCKS = ["p", "pre", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6"]
-  .map((tag) => `[data-paseo-markdown-tag="${tag}"]`)
+  .map((tag) => `[data-kivotos-markdown-tag="${tag}"]`)
   .join(",");
 const IGNORED =
-  '[data-paseo-markdown-ignore="true"], [aria-hidden="true"], button, [role="button"], svg, script, style';
+  '[data-kivotos-markdown-ignore="true"], [aria-hidden="true"], button, [role="button"], svg, script, style';
 
 /** The rows of one message, in reading order. Each is one Markdown block. */
 export function findMessageRows(root: HTMLElement | null, messageId: string): HTMLElement[] {

@@ -1,8 +1,8 @@
-import type { CreateAgentRequestOptions } from "@getpaseo/client/internal/daemon-client";
-import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
+import type { CreateAgentRequestOptions } from "@kivotos/client/internal/daemon-client";
+import type { AgentSnapshotPayload } from "@kivotos/protocol/messages";
 import { create } from "zustand";
 import type { ComposerAttachment } from "@/attachments/types";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@kivotos/protocol/agent-types";
 import type { WorkspaceDraftTabSetup } from "@/workspace-tabs/model";
 
 export interface PendingWorkspaceDraftSubmission {

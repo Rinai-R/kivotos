@@ -50,8 +50,8 @@ describe("runtime-paths", () => {
     mocks.existsSync.mockReturnValue(true);
     setProcessRuntime({
       platform: "darwin",
-      execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
-      resourcesPath: "/Applications/Paseo.app/Contents/Resources",
+      execPath: "/Applications/Kivotos.app/Contents/MacOS/Kivotos",
+      resourcesPath: "/Applications/Kivotos.app/Contents/Resources",
     });
   });
 
@@ -66,7 +66,7 @@ describe("runtime-paths", () => {
 
   it("uses the macOS Helper executable for packaged daemon node launches", () => {
     expect(resolveNodeExecPath()).toBe(
-      "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
+      "/Applications/Kivotos.app/Contents/Frameworks/Kivotos Helper.app/Contents/MacOS/Kivotos Helper",
     );
   });
 });

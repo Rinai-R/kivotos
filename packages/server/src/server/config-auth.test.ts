@@ -9,13 +9,13 @@ import { isBearerTokenValidAsync } from "./auth.js";
 const roots: string[] = [];
 const CONFIG_PASSWORD_HASH = "$2b$12$OLxyuuP9uLK30Uzc4wQX0O6liuU/Q1t5P2b0Ebf36mULvpVK3DRZW";
 
-async function createPaseoHome(config: unknown): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paseo-config-auth-"));
+async function createKivotosHome(config: unknown): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kivotos-config-auth-"));
   roots.push(root);
-  const paseoHome = path.join(root, ".paseo");
-  await mkdir(paseoHome, { recursive: true });
-  await writeFile(path.join(paseoHome, "config.json"), JSON.stringify(config, null, 2));
-  return paseoHome;
+  const kivotosHome = path.join(root, ".kivotos");
+  await mkdir(kivotosHome, { recursive: true });
+  await writeFile(path.join(kivotosHome, "config.json"), JSON.stringify(config, null, 2));
+  return kivotosHome;
 }
 
 describe("daemon auth config", () => {
@@ -24,14 +24,14 @@ describe("daemon auth config", () => {
   });
 
   test("loads optional auth password hash from config.json", async () => {
-    const paseoHome = await createPaseoHome({
+    const kivotosHome = await createKivotosHome({
       version: 1,
       daemon: {
         auth: { password: CONFIG_PASSWORD_HASH },
       },
     });
 
-    const config = loadConfig(paseoHome, { env: {} });
+    const config = loadConfig(kivotosHome, { env: {} });
 
     expect(config.auth?.password).toBe(CONFIG_PASSWORD_HASH);
     expect(
@@ -39,16 +39,16 @@ describe("daemon auth config", () => {
     ).toBe(true);
   });
 
-  test("lets PASEO_PASSWORD override config.json auth password hash", async () => {
-    const paseoHome = await createPaseoHome({
+  test("lets KIVOTOS_PASSWORD override config.json auth password hash", async () => {
+    const kivotosHome = await createKivotosHome({
       version: 1,
       daemon: {
         auth: { password: CONFIG_PASSWORD_HASH },
       },
     });
 
-    const config = loadConfig(paseoHome, {
-      env: { PASEO_PASSWORD: "from-env" },
+    const config = loadConfig(kivotosHome, {
+      env: { KIVOTOS_PASSWORD: "from-env" },
     });
 
     expect(config.auth?.password).not.toBe(CONFIG_PASSWORD_HASH);

@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { z } from "zod";
 import { WorkspaceLayoutPersistedStateSchema } from "./workspace-layout-storage";
-import type { JsonValue } from "@getpaseo/protocol/agent-types";
+import type { JsonValue } from "@kivotos/protocol/agent-types";
 import type { WorkspaceTab, WorkspaceTabTarget } from "@/workspace-tabs/model";
 import {
   defaultWorkspaceLayoutIds,

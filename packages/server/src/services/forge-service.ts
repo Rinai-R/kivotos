@@ -1,4 +1,4 @@
-import type { ForgeSearchKind } from "@getpaseo/protocol/messages";
+import type { ForgeSearchKind } from "@kivotos/protocol/messages";
 
 export type ForgeSearchRequestKind = ForgeSearchKind | "github-issue" | "github-pr" | "pr";
 

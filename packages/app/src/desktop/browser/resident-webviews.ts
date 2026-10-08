@@ -6,9 +6,9 @@ import {
 import type { BrowserViewport } from "@/desktop/browser/store";
 import { WEB_SURFACE_PLANE } from "@/lib/overlay-root";
 
-const RESIDENT_BROWSER_HOST_ID = "paseo-browser-resident-webviews";
-const BROWSER_ID_ATTRIBUTE = "data-paseo-browser-id";
-const BROWSER_SURFACE_ATTRIBUTE = "data-paseo-browser-surface";
+const RESIDENT_BROWSER_HOST_ID = "kivotos-browser-resident-webviews";
+const BROWSER_ID_ATTRIBUTE = "data-kivotos-browser-id";
+const BROWSER_SURFACE_ATTRIBUTE = "data-kivotos-browser-surface";
 const RESIDENT_VIEWPORT_WIDTH = 1280;
 const RESIDENT_VIEWPORT_HEIGHT = 800;
 

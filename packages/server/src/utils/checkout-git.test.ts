@@ -14,7 +14,7 @@ import { join } from "path";
 import { win32 } from "node:path";
 import { tmpdir } from "os";
 import pino from "pino";
-import { base64EncryptedWireByteLength } from "@getpaseo/relay";
+import { base64EncryptedWireByteLength } from "@kivotos/relay";
 import {
   __resetCheckoutShortstatCacheForTests,
   __resetPullRequestStatusCacheForTests,
@@ -43,7 +43,7 @@ import {
   resolveRepositoryDefaultBranch,
   parseWorktreeList,
   renameCurrentBranch,
-  isPaseoWorktreePath,
+  isKivotosWorktreePath,
   isDescendantPath,
   warmCheckoutShortstatInBackground,
 } from "./checkout-git.js";
@@ -68,7 +68,7 @@ interface LegacyCreateWorktreeTestOptions {
   baseBranch: string;
   worktreeSlug: string;
   runSetup?: boolean;
-  paseoHome?: string;
+  kivotosHome?: string;
 }
 
 function createLegacyWorktreeForTest(
@@ -87,13 +87,13 @@ function createLegacyWorktreeForTest(
       branchName: options.branchName,
     },
     runSetup: options.runSetup ?? true,
-    paseoHome: options.paseoHome,
+    kivotosHome: options.kivotosHome,
   });
 }
 import {
-  getPaseoWorktreeMetadataPath,
-  readPaseoWorktreeMetadata,
-  writePaseoWorktreeMetadata,
+  getKivotosWorktreeMetadataPath,
+  readKivotosWorktreeMetadata,
+  writeKivotosWorktreeMetadata,
 } from "./worktree-metadata.js";
 
 function initRepo(): { tempDir: string; repoDir: string } {
@@ -128,7 +128,7 @@ function createGitHubServiceForStatus(
     getPullRequest: async () => ({
       number: 1,
       title: "PR",
-      url: "https://github.com/getpaseo/paseo/pull/1",
+      url: "https://github.com/getpaseo/kivotos/pull/1",
       state: "OPEN",
       body: null,
       baseRefName: "main",
@@ -150,7 +150,7 @@ function createGitHubServiceForStatus(
       return status;
     },
     createPullRequest: async () => ({
-      url: "https://github.com/getpaseo/paseo/pull/1",
+      url: "https://github.com/getpaseo/kivotos/pull/1",
       number: 1,
     }),
     mergePullRequest: async () => ({ success: true }),
@@ -161,7 +161,7 @@ function createGitHubServiceForStatus(
 
 function createPullRequestStatus(overrides?: Partial<CurrentPullRequestStatus>) {
   return {
-    url: "https://github.com/getpaseo/paseo/pull/123",
+    url: "https://github.com/getpaseo/kivotos/pull/123",
     title: "Ship feature",
     state: "open",
     baseRefName: "main",
@@ -205,9 +205,9 @@ function createGitHubServiceRecordingPullRequestTargets(
 
 async function readPullRequestLookupTargetFromFacts(
   repoDir: string,
-  paseoHome: string,
+  kivotosHome: string,
 ): Promise<RequestedPullRequestTarget | null> {
-  const facts = await getCheckoutSnapshotFacts(repoDir, { paseoHome });
+  const facts = await getCheckoutSnapshotFacts(repoDir, { kivotosHome });
   if (!facts.isGit) {
     throw new Error("Expected git checkout facts");
   }
@@ -246,13 +246,13 @@ function commitFile(cwd: string, path: string, content: string, message: string)
 describe("checkout git utilities", () => {
   let tempDir: string;
   let repoDir: string;
-  let paseoHome: string;
+  let kivotosHome: string;
 
   beforeEach(() => {
     const setup = initRepo();
     tempDir = setup.tempDir;
     repoDir = setup.repoDir;
-    paseoHome = join(tempDir, "paseo-home");
+    kivotosHome = join(tempDir, "kivotos-home");
     __resetCheckoutShortstatCacheForTests();
     __resetPullRequestStatusCacheForTests();
   });
@@ -546,7 +546,7 @@ describe("checkout git utilities", () => {
     setupRemoteTrackingMain(repoDir, tempDir);
 
     startGitCommandMetrics();
-    const facts = await getCheckoutSnapshotFacts(repoDir, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(repoDir, { kivotosHome });
     const metrics = stopGitCommandMetrics();
     const originUrlCommands = metrics.commands.filter(
       (command) => command.args.join(" ") === "config --get remote.origin.url",
@@ -568,7 +568,7 @@ describe("checkout git utilities", () => {
     execFileSync("git", ["config", "branch.main.merge", "refs/heads/main"], { cwd: repoDir });
 
     startGitCommandMetrics();
-    const facts = await getCheckoutSnapshotFacts(repoDir, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(repoDir, { kivotosHome });
     const metrics = stopGitCommandMetrics();
     const commands = metrics.commands.map((command) => command.args.join(" "));
 
@@ -588,30 +588,30 @@ describe("checkout git utilities", () => {
     writeFileSync(join(repoDir, "feature.txt"), "feature\nchanged\n");
     const github = createGitHubServiceForStatus(createPullRequestStatus());
 
-    const facts = await getCheckoutSnapshotFacts(repoDir, { paseoHome });
-    const status = await getCheckoutStatus(repoDir, { paseoHome, facts });
-    const shortstat = await getCheckoutShortstat(repoDir, { paseoHome, facts }, { force: true });
+    const facts = await getCheckoutSnapshotFacts(repoDir, { kivotosHome });
+    const status = await getCheckoutStatus(repoDir, { kivotosHome, facts });
+    const shortstat = await getCheckoutShortstat(repoDir, { kivotosHome, facts }, { force: true });
     const prStatus = await getPullRequestStatus(
       repoDir,
       github,
       { force: true, reason: "snapshot-equivalence" },
-      { paseoHome, facts },
+      { kivotosHome, facts },
     );
 
     __resetCheckoutShortstatCacheForTests();
     __resetPullRequestStatusCacheForTests();
     startGitCommandMetrics();
-    const statusWithFacts = await getCheckoutStatus(repoDir, { paseoHome, facts });
+    const statusWithFacts = await getCheckoutStatus(repoDir, { kivotosHome, facts });
     const shortstatWithFacts = await getCheckoutShortstat(
       repoDir,
-      { paseoHome, facts },
+      { kivotosHome, facts },
       { force: true },
     );
     const prStatusWithFacts = await getPullRequestStatus(
       repoDir,
       github,
       { force: true, reason: "snapshot-equivalence-with-facts" },
-      { paseoHome, facts },
+      { kivotosHome, facts },
     );
     const metrics = stopGitCommandMetrics();
     const commands = metrics.commands.map((command) => command.args.join(" "));
@@ -714,7 +714,7 @@ const x = 1;
     }
     expect(status.currentBranch).toBe("main");
     expect(realpathSync.native(status.repoRoot)).toBe(realpathSync.native(repoDir));
-    expect(status.isPaseoOwnedWorktree).toBe(false);
+    expect(status.isKivotosOwnedWorktree).toBe(false);
     expect(status.mainRepoRoot ?? null).toBeNull();
   });
 
@@ -872,15 +872,15 @@ const x = 1;
       cwd: repoDir,
     });
     commitFile(repoDir, "feature.txt", "feature\n", "feature commit");
-    execFileSync("git", ["remote", "add", "paseo-pr-1285", prRemoteDir], { cwd: repoDir });
+    execFileSync("git", ["remote", "add", "kivotos-pr-1285", prRemoteDir], { cwd: repoDir });
     execFileSync(
       "git",
-      ["push", "paseo-pr-1285", "HEAD:refs/heads/open-button-targets-active-file"],
+      ["push", "kivotos-pr-1285", "HEAD:refs/heads/open-button-targets-active-file"],
       { cwd: repoDir },
     );
     execFileSync(
       "git",
-      ["config", "branch.aaronzhongg/open-button-targets-active-file.remote", "paseo-pr-1285"],
+      ["config", "branch.aaronzhongg/open-button-targets-active-file.remote", "kivotos-pr-1285"],
       {
         cwd: repoDir,
       },
@@ -913,15 +913,15 @@ const x = 1;
       cwd: repoDir,
     });
     commitFile(repoDir, "feature.txt", "feature\n", "feature commit");
-    execFileSync("git", ["remote", "add", "paseo-pr-1285", prRemoteDir], { cwd: repoDir });
+    execFileSync("git", ["remote", "add", "kivotos-pr-1285", prRemoteDir], { cwd: repoDir });
     execFileSync(
       "git",
-      ["push", "paseo-pr-1285", "HEAD:refs/heads/open-button-targets-active-file"],
+      ["push", "kivotos-pr-1285", "HEAD:refs/heads/open-button-targets-active-file"],
       { cwd: repoDir },
     );
     execFileSync(
       "git",
-      ["config", "branch.aaronzhongg/open-button-targets-active-file.remote", "paseo-pr-1285"],
+      ["config", "branch.aaronzhongg/open-button-targets-active-file.remote", "kivotos-pr-1285"],
       { cwd: repoDir },
     );
     execFileSync(
@@ -939,7 +939,7 @@ const x = 1;
     execFileSync("git", ["config", "user.name", "Test"], { cwd: prCloneDir });
     commitFile(prCloneDir, "remote.txt", "remote\n", "remote update");
     execFileSync("git", ["push"], { cwd: prCloneDir });
-    execFileSync("git", ["fetch", "paseo-pr-1285"], { cwd: repoDir });
+    execFileSync("git", ["fetch", "kivotos-pr-1285"], { cwd: repoDir });
 
     const status = await getCheckoutStatus(repoDir);
 
@@ -967,7 +967,7 @@ const x = 1;
     expect(status.behindOfOrigin).toBeNull();
   });
 
-  it("does not report full history as unpushed for fresh no-track Paseo worktrees", async () => {
+  it("does not report full history as unpushed for fresh no-track Kivotos worktrees", async () => {
     setupRemoteTrackingMain(repoDir, tempDir);
     commitFile(repoDir, "second.txt", "second\n", "second commit");
     execFileSync("git", ["push"], { cwd: repoDir });
@@ -977,13 +977,13 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "fresh-feature",
-      paseoHome,
+      kivotosHome,
     });
 
-    const status = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(status).toMatchObject({
       isGit: true,
-      isPaseoOwnedWorktree: true,
+      isKivotosOwnedWorktree: true,
       baseRef: "main",
       aheadBehind: { ahead: 0, behind: 0 },
       aheadOfOrigin: null,
@@ -1000,15 +1000,15 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "fresh-feature",
-      paseoHome,
+      kivotosHome,
     });
     commitFile(worktree.worktreePath, "feature.txt", "feature\n", "feature commit");
 
-    const status = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(status).toMatchObject({
       isGit: true,
       hasRemote: true,
-      isPaseoOwnedWorktree: true,
+      isKivotosOwnedWorktree: true,
       baseRef: "main",
       aheadBehind: { ahead: 1, behind: 0 },
       aheadOfOrigin: null,
@@ -1597,17 +1597,17 @@ const x = 1;
     expect(diff.diff).toContain("# untracked-large.txt: diff too large omitted");
   });
 
-  it("resolves the Git common directory once when reading Paseo worktree facts", async () => {
+  it("resolves the Git common directory once when reading Kivotos worktree facts", async () => {
     const result = await createLegacyWorktreeForTest({
       branchName: "main",
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "common-dir",
-      paseoHome,
+      kivotosHome,
     });
 
     startGitCommandMetrics();
-    const facts = await getCheckoutSnapshotFacts(result.worktreePath, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(result.worktreePath, { kivotosHome });
     const metrics = stopGitCommandMetrics();
     const commonDirCommands = metrics.commands.filter(
       (command) => command.args.join(" ") === "rev-parse --git-common-dir",
@@ -1617,31 +1617,31 @@ const x = 1;
     expect(commonDirCommands).toHaveLength(1);
   });
 
-  it("handles status/diff/commit in a .paseo worktree", async () => {
+  it("handles status/diff/commit in a .kivotos worktree", async () => {
     const result = await createLegacyWorktreeForTest({
       branchName: "main",
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "alpha",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(result.worktreePath, "file.txt"), "worktree change\n");
 
-    const status = await getCheckoutStatus(result.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(result.worktreePath, { kivotosHome });
     expect(status.isGit).toBe(true);
     expect(realpathSync.native(status.repoRoot)).toBe(realpathSync.native(result.worktreePath));
     expect(status.isDirty).toBe(true);
-    expect(status.isPaseoOwnedWorktree).toBe(true);
+    expect(status.isKivotosOwnedWorktree).toBe(true);
     expect(realpathSync.native(status.mainRepoRoot ?? "")).toBe(realpathSync.native(repoDir));
 
-    const diff = await getCheckoutDiff(result.worktreePath, { mode: "uncommitted" }, { paseoHome });
+    const diff = await getCheckoutDiff(result.worktreePath, { mode: "uncommitted" }, { kivotosHome });
     expect(diff.diff).toContain("-hello");
     expect(diff.diff).toContain("+worktree change");
 
     await commitAll(result.worktreePath, "worktree update");
 
-    const cleanStatus = await getCheckoutStatus(result.worktreePath, { paseoHome });
+    const cleanStatus = await getCheckoutStatus(result.worktreePath, { kivotosHome });
     expect(cleanStatus.isDirty).toBe(false);
     const message = execFileSync("git", ["log", "-1", "--pretty=%B"], {
       cwd: result.worktreePath,
@@ -1651,22 +1651,22 @@ const x = 1;
     expect(message).toBe("worktree update");
   });
 
-  it("returns checkout root metadata for .paseo worktrees", async () => {
+  it("returns checkout root metadata for .kivotos worktrees", async () => {
     const result = await createLegacyWorktreeForTest({
       branchName: "main",
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "lite-alpha",
-      paseoHome,
+      kivotosHome,
     });
 
-    const status = await getCheckoutStatus(result.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(result.worktreePath, { kivotosHome });
     expect(status.isGit).toBe(true);
     if (!status.isGit) {
       return;
     }
     expect(realpathSync.native(status.repoRoot)).toBe(realpathSync.native(result.worktreePath));
-    expect(status.isPaseoOwnedWorktree).toBe(true);
+    expect(status.isKivotosOwnedWorktree).toBe(true);
     expect(realpathSync.native(status.mainRepoRoot ?? "")).toBe(realpathSync.native(repoDir));
   });
 
@@ -1684,12 +1684,12 @@ const x = 1;
       cwd: mainCheckoutDir,
       baseBranch: "main",
       worktreeSlug: "feature-worktree",
-      paseoHome,
+      kivotosHome,
     });
 
-    const status = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(status.isGit).toBe(true);
-    expect(status.isPaseoOwnedWorktree).toBe(true);
+    expect(status.isKivotosOwnedWorktree).toBe(true);
     expect(realpathSync.native(status.mainRepoRoot ?? "")).toBe(
       realpathSync.native(mainCheckoutDir),
     );
@@ -1701,10 +1701,10 @@ const x = 1;
       cwd: repoDir,
     });
 
-    const status = await getCheckoutStatus(worktreeDir, { paseoHome });
+    const status = await getCheckoutStatus(worktreeDir, { kivotosHome });
     expect(status.isGit).toBe(true);
     expect(realpathSync.native(status.repoRoot)).toBe(realpathSync.native(worktreeDir));
-    expect(status.isPaseoOwnedWorktree).toBe(false);
+    expect(status.isKivotosOwnedWorktree).toBe(false);
     expect(realpathSync.native(status.mainRepoRoot ?? "")).toBe(realpathSync.native(repoDir));
     expect(status.currentBranch).toBe("feature/plain");
   });
@@ -1715,7 +1715,7 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "merge",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(worktree.worktreePath, "merge.txt"), "feature\n");
@@ -1728,7 +1728,7 @@ const x = 1;
       .toString()
       .trim();
 
-    await mergeToBase(worktree.worktreePath, { baseRef: "main" }, { paseoHome });
+    await mergeToBase(worktree.worktreePath, { baseRef: "main" }, { kivotosHome });
 
     const baseContainsFeature = execFileSync(
       "git",
@@ -1740,7 +1740,7 @@ const x = 1;
     );
     expect(baseContainsFeature).toBeDefined();
 
-    const statusAfterMerge = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const statusAfterMerge = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(statusAfterMerge.isGit).toBe(true);
     if (statusAfterMerge.isGit) {
       expect(statusAfterMerge.aheadBehind?.ahead ?? 0).toBe(0);
@@ -1771,7 +1771,7 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "develop",
       worktreeSlug: "feature-worktree",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(featureWorktree.worktreePath, "feature.txt"), "feature\n");
@@ -1780,7 +1780,7 @@ const x = 1;
       cwd: featureWorktree.worktreePath,
     });
 
-    const mutatedCwd = await mergeToBase(featureWorktree.worktreePath, {}, { paseoHome });
+    const mutatedCwd = await mergeToBase(featureWorktree.worktreePath, {}, { kivotosHome });
 
     expect(realpathSync.native(mutatedCwd)).toBe(realpathSync.native(baseWorktreePath));
     expect(mutatedCwd).not.toBe(featureWorktree.worktreePath);
@@ -2044,10 +2044,10 @@ const x = 1;
     execFileSync("git", ["clone", "--bare", repoDir, originDir]);
     execFileSync("git", ["clone", "--bare", repoDir, prRemoteDir]);
     execFileSync("git", ["remote", "add", "origin", originDir], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "paseo-pr-526", prRemoteDir], { cwd: repoDir });
+    execFileSync("git", ["remote", "add", "kivotos-pr-526", prRemoteDir], { cwd: repoDir });
     execFileSync("git", ["checkout", "-b", "therainisme/main"], { cwd: repoDir });
-    execFileSync("git", ["fetch", "paseo-pr-526", "main"], { cwd: repoDir });
-    execFileSync("git", ["config", "branch.therainisme/main.remote", "paseo-pr-526"], {
+    execFileSync("git", ["fetch", "kivotos-pr-526", "main"], { cwd: repoDir });
+    execFileSync("git", ["config", "branch.therainisme/main.remote", "kivotos-pr-526"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.therainisme/main.merge", "refs/heads/main"], {
@@ -2080,7 +2080,7 @@ const x = 1;
       .toString()
       .trim();
     expect(prRemoteMain).toBe(localHead);
-    expect(upstream).toBe("paseo-pr-526/main");
+    expect(upstream).toBe("kivotos-pr-526/main");
   });
 
   it("pushes the current branch to its configured push remote", async () => {
@@ -2089,12 +2089,12 @@ const x = 1;
     execFileSync("git", ["clone", "--bare", repoDir, originDir]);
     execFileSync("git", ["clone", "--bare", repoDir, prRemoteDir]);
     execFileSync("git", ["remote", "add", "origin", originDir], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "paseo-pr-526", prRemoteDir], { cwd: repoDir });
+    execFileSync("git", ["remote", "add", "kivotos-pr-526", prRemoteDir], { cwd: repoDir });
     execFileSync("git", ["checkout", "-b", "therainisme/main"], { cwd: repoDir });
-    execFileSync("git", ["config", "branch.therainisme/main.pushRemote", "paseo-pr-526"], {
+    execFileSync("git", ["config", "branch.therainisme/main.pushRemote", "kivotos-pr-526"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "remote.paseo-pr-526.push", "HEAD:refs/heads/main"], {
+    execFileSync("git", ["config", "remote.kivotos-pr-526.push", "HEAD:refs/heads/main"], {
       cwd: repoDir,
     });
     writeFileSync(join(repoDir, "fork-pr.txt"), "fork pr edit\n");
@@ -2124,7 +2124,7 @@ const x = 1;
     );
     const trackedPrRemoteHead = execFileSync(
       "git",
-      ["rev-parse", "refs/remotes/paseo-pr-526/main"],
+      ["rev-parse", "refs/remotes/kivotos-pr-526/main"],
       {
         cwd: repoDir,
       },
@@ -2134,7 +2134,7 @@ const x = 1;
     const afterPushStatus = await getCheckoutStatus(repoDir);
     expect(upstreamBeforePush).toBeNull();
     expect(prRemoteMain).toBe(localHead);
-    expect(getBranchUpstream(repoDir)).toBe("paseo-pr-526/main");
+    expect(getBranchUpstream(repoDir)).toBe("kivotos-pr-526/main");
     expect(trackedPrRemoteHead).toBe(localHead);
     expect(afterPushStatus).toMatchObject({ aheadOfOrigin: 0, behindOfOrigin: 0 });
     expect(originBranch.status).toBe(1);
@@ -2146,11 +2146,11 @@ const x = 1;
     execFileSync("git", ["remote", "add", "origin", originDir], { cwd: repoDir });
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
     execFileSync("git", ["push", "-u", "origin", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "paseo-pr-1790", originDir], { cwd: repoDir });
-    execFileSync("git", ["config", "branch.feature.pushRemote", "paseo-pr-1790"], {
+    execFileSync("git", ["remote", "add", "kivotos-pr-1790", originDir], { cwd: repoDir });
+    execFileSync("git", ["config", "branch.feature.pushRemote", "kivotos-pr-1790"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "remote.paseo-pr-1790.push", "HEAD:refs/heads/feature"], {
+    execFileSync("git", ["config", "remote.kivotos-pr-1790.push", "HEAD:refs/heads/feature"], {
       cwd: repoDir,
     });
     writeFileSync(join(repoDir, "feature.txt"), "feature edit\n");
@@ -2504,7 +2504,7 @@ const x = 1;
   });
 
   it("disables GitHub features when gh is unavailable", async () => {
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -2519,7 +2519,7 @@ const x = 1;
 
   it("returns merged PR status when no open PR exists for the current branch", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -2543,7 +2543,7 @@ const x = 1;
 
   it("propagates S1 PR metadata and check display fields through checkout PR status", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -2557,7 +2557,7 @@ const x = 1;
             {
               name: "server-tests",
               status: "success",
-              url: "https://github.com/getpaseo/paseo/actions/runs/123",
+              url: "https://github.com/getpaseo/kivotos/actions/runs/123",
               workflow: "Server CI",
               duration: "2m 14s",
             },
@@ -2571,7 +2571,7 @@ const x = 1;
       authState: "authenticated",
       status: {
         number: 123,
-        url: "https://github.com/getpaseo/paseo/pull/123",
+        url: "https://github.com/getpaseo/kivotos/pull/123",
         title: "Ship feature",
         state: "open",
         baseRefName: "main",
@@ -2582,7 +2582,7 @@ const x = 1;
           {
             name: "server-tests",
             status: "success",
-            url: "https://github.com/getpaseo/paseo/actions/runs/123",
+            url: "https://github.com/getpaseo/kivotos/actions/runs/123",
             workflow: "Server CI",
             duration: "2m 14s",
           },
@@ -2595,7 +2595,7 @@ const x = 1;
 
   it("uses an origin tracked head when the local branch name differs", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -2605,7 +2605,7 @@ const x = 1;
       { cwd: repoDir },
     );
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "refactor/workspace-scripts" });
     expect(lookupTarget?.headSha).toMatch(/^[0-9a-f]{40}$/);
@@ -2613,7 +2613,7 @@ const x = 1;
 
   it("keeps the local branch lookup when origin tracking uses the same head name", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.feature.remote", "origin"], { cwd: repoDir });
@@ -2621,7 +2621,7 @@ const x = 1;
       cwd: repoDir,
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "feature" });
     expect(lookupTarget?.headSha).toMatch(/^[0-9a-f]{40}$/);
@@ -2643,12 +2643,12 @@ const x = 1;
       execFileSync("git", ["config", "branch.new-change.merge", "refs/heads/new-change"], {
         cwd: repoDir,
       });
-      const workspaceDir = join(paseoHome, "worktrees", "repo", "pr-worktree");
-      mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+      const workspaceDir = join(kivotosHome, "worktrees", "repo", "pr-worktree");
+      mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
       execFileSync("git", ["worktree", "add", workspaceDir, "contributor/old-change"], {
         cwd: repoDir,
       });
-      writePaseoWorktreeMetadata(workspaceDir, {
+      writeKivotosWorktreeMetadata(workspaceDir, {
         baseRefName: "main",
         changeRequestLookupTarget: {
           headRef: "old-change",
@@ -2660,7 +2660,7 @@ const x = 1;
 
       execFileSync("git", ["checkout", "new-change"], { cwd: workspaceDir });
       const requestedTargets: RequestedPullRequestTarget[] = [];
-      const facts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+      const facts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
       const result = await getPullRequestStatus(
         workspaceDir,
         createGitHubServiceRecordingPullRequestTargets({
@@ -2668,7 +2668,7 @@ const x = 1;
           statusOverrides: { state, isMerged },
         }),
         { force: true, reason: "current-checkout-pr" },
-        { paseoHome, facts },
+        { kivotosHome, facts },
       );
 
       expect(requestedTargets).toEqual([expect.objectContaining({ headRef: "new-change" })]);
@@ -2685,10 +2685,10 @@ const x = 1;
       cwd: repoDir,
     });
     execFileSync("git", ["branch", "placeholder"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "renamed-by-agent");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "renamed-by-agent");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "placeholder"], { cwd: repoDir });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "placeholder",
@@ -2698,12 +2698,12 @@ const x = 1;
 
     execFileSync("git", ["branch", "-m", "agent-chosen-name"], { cwd: workspaceDir });
     const requestedTargets: RequestedPullRequestTarget[] = [];
-    const facts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     const result = await getPullRequestStatus(
       workspaceDir,
       createGitHubServiceRecordingPullRequestTargets({ requestedTargets }),
       { force: true, reason: "agent-renamed-branch-pr" },
-      { paseoHome, facts },
+      { kivotosHome, facts },
     );
 
     expect(requestedTargets).toEqual([expect.objectContaining({ headRef: "agent-chosen-name" })]);
@@ -2722,10 +2722,10 @@ const x = 1;
     execFileSync("git", ["remote", "add", "fork", "https://github.com/other/repo.git"], {
       cwd: repoDir,
     });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "pinned-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "pinned-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "feature/pinned"], { cwd: repoDir });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "feature/pinned",
@@ -2739,32 +2739,32 @@ const x = 1;
       cwd: repoDir,
     });
 
-    expect(await readPullRequestLookupTargetFromFacts(workspaceDir, paseoHome)).toMatchObject({
+    expect(await readPullRequestLookupTargetFromFacts(workspaceDir, kivotosHome)).toMatchObject({
       headRef: "feature/pinned",
     });
   });
 
   it("uses the checked-out branch when a managed worktree has no metadata", async () => {
     execFileSync("git", ["branch", "feature/unpinned"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "unpinned-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "unpinned-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "feature/unpinned"], {
       cwd: repoDir,
     });
 
-    expect(await readPullRequestLookupTargetFromFacts(workspaceDir, paseoHome)).toMatchObject({
+    expect(await readPullRequestLookupTargetFromFacts(workspaceDir, kivotosHome)).toMatchObject({
       headRef: "feature/unpinned",
     });
   });
 
   it("uses the checked-out branch instead of ambiguous legacy PR metadata", async () => {
     execFileSync("git", ["branch", "contributor/old-change-1"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "legacy-pr-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "legacy-pr-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "contributor/old-change-1"], {
       cwd: repoDir,
     });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "old-change",
@@ -2773,7 +2773,7 @@ const x = 1;
       },
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(workspaceDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(workspaceDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "contributor/old-change-1" });
   });
@@ -2781,12 +2781,12 @@ const x = 1;
   it("does not apply a legacy fork hint to an ownerless branch with the same head", async () => {
     execFileSync("git", ["branch", "contributor/old-change"], { cwd: repoDir });
     execFileSync("git", ["branch", "old-change"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "legacy-fork-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "legacy-fork-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "contributor/old-change"], {
       cwd: repoDir,
     });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "old-change",
@@ -2797,12 +2797,12 @@ const x = 1;
     const requestedTargets: RequestedPullRequestTarget[] = [];
     const forge = createGitHubServiceRecordingPullRequestTargets({ requestedTargets });
 
-    const forkFacts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const forkFacts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "legacy-fork-branch" },
-      { paseoHome, facts: forkFacts },
+      { kivotosHome, facts: forkFacts },
     );
     expect(requestedTargets.at(-1)).toMatchObject({
       headRef: "old-change",
@@ -2810,12 +2810,12 @@ const x = 1;
     });
 
     execFileSync("git", ["checkout", "old-change"], { cwd: workspaceDir });
-    const ownerlessFacts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const ownerlessFacts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "ownerless-same-head" },
-      { paseoHome, facts: ownerlessFacts },
+      { kivotosHome, facts: ownerlessFacts },
     );
 
     expect(requestedTargets).toEqual([
@@ -2846,12 +2846,12 @@ const x = 1;
     execFileSync("git", ["config", "branch.mixedowner/old-change.merge", "refs/heads/old-change"], {
       cwd: repoDir,
     });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "legacy-enterprise-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "legacy-enterprise-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "mixedowner/old-change"], {
       cwd: repoDir,
     });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "old-change",
@@ -2862,12 +2862,12 @@ const x = 1;
     const requestedTargets: RequestedPullRequestTarget[] = [];
     const forge = createGitHubServiceRecordingPullRequestTargets({ requestedTargets });
 
-    const facts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "legacy-enterprise-owner" },
-      { paseoHome, facts },
+      { kivotosHome, facts },
     );
 
     expect(requestedTargets).toEqual([
@@ -2882,12 +2882,12 @@ const x = 1;
     execFileSync("git", ["config", "branch.mixedowner/old-change.remote", "replacement-fork"], {
       cwd: repoDir,
     });
-    const repointedFacts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const repointedFacts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "repointed-enterprise-owner" },
-      { paseoHome, facts: repointedFacts },
+      { kivotosHome, facts: repointedFacts },
     );
 
     expect(requestedTargets.at(-1)).toMatchObject({
@@ -2898,12 +2898,12 @@ const x = 1;
 
   it("keeps a ref-only change request across rename and follows a later branch switch", async () => {
     execFileSync("git", ["branch", "feature/gitlab-mr"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "gitlab-mr-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "gitlab-mr-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "feature/gitlab-mr"], {
       cwd: repoDir,
     });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "feature/gitlab-mr",
@@ -2917,27 +2917,27 @@ const x = 1;
     const forge = createGitHubServiceRecordingPullRequestTargets({ requestedTargets });
 
     await renameCurrentBranch(workspaceCwd, "feature/renamed");
-    expect(readPaseoWorktreeMetadata(workspaceDir)?.changeRequestLookupTarget).toMatchObject({
+    expect(readKivotosWorktreeMetadata(workspaceDir)?.changeRequestLookupTarget).toMatchObject({
       localBranchName: "feature/renamed",
     });
-    const renamedFacts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const renamedFacts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     const renamedStatus = await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "renamed-change-request" },
-      { paseoHome, facts: renamedFacts },
+      { kivotosHome, facts: renamedFacts },
     );
 
     expect(requestedTargets).toEqual([expect.objectContaining({ headRef: "feature/gitlab-mr" })]);
     expect(renamedStatus.status?.headRefName).toBe("feature/gitlab-mr");
 
     execFileSync("git", ["checkout", "-b", "other-branch"], { cwd: workspaceDir });
-    const switchedFacts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const switchedFacts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     await getPullRequestStatus(
       workspaceDir,
       forge,
       { force: true, reason: "switched-after-rename" },
-      { paseoHome, facts: switchedFacts },
+      { kivotosHome, facts: switchedFacts },
     );
 
     expect(requestedTargets).toEqual([
@@ -2948,12 +2948,12 @@ const x = 1;
 
   it("moves a managed branch identity pin when its branch is renamed", async () => {
     execFileSync("git", ["branch", "feature/placeholder"], { cwd: repoDir });
-    const workspaceDir = join(paseoHome, "worktrees", "repo", "renamed-worktree");
-    mkdirSync(join(paseoHome, "worktrees", "repo"), { recursive: true });
+    const workspaceDir = join(kivotosHome, "worktrees", "repo", "renamed-worktree");
+    mkdirSync(join(kivotosHome, "worktrees", "repo"), { recursive: true });
     execFileSync("git", ["worktree", "add", workspaceDir, "feature/placeholder"], {
       cwd: repoDir,
     });
-    writePaseoWorktreeMetadata(workspaceDir, {
+    writeKivotosWorktreeMetadata(workspaceDir, {
       baseRefName: "main",
       changeRequestLookupTarget: {
         headRef: "feature/placeholder",
@@ -2963,28 +2963,28 @@ const x = 1;
 
     await renameCurrentBranch(workspaceDir, "feature/generated");
 
-    expect(readPaseoWorktreeMetadata(workspaceDir)?.changeRequestLookupTarget).toEqual({
+    expect(readKivotosWorktreeMetadata(workspaceDir)?.changeRequestLookupTarget).toEqual({
       headRef: "feature/generated",
       localBranchName: "feature/generated",
     });
-    const facts = await getCheckoutSnapshotFacts(workspaceDir, { paseoHome });
+    const facts = await getCheckoutSnapshotFacts(workspaceDir, { kivotosHome });
     expect(facts.isGit && facts.pullRequestLookupTarget).toMatchObject({
       headRef: "feature/generated",
     });
   });
 
   it("keeps fork identity when the local and tracked branch names match", async () => {
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "contributor", "git@github.com:contributor/paseo.git"], {
+    execFileSync("git", ["remote", "add", "contributor", "git@github.com:contributor/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["checkout", "-b", "topic"], { cwd: repoDir });
     execFileSync("git", ["config", "branch.topic.remote", "contributor"], { cwd: repoDir });
     execFileSync("git", ["config", "branch.topic.merge", "refs/heads/topic"], { cwd: repoDir });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({
       headRef: "topic",
@@ -2993,11 +2993,11 @@ const x = 1;
   });
 
   it.each([
-    "git@github.com:contributor/paseo.git",
-    "https://github.com/contributor/paseo.git",
-    "ssh://git@github.com/contributor/paseo.git",
+    "git@github.com:contributor/kivotos.git",
+    "https://github.com/contributor/kivotos.git",
+    "ssh://git@github.com/contributor/kivotos.git",
   ])("preserves fork PR identity with branch.remote=%s", async (branchRemote) => {
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:getkivotos/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["checkout", "-b", "topic"], { cwd: repoDir });
@@ -3015,7 +3015,7 @@ const x = 1;
       encoding: "utf8",
     }).trim();
 
-    expect(await readPullRequestLookupTargetFromFacts(repoDir, paseoHome)).toEqual({
+    expect(await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome)).toEqual({
       headRef: "topic",
       headRepositoryOwner: "contributor",
       headSha,
@@ -3024,10 +3024,10 @@ const x = 1;
 
   it("does not attach an owner when the tracked remote is the same GitHub repository", async () => {
     execFileSync("git", ["checkout", "-b", "local-feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:getkivotos/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.local-feature.remote", "upstream"], {
@@ -3039,7 +3039,7 @@ const x = 1;
       { cwd: repoDir },
     );
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "refactor/workspace-scripts" });
     expect(lookupTarget?.headSha).toMatch(/^[0-9a-f]{40}$/);
@@ -3048,17 +3048,17 @@ const x = 1;
   it("keeps the fork owner when same-repo comparison is indeterminate", async () => {
     execFileSync("git", ["checkout", "-b", "chethanuk/main"], { cwd: repoDir });
     execFileSync("git", ["remote", "add", "origin", "not-a-github-remote"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "paseo-pr-345", "git@github.com:chethanuk/paseo.git"], {
+    execFileSync("git", ["remote", "add", "kivotos-pr-345", "git@github.com:chethanuk/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "branch.chethanuk/main.remote", "paseo-pr-345"], {
+    execFileSync("git", ["config", "branch.chethanuk/main.remote", "kivotos-pr-345"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.chethanuk/main.merge", "refs/heads/main"], {
       cwd: repoDir,
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "main", headRepositoryOwner: "chethanuk" });
     expect(lookupTarget?.headSha).toMatch(/^[0-9a-f]{40}$/);
@@ -3066,27 +3066,27 @@ const x = 1;
 
   it("uses the configured push remote for fork PR lookup when upstream is absent", async () => {
     execFileSync("git", ["checkout", "-b", "chethanuk/main"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "paseo-pr-345", "git@github.com:chethanuk/paseo.git"], {
+    execFileSync("git", ["remote", "add", "kivotos-pr-345", "git@github.com:chethanuk/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "branch.chethanuk/main.pushRemote", "paseo-pr-345"], {
+    execFileSync("git", ["config", "branch.chethanuk/main.pushRemote", "kivotos-pr-345"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "remote.paseo-pr-345.push", "HEAD:refs/heads/main"], {
+    execFileSync("git", ["config", "remote.kivotos-pr-345.push", "HEAD:refs/heads/main"], {
       cwd: repoDir,
     });
     const requestedTargets: RequestedPullRequestTarget[] = [];
     const github = createGitHubServiceRecordingPullRequestTargets({ requestedTargets });
 
-    const factsTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const factsTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
     await getPullRequestStatus(
       repoDir,
       github,
       { force: true, reason: "push-remote-pr-lookup" },
-      { paseoHome },
+      { kivotosHome },
     );
 
     expect(getBranchUpstream(repoDir)).toBeNull();
@@ -3099,7 +3099,7 @@ const x = 1;
 
   it("keeps the local branch lookup when same-repo tracking points at the base branch", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -3107,7 +3107,7 @@ const x = 1;
       cwd: repoDir,
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "tender-parrot" });
     expect(lookupTarget?.headSha).toMatch(/^[0-9a-f]{40}$/);
@@ -3115,10 +3115,10 @@ const x = 1;
 
   it("keeps the local branch lookup when a fork tracks the upstream base branch", async () => {
     execFileSync("git", ["checkout", "-b", "local-feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "git@github.com:contributor/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:contributor/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "upstream", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.local-feature.remote", "upstream"], {
@@ -3128,7 +3128,7 @@ const x = 1;
       cwd: repoDir,
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "local-feature" });
     expect(lookupTarget).not.toHaveProperty("headRepositoryOwner");
@@ -3151,7 +3151,7 @@ const x = 1;
       cwd: repoDir,
     });
 
-    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const lookupTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
 
     expect(lookupTarget).toMatchObject({ headRef: "local-feature" });
     expect(lookupTarget).not.toHaveProperty("headRepositoryOwner");
@@ -3159,7 +3159,7 @@ const x = 1;
 
   it("derives the same origin tracked head for on-demand PR status reads", async () => {
     execFileSync("git", ["checkout", "-b", "tender-parrot"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.tender-parrot.remote", "origin"], { cwd: repoDir });
@@ -3168,7 +3168,7 @@ const x = 1;
       ["config", "branch.tender-parrot.merge", "refs/heads/refactor/workspace-scripts"],
       { cwd: repoDir },
     );
-    const factsTarget = await readPullRequestLookupTargetFromFacts(repoDir, paseoHome);
+    const factsTarget = await readPullRequestLookupTargetFromFacts(repoDir, kivotosHome);
     const requestedTargets: RequestedPullRequestTarget[] = [];
     const github = createGitHubServiceRecordingPullRequestTargets({ requestedTargets });
 
@@ -3176,7 +3176,7 @@ const x = 1;
       repoDir,
       github,
       { force: true, reason: "tracked-head-parity" },
-      { paseoHome },
+      { kivotosHome },
     );
 
     expect(requestedTargets).toEqual([factsTarget]);
@@ -3184,13 +3184,13 @@ const x = 1;
 
   it("uses the tracked fork branch for PR worktree status lookup", async () => {
     execFileSync("git", ["checkout", "-b", "chethanuk/main"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["remote", "add", "paseo-pr-345", "git@github.com:chethanuk/paseo.git"], {
+    execFileSync("git", ["remote", "add", "kivotos-pr-345", "git@github.com:chethanuk/kivotos.git"], {
       cwd: repoDir,
     });
-    execFileSync("git", ["config", "branch.chethanuk/main.remote", "paseo-pr-345"], {
+    execFileSync("git", ["config", "branch.chethanuk/main.remote", "kivotos-pr-345"], {
       cwd: repoDir,
     });
     execFileSync("git", ["config", "branch.chethanuk/main.merge", "refs/heads/main"], {
@@ -3202,7 +3202,7 @@ const x = 1;
       requestedTargets,
       statusOverrides: {
         number: 345,
-        url: "https://github.com/getpaseo/paseo/pull/345",
+        url: "https://github.com/getpaseo/kivotos/pull/345",
       },
     });
 
@@ -3217,7 +3217,7 @@ const x = 1;
 
   it("returns closed-unmerged PR status without marking it as merged", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3225,7 +3225,7 @@ const x = 1;
       repoDir,
       createGitHubServiceForStatus(
         createPullRequestStatus({
-          url: "https://github.com/getpaseo/paseo/pull/999",
+          url: "https://github.com/getpaseo/kivotos/pull/999",
           title: "Closed without merge",
           state: "closed",
         }),
@@ -3242,7 +3242,7 @@ const x = 1;
 
   it("caches PR status results for duplicate lookups", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3261,7 +3261,7 @@ const x = 1;
 
   it("does not reuse a PR status cache entry after HEAD changes on the same branch", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3270,7 +3270,7 @@ const x = 1;
     github.getCurrentPullRequestStatus = async (options) => {
       if (options.headSha) requestedShas.push(options.headSha);
       return createPullRequestStatus({
-        url: `https://github.com/getpaseo/paseo/pull/${requestedShas.length}`,
+        url: `https://github.com/getpaseo/kivotos/pull/${requestedShas.length}`,
       });
     };
 
@@ -3288,7 +3288,7 @@ const x = 1;
 
   it("passes forced PR status reads through to the GitHub service", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3312,7 +3312,7 @@ const x = 1;
 
   it("expires cached PR status after the TTL", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3327,7 +3327,7 @@ const x = 1;
       github.getCurrentPullRequestStatus = async () => {
         callCount += 1;
         return createPullRequestStatus({
-          url: `https://github.com/getpaseo/paseo/pull/${callCount}`,
+          url: `https://github.com/getpaseo/kivotos/pull/${callCount}`,
         });
       };
       const first = await getPullRequestStatus(repoDir, github);
@@ -3343,7 +3343,7 @@ const x = 1;
 
   it("keeps stale PR status when a refresh hits a transient GitHub error", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3355,7 +3355,7 @@ const x = 1;
         callCount += 1;
         if (callCount === 1) {
           return createPullRequestStatus({
-            url: "https://github.com/getpaseo/paseo/pull/123",
+            url: "https://github.com/getpaseo/kivotos/pull/123",
           });
         }
         throw new GitHubCommandError({
@@ -3416,14 +3416,14 @@ const x = 1;
 
   it("does not use stale PR status fallback for forced GitHub errors", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
     const github = createGitHubServiceForStatus(null);
     github.getCurrentPullRequestStatus = async () =>
       createPullRequestStatus({
-        url: "https://github.com/getpaseo/paseo/pull/123",
+        url: "https://github.com/getpaseo/kivotos/pull/123",
       });
 
     const fresh = await getPullRequestStatus(repoDir, github);
@@ -3449,7 +3449,7 @@ const x = 1;
 
   it("clears stale PR status after a successful no-PR refresh", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3461,7 +3461,7 @@ const x = 1;
         callCount += 1;
         if (callCount === 1) {
           return createPullRequestStatus({
-            url: "https://github.com/getpaseo/paseo/pull/123",
+            url: "https://github.com/getpaseo/kivotos/pull/123",
           });
         }
         return null;
@@ -3521,7 +3521,7 @@ const x = 1;
 
   it("dedupes concurrent PR status lookups for the same cwd", async () => {
     execFileSync("git", ["checkout", "-b", "feature"], { cwd: repoDir });
-    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/paseo.git"], {
+    execFileSync("git", ["remote", "add", "origin", "https://github.com/getpaseo/kivotos.git"], {
       cwd: repoDir,
     });
 
@@ -3583,7 +3583,7 @@ const x = 1;
     );
   });
 
-  it("uses stored baseRefName for Paseo worktrees (no heuristics)", async () => {
+  it("uses stored baseRefName for Kivotos worktrees (no heuristics)", async () => {
     // Create a non-default base branch with a unique commit.
     execFileSync("git", ["checkout", "-b", "develop"], { cwd: repoDir });
     writeFileSync(join(repoDir, "file.txt"), "develop\n");
@@ -3599,7 +3599,7 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "develop",
       worktreeSlug: "feature",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(worktree.worktreePath, "feature.txt"), "feature\n");
@@ -3608,12 +3608,12 @@ const x = 1;
       cwd: worktree.worktreePath,
     });
 
-    const status = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(status.isGit).toBe(true);
     expect(status.baseRef).toBe("develop");
     expect(status.aheadBehind?.ahead).toBe(1);
 
-    const baseDiff = await getCheckoutDiff(worktree.worktreePath, { mode: "base" }, { paseoHome });
+    const baseDiff = await getCheckoutDiff(worktree.worktreePath, { mode: "base" }, { kivotosHome });
     expect(baseDiff.diff).toContain("feature.txt");
     expect(baseDiff.diff).not.toContain("file.txt");
   });
@@ -3624,21 +3624,21 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "mismatch-feature",
-      paseoHome,
+      kivotosHome,
     });
 
     await expect(
-      getCheckoutDiff(worktree.worktreePath, { mode: "base", baseRef: "other" }, { paseoHome }),
+      getCheckoutDiff(worktree.worktreePath, { mode: "base", baseRef: "other" }, { kivotosHome }),
     ).rejects.toThrow("Base ref mismatch: stored refs/heads/main, requested other");
   });
 
-  it("excludes dirty working tree changes from Paseo worktree base diffs", async () => {
+  it("excludes dirty working tree changes from Kivotos worktree base diffs", async () => {
     const worktree = await createLegacyWorktreeForTest({
       branchName: "feature",
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "dirty-feature",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(worktree.worktreePath, "feature.txt"), "feature\n");
@@ -3653,7 +3653,7 @@ const x = 1;
     const baseDiff = await getCheckoutDiff(
       worktree.worktreePath,
       { mode: "base", includeStructured: true },
-      { paseoHome },
+      { kivotosHome },
     );
 
     expect(baseDiff.diff).toContain("feature.txt");
@@ -3691,13 +3691,13 @@ const x = 1;
     });
     execFileSync("git", ["checkout", "main"], { cwd: repoDir });
 
-    // Create a Paseo worktree configured to use develop as base.
+    // Create a Kivotos worktree configured to use develop as base.
     const worktree = await createLegacyWorktreeForTest({
       branchName: "feature",
       cwd: repoDir,
       baseBranch: "develop",
       worktreeSlug: "merge-to-develop",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(worktree.worktreePath, "feature.txt"), "feature\n");
@@ -3710,7 +3710,7 @@ const x = 1;
       .trim();
 
     // No baseRef passed: should merge into the configured base (develop), not default/main.
-    await mergeToBase(worktree.worktreePath, {}, { paseoHome });
+    await mergeToBase(worktree.worktreePath, {}, { kivotosHome });
 
     execFileSync("git", ["merge-base", "--is-ancestor", featureCommit, "develop"], {
       cwd: repoDir,
@@ -3730,7 +3730,7 @@ const x = 1;
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "missing-metadata",
-      paseoHome,
+      kivotosHome,
     });
 
     writeFileSync(join(worktree.worktreePath, "feature.txt"), "feature\n");
@@ -3739,33 +3739,33 @@ const x = 1;
       cwd: worktree.worktreePath,
     });
 
-    const metadataPath = getPaseoWorktreeMetadataPath(worktree.worktreePath);
+    const metadataPath = getKivotosWorktreeMetadataPath(worktree.worktreePath);
     rmSync(metadataPath, { force: true });
 
-    const baseDiff = await getCheckoutDiff(worktree.worktreePath, { mode: "base" }, { paseoHome });
+    const baseDiff = await getCheckoutDiff(worktree.worktreePath, { mode: "base" }, { kivotosHome });
     expect(baseDiff.diff).toContain("feature.txt");
 
-    const shortstat = await getCheckoutShortstat(worktree.worktreePath, { paseoHome });
+    const shortstat = await getCheckoutShortstat(worktree.worktreePath, { kivotosHome });
     expect(shortstat).toEqual({ additions: 1, deletions: 0 });
   });
 
-  it("falls back to plain git checkout status when Paseo worktree metadata is missing", async () => {
+  it("falls back to plain git checkout status when Kivotos worktree metadata is missing", async () => {
     const worktree = await createLegacyWorktreeForTest({
       branchName: "feature",
       cwd: repoDir,
       baseBranch: "main",
       worktreeSlug: "missing-metadata-status-fallback",
-      paseoHome,
+      kivotosHome,
     });
 
-    const metadataPath = getPaseoWorktreeMetadataPath(worktree.worktreePath);
+    const metadataPath = getKivotosWorktreeMetadataPath(worktree.worktreePath);
     rmSync(metadataPath, { force: true });
 
-    const status = await getCheckoutStatus(worktree.worktreePath, { paseoHome });
+    const status = await getCheckoutStatus(worktree.worktreePath, { kivotosHome });
     expect(status.isGit).toBe(true);
     expect(status.currentBranch).toBe("feature");
     expect(realpathSync.native(status.repoRoot)).toBe(realpathSync.native(worktree.worktreePath));
-    expect(status.isPaseoOwnedWorktree).toBe(true);
+    expect(status.isKivotosOwnedWorktree).toBe(true);
     expect(realpathSync.native(status.mainRepoRoot ?? "")).toBe(realpathSync.native(repoDir));
     expect(status.baseRef).toBe("main");
   });
@@ -3776,7 +3776,7 @@ const x = 1;
         "worktree /home/user/repo",
         "branch refs/heads/main",
         "",
-        "worktree /home/user/.paseo/worktrees/feature",
+        "worktree /home/user/.kivotos/worktrees/feature",
         "branch refs/heads/feature",
         "",
       ].join("\n");
@@ -3785,7 +3785,7 @@ const x = 1;
       expect(entries).toHaveLength(2);
       expect(entries[0]).toEqual({ path: "/home/user/repo", branchRef: "refs/heads/main" });
       expect(entries[1]).toEqual({
-        path: "/home/user/.paseo/worktrees/feature",
+        path: "/home/user/.kivotos/worktrees/feature",
         branchRef: "refs/heads/feature",
       });
     });
@@ -3798,32 +3798,32 @@ const x = 1;
     });
   });
 
-  describe("isPaseoWorktreePath", () => {
-    it("matches Unix .paseo/worktrees/ paths", () => {
-      expect(isPaseoWorktreePath("/home/user/.paseo/worktrees/feature")).toBe(true);
+  describe("isKivotosWorktreePath", () => {
+    it("matches Unix .kivotos/worktrees/ paths", () => {
+      expect(isKivotosWorktreePath("/home/user/.kivotos/worktrees/feature")).toBe(true);
     });
 
-    it("matches Windows .paseo\\worktrees\\ paths", () => {
-      expect(isPaseoWorktreePath("C:\\Users\\dev\\.paseo\\worktrees\\feature")).toBe(true);
+    it("matches Windows .kivotos\\worktrees\\ paths", () => {
+      expect(isKivotosWorktreePath("C:\\Users\\dev\\.kivotos\\worktrees\\feature")).toBe(true);
     });
 
-    it("matches worktrees under a custom PASEO_HOME", () => {
-      const customPaseoHome = process.platform === "win32" ? "C:\\paseo" : "/var/lib/paseo";
+    it("matches worktrees under a custom KIVOTOS_HOME", () => {
+      const customKivotosHome = process.platform === "win32" ? "C:\\kivotos" : "/var/lib/kivotos";
       const worktreePath =
         process.platform === "win32"
-          ? win32.join(customPaseoHome, "worktrees", "project", "feature")
-          : `${customPaseoHome}/worktrees/project/feature`;
+          ? win32.join(customKivotosHome, "worktrees", "project", "feature")
+          : `${customKivotosHome}/worktrees/project/feature`;
 
       expect(
-        isPaseoWorktreePath(worktreePath, {
-          paseoHome: customPaseoHome,
+        isKivotosWorktreePath(worktreePath, {
+          kivotosHome: customKivotosHome,
         }),
       ).toBe(true);
     });
 
-    it("rejects paths without .paseo/worktrees segment", () => {
-      expect(isPaseoWorktreePath("/home/user/repo")).toBe(false);
-      expect(isPaseoWorktreePath("C:\\Users\\dev\\repo")).toBe(false);
+    it("rejects paths without .kivotos/worktrees segment", () => {
+      expect(isKivotosWorktreePath("/home/user/repo")).toBe(false);
+      expect(isKivotosWorktreePath("C:\\Users\\dev\\repo")).toBe(false);
     });
   });
 

@@ -1,4 +1,4 @@
-import { resolvePaseoHome } from "@getpaseo/server/daemon-control";
+import { resolveKivotosHome } from "@kivotos/server/daemon-control";
 
 export type DaemonTarget = { kind: "instance"; home: string } | { kind: "endpoint"; host: string };
 
@@ -21,19 +21,19 @@ export function selectDaemonTarget(
       };
     return {
       kind: "instance",
-      home: resolvePaseoHome({ PASEO_HOME: options.home ?? env.PASEO_HOME }),
+      home: resolveKivotosHome({ KIVOTOS_HOME: options.home ?? env.KIVOTOS_HOME }),
     };
   }
   if (options.home !== undefined)
-    return { kind: "instance", home: resolvePaseoHome({ PASEO_HOME: options.home }) };
+    return { kind: "instance", home: resolveKivotosHome({ KIVOTOS_HOME: options.home }) };
   if (options.host !== undefined) return { kind: "endpoint", host: options.host };
-  if (env.PASEO_HOME && env.PASEO_HOST)
+  if (env.KIVOTOS_HOME && env.KIVOTOS_HOST)
     throw {
       code: "TARGET_AMBIGUOUS",
-      message: "PASEO_HOME and PASEO_HOST are both set. Choose --home or --host explicitly.",
+      message: "KIVOTOS_HOME and KIVOTOS_HOST are both set. Choose --home or --host explicitly.",
     };
-  if (env.PASEO_HOST) return { kind: "endpoint", host: env.PASEO_HOST };
-  return { kind: "instance", home: resolvePaseoHome({ PASEO_HOME: env.PASEO_HOME }) };
+  if (env.KIVOTOS_HOST) return { kind: "endpoint", host: env.KIVOTOS_HOST };
+  return { kind: "instance", home: resolveKivotosHome({ KIVOTOS_HOME: env.KIVOTOS_HOME }) };
 }
 
 export function describeDaemonTarget(target: DaemonTarget): string {

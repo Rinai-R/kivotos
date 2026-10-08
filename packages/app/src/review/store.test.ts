@@ -117,16 +117,16 @@ describe("normalizePersistedState", () => {
       activeModesByScope: { "review:scope": "base" },
     };
     backing.values.set(
-      "@paseo:review-draft-store",
+      "@kivotos:review-draft-store",
       JSON.stringify({ state: legacyState, version: 1 }),
     );
     const storage = createValidatedPersistStorage(backing, SerializedReviewDraftStateSchema);
 
-    const stored = await storage.getItem("@paseo:review-draft-store");
+    const stored = await storage.getItem("@kivotos:review-draft-store");
     const normalized = normalizePersistedState(stored?.state);
 
     expect(normalized.drafts["review:key"]).toEqual([makeComment()]);
-    expect(backing.values.has("@paseo:review-draft-store")).toBe(true);
+    expect(backing.values.has("@kivotos:review-draft-store")).toBe(true);
   });
 
   it("rejects the complete payload when any draft comment or field is invalid", () => {
@@ -253,7 +253,7 @@ describe("buildReviewAttachmentSnapshot", () => {
       commentCount: 1,
       attachment: {
         type: "review",
-        mimeType: "application/paseo-review",
+        mimeType: "application/kivotos-review",
         cwd: "/repo",
         mode: "base",
         baseRef: "main",

@@ -1,4 +1,4 @@
-import type { TerminalState } from "@getpaseo/protocol/messages";
+import type { TerminalState } from "@kivotos/protocol/messages";
 import { renderTerminalSnapshotToAnsi } from "../runtime/terminal-snapshot";
 import type { TerminalViewportState } from "./headless-terminal-state";
 import { nativeTerminalPerformanceNow } from "./terminal-performance";

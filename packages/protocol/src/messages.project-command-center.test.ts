@@ -10,13 +10,13 @@ describe("project command-center protocol", () => {
     expect(
       SessionInboundMessageSchema.parse({
         type: "workspace.github.search_repositories.request",
-        query: "paseo",
+        query: "kivotos",
         limit: 12,
         requestId: "req-search",
       }),
     ).toEqual({
       type: "workspace.github.search_repositories.request",
-      query: "paseo",
+      query: "kivotos",
       limit: 12,
       requestId: "req-search",
     });
@@ -29,13 +29,13 @@ describe("project command-center protocol", () => {
           requestId: "req-search",
           repositories: [
             {
-              id: "R_paseo",
-              name: "paseo",
-              nameWithOwner: "getpaseo/paseo",
+              id: "R_kivotos",
+              name: "kivotos",
+              nameWithOwner: "getkivotos/kivotos",
               description: "Development environment in your pocket",
               visibility: "public",
               updatedAt: "2026-07-15T10:00:00Z",
-              cloneUrl: "git@github.com:getpaseo/paseo.git",
+              cloneUrl: "git@github.com:getkivotos/kivotos.git",
             },
           ],
           available: true,
@@ -47,13 +47,13 @@ describe("project command-center protocol", () => {
       requestId: "req-search",
       repositories: [
         {
-          id: "R_paseo",
-          name: "paseo",
-          nameWithOwner: "getpaseo/paseo",
+          id: "R_kivotos",
+          name: "kivotos",
+          nameWithOwner: "getkivotos/kivotos",
           description: "Development environment in your pocket",
           visibility: "public",
           updatedAt: "2026-07-15T10:00:00Z",
-          cloneUrl: "git@github.com:getpaseo/paseo.git",
+          cloneUrl: "git@github.com:getkivotos/kivotos.git",
         },
       ],
       available: true,
@@ -142,19 +142,19 @@ describe("project command-center protocol", () => {
           repositories: [
             {
               id: "repo",
-              name: " paseo ",
-              nameWithOwner: " getpaseo/paseo ",
+              name: " kivotos ",
+              nameWithOwner: " getkivotos/kivotos ",
               description: null,
               visibility: "public",
               updatedAt: "2026-07-15T10:00:00Z",
-              cloneUrl: " https://github.com/getpaseo/paseo ",
+              cloneUrl: " https://github.com/getpaseo/kivotos ",
             },
           ],
           available: true,
           error: null,
         },
       }).payload.repositories[0]?.name,
-    ).toBe(" paseo ");
+    ).toBe(" kivotos ");
   });
 
   it("keeps project command feature flags optional for older server_info payloads", () => {

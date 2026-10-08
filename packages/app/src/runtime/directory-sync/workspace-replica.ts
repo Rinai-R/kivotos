@@ -2,7 +2,7 @@ import equal from "fast-deep-equal";
 import type {
   ScriptStatusUpdateMessage,
   SessionOutboundMessage,
-} from "@getpaseo/protocol/messages";
+} from "@kivotos/protocol/messages";
 import {
   normalizeProjectDescriptor,
   normalizeWorkspaceDescriptor,

@@ -1,16 +1,16 @@
-# Paseo Hub relationship
+# Kivotos Hub relationship
 
-Paseo Hub is an explicit opt-in connection from one Paseo daemon to one Hub. Running a daemon does
+Kivotos Hub is an explicit opt-in connection from one Kivotos daemon to one Hub. Running a daemon does
 not register it with a Hub. The relationship begins only when a user runs
-`paseo hub connect [url]` from the daemon machine with an explicit API key or matching stored CLI login.
+`kivotos hub connect [url]` from the daemon machine with an explicit API key or matching stored CLI login.
 
-The human CLI login and daemon relationship are separate identities. `paseo hub login [url]` stores a durable organization-scoped CLI credential keyed by normalized Hub origin under `PASEO_HOME`. Interactive login optionally connects the local daemon, then points to the Hub UI for trigger configuration; it does not scaffold or deploy configuration. `paseo hub init` remains the explicit triggers-as-code scaffold: it writes one self-contained organization trigger under `.paseo/triggers/`, validates it through the trigger API, and optionally installs it. `paseo hub deploy` validates and installs every trigger in that directory; passing `--project` keeps deploying the legacy project bundle instead. `paseo hub export [directory]` writes the active organization's current triggers in the same layout, using the active login unless another Hub or API key is selected. Origin resolution uses explicit command input, `PASEO_HUB_URL`, active login, then `https://hub.paseo.sh`. Connect uses exact-origin authority to request a one-time enrollment token, then passes only that token to the daemon. The daemon generates and persists its own relationship credential.
+The human CLI login and daemon relationship are separate identities. `kivotos hub login [url]` stores a durable organization-scoped CLI credential keyed by normalized Hub origin under `KIVOTOS_HOME`. Interactive login optionally connects the local daemon, then points to the Hub UI for trigger configuration; it does not scaffold or deploy configuration. `kivotos hub init` remains the explicit triggers-as-code scaffold: it writes one self-contained organization trigger under `.kivotos/triggers/`, validates it through the trigger API, and optionally installs it. `kivotos hub deploy` validates and installs every trigger in that directory; passing `--project` keeps deploying the legacy project bundle instead. `kivotos hub export [directory]` writes the active organization's current triggers in the same layout, using the active login unless another Hub or API key is selected. Origin resolution uses explicit command input, `KIVOTOS_HUB_URL`, active login, then `https://hub.paseo.sh`. Connect uses exact-origin authority to request a one-time enrollment token, then passes only that token to the daemon. The daemon generates and persists its own relationship credential.
 
 ## Connection and authority
 
 The daemon enrolls over HTTP(S), then opens and maintains a direct outbound WebSocket to the Hub.
-The Hub never discovers or acquires the daemon through Paseo's relay. The relay remains an optional
-encrypted path for normal Paseo clients and has no role in Hub enrollment, authentication, dispatch,
+The Hub never discovers or acquires the daemon through Kivotos's relay. The relay remains an optional
+encrypted path for normal Kivotos clients and has no role in Hub enrollment, authentication, dispatch,
 or reconnects.
 
 The daemon persists a relationship ID and private connection credential before enrollment. The
@@ -21,7 +21,7 @@ Normal authenticated daemon sessions may manage the daemon's Hub relationship an
 Hub connections have no daemon permissions by default. Connecting gives Hub machine identity and
 presence but no execution authority. The `hub.execute` permission lets workflows triggered from
 GitHub, Slack, Discord, Linear, and other integrations create workspaces and run agents. Grant it
-during interactive login or later with `paseo hub permissions grant hub.execute`. Relationships
+during interactive login or later with `kivotos hub permissions grant hub.execute`. Relationships
 created before this split migrate their legacy execution scope to `hub.execute`. Hub sessions cannot
 manage their own relationship or permissions.
 
@@ -69,7 +69,7 @@ hashes, never prompts, environment values, or credentials.
 Before messaging an archived workspace, call `workspace.recovery.inspect.request`, then
 `workspace.recovery.restore.request` and await success. The native message handler unarchives the
 agent and loads its persisted provider session. `activeTurnBehavior: "steer"` uses the provider's
-native steering behavior, including Paseo's existing behavior when that provider cannot steer.
+native steering behavior, including Kivotos's existing behavior when that provider cannot steer.
 Execution completion and arrival-specific output authority remain Hub responsibilities.
 
 The older `hub.execution.*` RPCs remain accepted for existing clients. Their execution ownership
@@ -85,19 +85,19 @@ Hub authentication rejection or close code `4403` permanently revokes the local 
 daemon deletes its credential, stops reconnecting, and retains only the relationship ID, Hub origin,
 scopes, and a sanitized reason for status reporting.
 
-`paseo hub disconnect` disables socket reconnect and execution authority before making one bounded
+`kivotos hub disconnect` disables socket reconnect and execution authority before making one bounded
 remote revocation request. The daemon then removes the local relationship whether the request
 succeeds or fails. A failed request returns a warning that server-side revocation may remain pending.
 `--force` skips the remote request. Legacy persisted `disconnecting` records are removed on startup;
 the daemon does not retry revocation in the background.
 
-`paseo hub logout` removes only the active human CLI credential and preserves credentials for other origins. Interactive logout inspects and optionally disconnects a same-origin daemon before deleting the login; a failed requested disconnect preserves the login. JSON and noninteractive logout never prompt or disconnect implicitly.
+`kivotos hub logout` removes only the active human CLI credential and preserves credentials for other origins. Interactive logout inspects and optionally disconnects a same-origin daemon before deleting the login; a failed requested disconnect preserves the login. JSON and noninteractive logout never prompt or disconnect implicitly.
 
 ## Cross-repository compatibility
 
-The consumer implementation lives in Paseo Cloud. Cloud owns its copy of the Hub wire schemas and
-has no Paseo runtime or build dependency. Cross-repository end-to-end verification separately builds
-a Paseo source checkout and exercises the real daemon, CLI, direct WebSocket, Cloud service, and
+The consumer implementation lives in Kivotos Cloud. Cloud owns its copy of the Hub wire schemas and
+has no Kivotos runtime or build dependency. Cross-repository end-to-end verification separately builds
+a Kivotos source checkout and exercises the real daemon, CLI, direct WebSocket, Cloud service, and
 Postgres. That compatibility fixture is not a package dependency or fallback implementation.
 Its `hub-e2e` ACP provider accepts only exact tool names on the injected `hub` MCP server. Other
 custom ACP providers remain unsupported for unattended preapproval.

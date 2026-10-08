@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { claudeProjectDirSync } from "../agent/providers/claude/project-dir.js";
 import { DaemonClient } from "../test-utils/daemon-client.js";
-import { createTestPaseoDaemon, type TestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon, type TestKivotosDaemon } from "../test-utils/kivotos-daemon.js";
 
 // Claude Code resumes a session by id from any working directory and keeps writing to the
 // transcript under the project folder it started in. The agent's cwd can name a different
@@ -30,20 +30,20 @@ function timelineText(entries: ReadonlyArray<{ item: { type: string; text?: stri
 
 describe("daemon E2E - Claude history stored under another project folder", () => {
   let tempRoot: string;
-  let paseoHomeRoot: string;
+  let kivotosHomeRoot: string;
   let configDir: string;
   let transcriptCwd: string;
   let agentCwd: string;
-  let daemon: TestPaseoDaemon | undefined;
+  let daemon: TestKivotosDaemon | undefined;
   let client: DaemonClient | undefined;
 
   beforeEach(() => {
     tempRoot = mkdtempSync(path.join(tmpdir(), "claude-history-other-project-"));
-    paseoHomeRoot = path.join(tempRoot, "paseo-home");
+    kivotosHomeRoot = path.join(tempRoot, "kivotos-home");
     configDir = path.join(tempRoot, "claude-config");
     transcriptCwd = path.join(tempRoot, "where-claude-started");
     agentCwd = path.join(tempRoot, "agent-cwd");
-    mkdirSync(paseoHomeRoot, { recursive: true });
+    mkdirSync(kivotosHomeRoot, { recursive: true });
     mkdirSync(agentCwd, { recursive: true });
 
     const projectDir = claudeProjectDirSync(transcriptCwd, { configDir });
@@ -83,8 +83,8 @@ describe("daemon E2E - Claude history stored under another project folder", () =
   }, 60_000);
 
   async function startDaemon(): Promise<DaemonClient> {
-    daemon = await createTestPaseoDaemon({
-      paseoHomeRoot,
+    daemon = await createTestKivotosDaemon({
+      kivotosHomeRoot,
       cleanup: false,
       providerOverrides: {
         [PROVIDER_ID]: {

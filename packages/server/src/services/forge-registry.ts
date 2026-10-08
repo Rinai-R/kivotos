@@ -1,5 +1,5 @@
-import { getForgeDefinition } from "@getpaseo/protocol/forge-manifest";
-import { normalizeHost } from "@getpaseo/protocol/git-remote";
+import { getForgeDefinition } from "@kivotos/protocol/forge-manifest";
+import { normalizeHost } from "@kivotos/protocol/git-remote";
 import { createGitHubService, probeGitHubHost } from "./github-service.js";
 import type { ForgeService } from "./forge-service.js";
 import { createGiteaService, resolveGiteaFamilyForge } from "./gitea-service.js";

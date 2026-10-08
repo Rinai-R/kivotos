@@ -7,7 +7,7 @@ import { DEFAULT_DESKTOP_SETTINGS } from "../settings/desktop-settings";
 import { createDaemonCommandHandlers } from "./daemon-manager";
 
 const mocks = vi.hoisted(() => ({
-  paseoHome: "",
+  kivotosHome: "",
   settings: {
     releaseChannel: "stable",
     daemon: {
@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn(() => mocks.paseoHome),
+    getPath: vi.fn(() => mocks.kivotosHome),
     getVersion: vi.fn(() => "1.2.3"),
     isPackaged: true,
   },
@@ -51,9 +51,9 @@ vi.mock("electron-log/main", () => ({
   },
 }));
 
-vi.mock("@getpaseo/server/daemon-control", async (importOriginal) => ({
+vi.mock("@kivotos/server/daemon-control", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  resolvePaseoHome: () => mocks.paseoHome,
+  resolveKivotosHome: () => mocks.kivotosHome,
   spawnProcess: mocks.spawnProcess,
 }));
 
@@ -68,7 +68,7 @@ vi.mock("../settings/desktop-settings-electron.js", () => ({
 vi.mock("./runtime-paths.js", () => ({
   createNodeEntrypointInvocation: mocks.createNodeEntrypointInvocation,
   resolveDaemonRunnerEntrypoint: vi.fn(() => ({
-    entryPath: path.join(mocks.paseoHome, "daemon.js"),
+    entryPath: path.join(mocks.kivotosHome, "daemon.js"),
     execArgv: [],
   })),
 }));
@@ -82,8 +82,8 @@ describe("daemon-manager commands", () => {
   let fixtureRoot: string;
 
   beforeEach(() => {
-    fixtureRoot = mkdtempSync(path.join(tmpdir(), "paseo daemon manager "));
-    mocks.paseoHome = path.join(fixtureRoot, "home");
+    fixtureRoot = mkdtempSync(path.join(tmpdir(), "kivotos daemon manager "));
+    mocks.kivotosHome = path.join(fixtureRoot, "home");
     mocks.appLogPath = path.join(fixtureRoot, "main.log");
     mocks.settings = DEFAULT_DESKTOP_SETTINGS;
     mocks.runExternalCliJsonCommand.mockReset();
@@ -126,10 +126,10 @@ describe("daemon-manager commands", () => {
   });
 
   it("reports a stopped daemon without launching the CLI when no local daemon runs", async () => {
-    mkdirSync(mocks.paseoHome);
-    writeFileSync(path.join(mocks.paseoHome, "server-id"), "srv_existing\n");
+    mkdirSync(mocks.kivotosHome);
+    writeFileSync(path.join(mocks.kivotosHome, "server-id"), "srv_existing\n");
     mocks.runExternalCliJsonCommand.mockResolvedValue({
-      home: mocks.paseoHome,
+      home: mocks.kivotosHome,
       pid: null,
       startedAt: null,
       listen: null,
@@ -146,8 +146,8 @@ describe("daemon-manager commands", () => {
   });
 
   it("reports an errored daemon when the local daemon state cannot be read", async () => {
-    mkdirSync(mocks.paseoHome);
-    writeFileSync(path.join(mocks.paseoHome, "paseo.pid"), "garbage");
+    mkdirSync(mocks.kivotosHome);
+    writeFileSync(path.join(mocks.kivotosHome, "kivotos.pid"), "garbage");
 
     const status = await createDaemonCommandHandlers().desktop_daemon_status();
 
@@ -156,9 +156,9 @@ describe("daemon-manager commands", () => {
   });
 
   it("returns a local credential only for its live managed daemon listen", async () => {
-    mkdirSync(mocks.paseoHome);
+    mkdirSync(mocks.kivotosHome);
     const token = "a".repeat(43);
-    writeFileSync(path.join(mocks.paseoHome, "local-credential"), `${token}\n`, { mode: 0o600 });
+    writeFileSync(path.join(mocks.kivotosHome, "local-credential"), `${token}\n`, { mode: 0o600 });
     const lock = {
       pid: process.pid,
       startedAt: new Date().toISOString(),
@@ -167,7 +167,7 @@ describe("daemon-manager commands", () => {
       listen: "127.0.0.1:6799",
       desktopManaged: true,
     };
-    const lockPath = path.join(mocks.paseoHome, "paseo.pid");
+    const lockPath = path.join(mocks.kivotosHome, "kivotos.pid");
     writeFileSync(lockPath, JSON.stringify(lock));
     const handler = createDaemonCommandHandlers().desktop_local_credential;
     expect(await handler({ listen: "localhost:6799" })).toBe(token);

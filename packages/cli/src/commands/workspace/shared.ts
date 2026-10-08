@@ -1,4 +1,4 @@
-import type { WorkspaceDescriptorPayload } from "@getpaseo/protocol/messages";
+import type { WorkspaceDescriptorPayload } from "@kivotos/protocol/messages";
 import type { OutputSchema } from "../../output/index.js";
 
 export interface WorkspaceRow {

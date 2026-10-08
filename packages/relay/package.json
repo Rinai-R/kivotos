@@ -1,7 +1,7 @@
 {
-  "name": "@getpaseo/relay",
+  "name": "@kivotos/relay",
   "version": "0.11.1",
-  "description": "Paseo relay for bridging daemon and client connections",
+  "description": "Kivotos relay for bridging daemon and client connections",
   "files": [
     "dist",
     "!dist/**/*.map"

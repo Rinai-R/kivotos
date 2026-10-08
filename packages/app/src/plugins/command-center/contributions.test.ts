@@ -1,12 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createPaseoApi, type PaseoApi } from "@getpaseo/client";
-import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import { createKivotosApi, type KivotosApi } from "@kivotos/client";
+import { DaemonClient } from "@kivotos/client/internal/daemon-client";
 import {
   defineRpc,
   type PluginAgentSnapshot,
   type PluginWorkspaceSnapshot,
-} from "@getpaseo/plugin";
-import { type PluginCommandCenterItemContribution } from "@getpaseo/plugin/client";
+} from "@kivotos/plugin";
+import { type PluginCommandCenterItemContribution } from "@kivotos/plugin/client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { InstalledPlugin } from "../types";
@@ -15,9 +15,9 @@ import { buildPluginCommandCenterContributions } from "./contributions";
 const workspace: PluginWorkspaceSnapshot = {
   id: "workspace-1",
   projectId: "project-1",
-  projectDisplayName: "Paseo",
-  projectRootPath: "/repo/paseo",
-  directory: "/repo/paseo/review",
+  projectDisplayName: "Kivotos",
+  projectRootPath: "/repo/kivotos",
+  directory: "/repo/kivotos/review",
   projectKind: "git",
   kind: "worktree",
   name: "Review",
@@ -61,7 +61,7 @@ function plugin(onAgentSelect: AgentCommandItem["onSelect"]): InstalledPlugin {
     serverId: "host-1",
     clientBundle: "bundle",
     lifetime: new AbortController(),
-    paseo: createPaseoApi(
+    kivotos: createKivotosApi(
       new DaemonClient({
         url: "ws://127.0.0.1:1",
         clientId: "plugin-command-test",
@@ -174,11 +174,11 @@ describe("plugin Command Center contributions", () => {
   it("supplies the direct API, typed RPC, snapshots, and narrow navigation", async () => {
     const opened: string[] = [];
     let rpcValue = 0;
-    let receivedPaseo: PaseoApi | null = null;
+    let receivedKivotos: KivotosApi | null = null;
     const installed = plugin(async (context) => {
       expect(context.workspace).toBe(workspace);
       expect(context.agent).toBe(agent);
-      receivedPaseo = context.paseo;
+      receivedKivotos = context.kivotos;
       rpcValue = (await context.rpc(inspect, { value: 4 })).value;
       context.openSurface("main");
       context.openPanel("details", { location: "explorer" });
@@ -209,7 +209,7 @@ describe("plugin Command Center contributions", () => {
 
     expect(rpcValue).toBe(5);
     // Commands use the plugin's one client.
-    expect(receivedPaseo).toBe(installed.paseo);
+    expect(receivedKivotos).toBe(installed.kivotos);
     expect(opened).toEqual(["review/surface/main", "review/agent/details/agent-1/explorer"]);
   });
 

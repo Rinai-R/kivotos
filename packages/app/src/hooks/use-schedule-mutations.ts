@@ -10,8 +10,8 @@ import type {
   CreateScheduleOptions,
   DaemonClient,
   UpdateScheduleOptions,
-} from "@getpaseo/client/internal/daemon-client";
-import type { ScheduleSummary } from "@getpaseo/protocol/schedule/types";
+} from "@kivotos/client/internal/daemon-client";
+import type { ScheduleSummary } from "@kivotos/protocol/schedule/types";
 import type {
   AggregatedSchedule,
   FetchAggregatedSchedulesState,

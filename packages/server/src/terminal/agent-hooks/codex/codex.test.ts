@@ -59,7 +59,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 describe("Codex terminal agent hooks", () => {
   it("installs POSIX and Windows hook commands idempotently", () => {
-    const configDir = createTempDir("paseo-codex-config-");
+    const configDir = createTempDir("kivotos-codex-config-");
 
     installAgentHooks(codexAgentHookProvider, { configDir });
     const secondInstall = installAgentHooks(codexAgentHookProvider, { configDir });
@@ -68,8 +68,8 @@ describe("Codex terminal agent hooks", () => {
     for (const event of codexAgentHookProvider.events) {
       expect(commandHooks(config, event.event)).toEqual([
         {
-          command: `if [ -n "$PASEO_TERMINAL_ID" ]; then "\${PASEO_HOOK_CLI:-paseo}" hooks codex ${event.event}; fi`,
-          commandWindows: `if defined PASEO_TERMINAL_ID (if defined PASEO_HOOK_CLI ("%PASEO_HOOK_CLI%" hooks codex ${event.event}) else (paseo hooks codex ${event.event})) else (exit /b 0)`,
+          command: `if [ -n "$KIVOTOS_TERMINAL_ID" ]; then "\${KIVOTOS_HOOK_CLI:-kivotos}" hooks codex ${event.event}; fi`,
+          commandWindows: `if defined KIVOTOS_TERMINAL_ID (if defined KIVOTOS_HOOK_CLI ("%KIVOTOS_HOOK_CLI%" hooks codex ${event.event}) else (kivotos hooks codex ${event.event})) else (exit /b 0)`,
         },
       ]);
     }
@@ -78,7 +78,7 @@ describe("Codex terminal agent hooks", () => {
   });
 
   it("preserves unrelated user hooks", () => {
-    const configDir = createTempDir("paseo-codex-config-preserve-");
+    const configDir = createTempDir("kivotos-codex-config-preserve-");
     writeFileSync(
       join(configDir, "hooks.json"),
       `${JSON.stringify(
@@ -102,12 +102,12 @@ describe("Codex terminal agent hooks", () => {
     const stopCommands = commandHooks(readHooksFile(configDir), "Stop").map((hook) => hook.command);
     expect(stopCommands).toEqual([
       "say codex done",
-      'if [ -n "$PASEO_TERMINAL_ID" ]; then "${PASEO_HOOK_CLI:-paseo}" hooks codex Stop; fi',
+      'if [ -n "$KIVOTOS_TERMINAL_ID" ]; then "${KIVOTOS_HOOK_CLI:-kivotos}" hooks codex Stop; fi',
     ]);
   });
 
   it("uninstalls only marker-matched hooks", () => {
-    const configDir = createTempDir("paseo-codex-config-uninstall-");
+    const configDir = createTempDir("kivotos-codex-config-uninstall-");
     installAgentHooks(codexAgentHookProvider, { configDir });
     const config = readHooksFile(configDir);
     config.hooks = {

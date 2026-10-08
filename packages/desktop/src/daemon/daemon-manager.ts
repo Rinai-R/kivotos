@@ -3,7 +3,7 @@ import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
 import log from "electron-log/main";
 import {
-  resolvePaseoHome,
+  resolveKivotosHome,
   startDaemonInstance,
   DaemonInstanceError,
   stopDaemonInstance,
@@ -11,7 +11,7 @@ import {
   isSameDaemonInstance,
   readLocalCredentialForTarget,
   type DaemonInstance,
-} from "@getpaseo/server/daemon-control";
+} from "@kivotos/server/daemon-control";
 import {
   copyAttachmentFileToManagedStorage,
   deleteManagedAttachmentFile,
@@ -123,18 +123,18 @@ function parseDesktopDaemonStopReason(
 // Utilities
 // ---------------------------------------------------------------------------
 
-function getPaseoHome(): string {
-  return resolvePaseoHome(process.env);
+function getKivotosHome(): string {
+  return resolveKivotosHome(process.env);
 }
 
 function logFilePath(): string {
-  return path.join(getPaseoHome(), DAEMON_LOG_FILENAME);
+  return path.join(getKivotosHome(), DAEMON_LOG_FILENAME);
 }
 
 export function isDesktopManagedDaemonRunningSync(): boolean {
   if (!ownedLaunch) return false;
   try {
-    const lock = JSON.parse(readFileSync(path.join(ownedLaunch.home, "paseo.pid"), "utf8"));
+    const lock = JSON.parse(readFileSync(path.join(ownedLaunch.home, "kivotos.pid"), "utf8"));
     return isSameDaemonInstance(lock, ownedLaunch.instance) && isProcessRunning(lock.pid);
   } catch {
     return false;
@@ -221,7 +221,7 @@ function resolveDesktopAppVersion(): string {
 // ---------------------------------------------------------------------------
 
 export async function resolveDesktopDaemonStatus(): Promise<DesktopDaemonStatus> {
-  const home = getPaseoHome();
+  const home = getKivotosHome();
 
   try {
     // The app polls this while no local daemon runs. Answer that case in-process,
@@ -300,7 +300,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     }
   }
 
-  const home = getPaseoHome();
+  const home = getKivotosHome();
   const invocation = createNodeEntrypointInvocation({
     entrypoint: resolveDaemonRunnerEntrypoint(),
     argvMode: "node-script",
@@ -312,7 +312,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
       home,
       timeoutMs: 30_000,
       ...invocation,
-      env: { ...invocation.env, PASEO_CLI: getBundledCliShimPath() },
+      env: { ...invocation.env, KIVOTOS_CLI: getBundledCliShimPath() },
       mode: "managed",
       desktopManaged: true,
       onAcquired: (instance) => {
@@ -329,7 +329,7 @@ export async function stopDesktopDaemon(
   reason: DesktopDaemonStopReason = DEFAULT_DESKTOP_DAEMON_STOP_REASON,
   confirmedInstance?: { pid: number; startedAt: string },
 ): Promise<DesktopDaemonStatus> {
-  const home = getPaseoHome();
+  const home = getKivotosHome();
   const instance = await readDaemonInstance(home);
   const owned = Boolean(
     instance &&
@@ -361,7 +361,7 @@ export async function stopDesktopDaemon(
 }
 
 async function restartDaemon(): Promise<DesktopDaemonStatus> {
-  await runExternalCliJsonCommand(["daemon", "restart", "--home", getPaseoHome(), "--json"]);
+  await runExternalCliJsonCommand(["daemon", "restart", "--home", getKivotosHome(), "--json"]);
   return resolveDesktopDaemonStatus();
 }
 
@@ -374,7 +374,7 @@ function getDaemonLogs(): DesktopDaemonLogs {
 }
 
 async function getCliDaemonStatus(): Promise<string> {
-  return await runExternalCliTextCommand(["daemon", "status", "--home", getPaseoHome()]);
+  return await runExternalCliTextCommand(["daemon", "status", "--home", getKivotosHome()]);
 }
 
 async function getLocalDaemonVersion(): Promise<{ version: string | null; error: string | null }> {
@@ -407,9 +407,9 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
     }),
     desktop_daemon_status: () => resolveDesktopDaemonStatus(),
     desktop_local_credential: async (args) => {
-      const instance = await readDaemonInstance(getPaseoHome());
+      const instance = await readDaemonInstance(getKivotosHome());
       if (!instance?.desktopManaged || typeof args?.listen !== "string") return null;
-      return readLocalCredentialForTarget(getPaseoHome(), args.listen);
+      return readLocalCredentialForTarget(getKivotosHome(), args.listen);
     },
     start_desktop_daemon: () => startDaemon(),
     stop_desktop_daemon: (args) =>
@@ -424,7 +424,7 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
     desktop_sandbox_diagnostics: () =>
       describeSandbox({
         disabled: app.commandLine.hasSwitch("no-sandbox"),
-        launcherReason: process.env.PASEO_DESKTOP_SANDBOX_REASON,
+        launcherReason: process.env.KIVOTOS_DESKTOP_SANDBOX_REASON,
       }),
     desktop_app_logs: () => getDesktopAppLogs(),
     desktop_update_diagnostics: () => getDesktopUpdaterDiagnostics(),
@@ -478,7 +478,7 @@ export function registerDaemonManager(): void {
   const handlers = createDaemonCommandHandlers();
 
   ipcMain.handle(
-    "paseo:invoke",
+    "kivotos:invoke",
     async (_event, command: string, args?: Record<string, unknown>) => {
       const handler = handlers[command];
       if (!handler) {

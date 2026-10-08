@@ -64,7 +64,7 @@ interface RestartDaemonClientConfig {
 }
 
 interface SeededRestartHome {
-  paseoHome: string;
+  kivotosHome: string;
   cwd: string;
   projectId: string;
   projectDisplayName: string;
@@ -83,10 +83,10 @@ function nowIso(): string {
 }
 
 async function seedRestartHome(): Promise<SeededRestartHome> {
-  const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-playwright-restart-home-"));
-  const cwd = mkdtempSync(path.join(tmpdir(), "paseo-playwright-restart-cwd-"));
-  const projectsDir = path.join(paseoHome, "projects");
-  const agentDir = path.join(paseoHome, "agents", projectDirNameFromCwd(cwd));
+  const kivotosHome = mkdtempSync(path.join(tmpdir(), "kivotos-playwright-restart-home-"));
+  const cwd = mkdtempSync(path.join(tmpdir(), "kivotos-playwright-restart-cwd-"));
+  const projectsDir = path.join(kivotosHome, "projects");
+  const agentDir = path.join(kivotosHome, "agents", projectDirNameFromCwd(cwd));
   mkdirSync(projectsDir, { recursive: true });
   mkdirSync(agentDir, { recursive: true });
 
@@ -153,14 +153,14 @@ async function seedRestartHome(): Promise<SeededRestartHome> {
   );
 
   return {
-    paseoHome,
+    kivotosHome,
     cwd,
     projectId: project.projectId,
     projectDisplayName,
     workspaceA: workspaceA.workspaceId,
     workspaceB: workspaceB.workspaceId,
     cleanup: () => {
-      rmSync(paseoHome, { recursive: true, force: true });
+      rmSync(kivotosHome, { recursive: true, force: true });
       rmSync(cwd, { recursive: true, force: true });
     },
   };
@@ -229,7 +229,7 @@ async function waitForServer(port: number, child: ChildProcess): Promise<void> {
 }
 
 async function startRestartDaemon(input: {
-  paseoHome: string;
+  kivotosHome: string;
   origin: string;
 }): Promise<StartedDaemon> {
   const port = await getAvailablePort();
@@ -242,12 +242,12 @@ async function startRestartDaemon(input: {
     cwd: serverDir,
     env: withDisabledE2ESpeechEnv({
       ...process.env,
-      PASEO_HOME: input.paseoHome,
-      PASEO_SERVER_ID: SERVER_ID,
-      PASEO_LISTEN: `127.0.0.1:${port}`,
-      PASEO_CORS_ORIGINS: input.origin,
-      PASEO_RELAY_ENABLED: "0",
-      PASEO_NODE_ENV: "development",
+      KIVOTOS_HOME: input.kivotosHome,
+      KIVOTOS_SERVER_ID: SERVER_ID,
+      KIVOTOS_LISTEN: `127.0.0.1:${port}`,
+      KIVOTOS_CORS_ORIGINS: input.origin,
+      KIVOTOS_RELAY_ENABLED: "0",
+      KIVOTOS_NODE_ENV: "development",
       NODE_ENV: "development",
     }),
     stdio: ["ignore", "ignore", "pipe"],
@@ -327,10 +327,10 @@ async function seedBrowserForDaemon(page: Page, input: { serverId: string; port:
   });
   await page.evaluate(
     ({ daemon, preferences }) => {
-      localStorage.setItem("@paseo:e2e", "1");
-      localStorage.setItem("@paseo:daemon-registry", JSON.stringify([daemon]));
-      localStorage.removeItem("@paseo:settings");
-      localStorage.setItem("@paseo:create-agent-preferences", JSON.stringify(preferences));
+      localStorage.setItem("@kivotos:e2e", "1");
+      localStorage.setItem("@kivotos:daemon-registry", JSON.stringify([daemon]));
+      localStorage.removeItem("@kivotos:settings");
+      localStorage.setItem("@kivotos:create-agent-preferences", JSON.stringify(preferences));
     },
     {
       daemon: host,
@@ -411,7 +411,7 @@ test.describe("Workspace model restart regressions", () => {
     test.setTimeout(90_000);
     const seeded = await seedRestartHome();
     const origin = new URL(baseURL ?? "http://localhost").origin;
-    const daemon = await startRestartDaemon({ paseoHome: seeded.paseoHome, origin });
+    const daemon = await startRestartDaemon({ kivotosHome: seeded.kivotosHome, origin });
     const serverId = SERVER_ID;
     const client = await connectRestartDaemonClient(daemon.port);
 

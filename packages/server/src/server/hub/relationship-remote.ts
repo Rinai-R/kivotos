@@ -166,13 +166,13 @@ export class DirectHubRelationshipRemote implements HubRelationshipRemote {
       handshakeTimeout: this.requestTimeoutMs,
       headers: {
         authorization: `Bearer ${input.credential}`,
-        "x-paseo-daemon-id": input.daemonId,
-        "x-paseo-session-protocol": "1",
+        "x-kivotos-daemon-id": input.daemonId,
+        "x-kivotos-session-protocol": "1",
       },
     });
     let settled = false;
     socket.once("upgrade", (response) => {
-      if (response.headers["x-paseo-session-protocol"] === "1") {
+      if (response.headers["x-kivotos-session-protocol"] === "1") {
         sessionProtocol = "session-v1";
       }
     });

@@ -13,11 +13,11 @@ Start your daemon with that environment variable set. Then turn on **Enable plug
 **Settings → Plugins** and install the example:
 
 ```bash
-paseo plugin add /absolute/path/to/paseo/plugin-examples/linear
-paseo plugin ls linear
+kivotos plugin add /absolute/path/to/kivotos/plugin-examples/linear
+kivotos plugin ls linear
 ```
 
-Use `paseo plugin reload linear` after source edits. Changing the API key requires restarting the
+Use `kivotos plugin reload linear` after source edits. Changing the API key requires restarting the
 daemon with the new environment; installing or reloading plugin source does not.
 
 The split entry point demonstrates the complete attachment-source pattern:

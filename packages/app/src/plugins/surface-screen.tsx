@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
-import type { PluginScreenParams, PluginScreenProps } from "@getpaseo/plugin/client";
-import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginScreenParams, PluginScreenProps } from "@kivotos/plugin/client";
+import type { PluginTheme } from "@kivotos/plugin";
 import { X } from "lucide-react-native";
 import { useCallback, useMemo, type ComponentType } from "react";
 import { Text, View } from "react-native";

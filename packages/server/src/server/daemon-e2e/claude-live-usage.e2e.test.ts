@@ -6,7 +6,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { ClaudeAgentClient } from "../agent/providers/claude/agent.js";
 import { DaemonClient } from "../test-utils/daemon-client.js";
-import { createTestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon } from "../test-utils/kivotos-daemon.js";
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void;
@@ -134,9 +134,9 @@ function createControlledClaudeQueryFactory(resultGate: Promise<void>) {
 describe("daemon E2E (claude live usage)", () => {
   test("publishes renderable active context usage through agent_update", async () => {
     const logger = pino({ level: "silent" });
-    const cwd = mkdtempSync(path.join(tmpdir(), "paseo-claude-live-usage-"));
+    const cwd = mkdtempSync(path.join(tmpdir(), "kivotos-claude-live-usage-"));
     const resultGate = deferred();
-    const daemon = await createTestPaseoDaemon({
+    const daemon = await createTestKivotosDaemon({
       agentClients: {
         claude: new ClaudeAgentClient({
           logger,

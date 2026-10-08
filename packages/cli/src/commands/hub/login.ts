@@ -60,8 +60,8 @@ export function addHubLoginCommand(parent: Command, dependencies: HubLoginDepend
     addHubResolutionHelp(
       parent
         .command("login")
-        .description("Log in to a Paseo Hub for CLI access")
-        .argument("[origin]", "Paseo Hub origin"),
+        .description("Log in to a Kivotos Hub for CLI access")
+        .argument("[origin]", "Kivotos Hub origin"),
     ),
   ).action(
     withOutput(async (...args) => {

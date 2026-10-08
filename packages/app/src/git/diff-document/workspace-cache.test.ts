@@ -1,4 +1,4 @@
-import type { ParsedDiffFile } from "@getpaseo/protocol/messages";
+import type { ParsedDiffFile } from "@kivotos/protocol/messages";
 import { describe, expect, it } from "vitest";
 import { createDiffDocumentWorkspaceCache } from "./workspace-cache";
 import type {

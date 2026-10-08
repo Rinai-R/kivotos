@@ -1,8 +1,8 @@
-import type { FetchAgentsEntry } from "@getpaseo/client/internal/daemon-client";
+import type { FetchAgentsEntry } from "@kivotos/client/internal/daemon-client";
 import type { Agent } from "@/stores/session-store";
 import { derivePendingPermissionKey, normalizeAgentSnapshot } from "@/utils/agent-snapshots";
 import { resolveProjectPlacement } from "@/utils/project-placement";
-import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
+import type { SessionOutboundMessage } from "@kivotos/protocol/messages";
 
 type AgentDirectoryFetchEntry = FetchAgentsEntry;
 export type AgentDirectoryDelta = Extract<

@@ -4,11 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { DaemonClient } from "../test-utils/daemon-client.js";
-import { createTestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { createTestKivotosDaemon } from "../test-utils/kivotos-daemon.js";
 
 test("closing and archiving agents publish their distinct lifecycle hooks once", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "paseo-archive-hooks-"));
-  const daemon = await createTestPaseoDaemon({ daemonVersion: "0.8.0" });
+  const directory = await mkdtemp(path.join(tmpdir(), "kivotos-archive-hooks-"));
+  const daemon = await createTestKivotosDaemon({ daemonVersion: "0.8.0" });
   const client = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws`, appVersion: "0.8.0" });
   try {
     await client.connect();
@@ -74,14 +74,14 @@ test("closing and archiving agents publish their distinct lifecycle hooks once",
 }, 60_000);
 
 test("daemon shutdown lets agent close hooks finish before stopping plugins", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "paseo-close-hook-shutdown-"));
-  const daemon = await createTestPaseoDaemon({ daemonVersion: "0.8.0" });
+  const directory = await mkdtemp(path.join(tmpdir(), "kivotos-close-hook-shutdown-"));
+  const daemon = await createTestKivotosDaemon({ daemonVersion: "0.8.0" });
   const client = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws`, appVersion: "0.8.0" });
   const completedFile = path.join(directory, "closed.txt");
   try {
     await writeFile(
-      path.join(directory, "paseo-plugin.json"),
-      JSON.stringify({ id: "close-hook-shutdown", requirements: { paseo: ">=0.8.0" } }),
+      path.join(directory, "kivotos-plugin.json"),
+      JSON.stringify({ id: "close-hook-shutdown", requirements: { kivotos: ">=0.8.0" } }),
     );
     await writeFile(
       path.join(directory, "index.server.ts"),

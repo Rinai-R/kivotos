@@ -1,4 +1,4 @@
-import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
+import type { SessionOutboundMessage } from "@kivotos/protocol/messages";
 import { describe, expect, it } from "vitest";
 
 import {

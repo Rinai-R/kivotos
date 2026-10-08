@@ -11,9 +11,9 @@
  * still maps to GitHub so old daemons (which never send a forge) render exactly
  * as before.
  */
-import { FORGE_DEFINITIONS, getForgeDefinitionOrNeutral } from "@getpaseo/protocol/forge-manifest";
-import { normalizeHost, parseGitRemoteLocation } from "@getpaseo/protocol/git-remote";
-import type { ForgeAuthState } from "@getpaseo/protocol/messages";
+import { FORGE_DEFINITIONS, getForgeDefinitionOrNeutral } from "@kivotos/protocol/forge-manifest";
+import { normalizeHost, parseGitRemoteLocation } from "@kivotos/protocol/git-remote";
+import type { ForgeAuthState } from "@kivotos/protocol/messages";
 import {
   buildForgeBlobUrl,
   buildForgeBranchTreeUrl,
@@ -77,7 +77,7 @@ export interface ForgePresentation {
   numberPrefix: string;
   /** Prefix the forge puts before an issue number ("#" on every forge so far). */
   issueNumberPrefix: string;
-  /** Auth CLI binary for the install hint, or null for a forge with no Paseo-driven sign-in. */
+  /** Auth CLI binary for the install hint, or null for a forge with no Kivotos-driven sign-in. */
   signInCli: string | null;
   /**
    * i18next context selecting the change-request vocabulary family for any key

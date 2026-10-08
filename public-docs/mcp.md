@@ -1,6 +1,6 @@
 ---
 title: MCP reference
-description: Reference for the Paseo tools agents use to manage agents, workspaces, scripts, terminals, and schedules.
+description: Reference for the Kivotos tools agents use to manage agents, workspaces, scripts, terminals, and schedules.
 nav: MCP reference
 order: 34
 category: Orchestration
@@ -8,25 +8,25 @@ category: Orchestration
 
 # MCP reference
 
-[Enable Paseo tools](/docs/orchestration#get-started) to give agents this catalog. Ask for an outcome in natural language, or use the tool interfaces below.
+[Enable Kivotos tools](/docs/orchestration#get-started) to give agents this catalog. Ask for an outcome in natural language, or use the tool interfaces below.
 
 ## Configuration
 
 | Setting                       | Default | Purpose                                            |
 | ----------------------------- | ------- | -------------------------------------------------- |
 | `daemon.mcp.enabled`          | `true`  | Run the MCP server.                                |
-| `daemon.mcp.injectIntoAgents` | `false` | Give agents launched by Paseo access to its tools. |
+| `daemon.mcp.injectIntoAgents` | `false` | Give agents launched by Kivotos access to its tools. |
 
-Depending on the provider, Paseo delivers tools through its native tool interface or MCP. The capabilities are the same. Start a new agent or reload an existing one after changing injection settings.
+Depending on the provider, Kivotos delivers tools through its native tool interface or MCP. The capabilities are the same. Start a new agent or reload an existing one after changing injection settings.
 
-## Limit Paseo tools by provider
+## Limit Kivotos tools by provider
 
-Use provider policies when different agent profiles should receive different Paseo tools. Enable
-tool injection globally, then add `paseoTools` to the exact provider IDs you launch:
+Use provider policies when different agent profiles should receive different Kivotos tools. Enable
+tool injection globally, then add `kivotosTools` to the exact provider IDs you launch:
 
 ```json
 {
-  "$schema": "https://paseo.sh/schemas/paseo.config.v1.json",
+  "$schema": "https://paseo.sh/schemas/kivotos.config.v1.json",
   "version": 1,
   "daemon": {
     "mcp": {
@@ -43,14 +43,14 @@ tool injection globally, then add `paseoTools` to the exact provider IDs you lau
       "codex-worker": {
         "extends": "codex",
         "label": "Codex Worker",
-        "paseoTools": {
+        "kivotosTools": {
           "disabledTools": ["create_agent", "send_agent_prompt", "kill_agent"]
         }
       },
       "codex-isolated": {
         "extends": "codex",
         "label": "Codex Isolated",
-        "paseoTools": {
+        "kivotosTools": {
           "enabled": false
         }
       }
@@ -59,10 +59,10 @@ tool injection globally, then add `paseoTools` to the exact provider IDs you lau
 }
 ```
 
-Run `paseo reload` after editing `~/.paseo/config.json`, then start a new agent or reload an
+Run `kivotos reload` after editing `~/.kivotos/config.json`, then start a new agent or reload an
 existing one. A running session keeps the catalog it received at launch.
 
-Omitting `paseoTools` enables the complete catalog. Set `enabled` to `false` to remove the catalog,
+Omitting `kivotosTools` enables the complete catalog. Set `enabled` to `false` to remove the catalog,
 or list exact tool IDs in `disabledTools` to remove selected tools. Custom profiles do not inherit
 this policy from `extends`; configure each custom provider ID separately.
 
@@ -113,15 +113,15 @@ For worktree isolation, `create_workspace` accepts the same useful choices as th
 
 ### Workspace scripts
 
-These tools manage scripts configured in a workspace's `paseo.json`. Each requires an explicit `workspaceId`; start and stop also require the configured `scriptName`.
+These tools manage scripts configured in a workspace's `kivotos.json`. Each requires an explicit `workspaceId`; start and stop also require the configured `scriptName`.
 
 | Tool                     | Function                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------- |
 | `list_workspace_scripts` | List configured scripts with lifecycle, terminal, port, proxy URL, and health metadata. |
-| `start_workspace_script` | Start a configured script through Paseo's managed launcher.                             |
+| `start_workspace_script` | Start a configured script through Kivotos's managed launcher.                             |
 | `stop_workspace_script`  | Stop a running script through its supervised terminal.                                  |
 
-See [Git worktrees](/docs/worktrees#scripts-and-services) for `paseo.json` configuration.
+See [Git worktrees](/docs/worktrees#scripts-and-services) for `kivotos.json` configuration.
 
 ### Terminals
 

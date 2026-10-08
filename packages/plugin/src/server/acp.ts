@@ -1,4 +1,4 @@
-import type { JsonValue } from "@getpaseo/protocol/agent-types";
+import type { JsonValue } from "@kivotos/protocol/agent-types";
 import type {
   ProviderCatalog,
   ProviderCommand,

@@ -13,12 +13,12 @@ import {
   type ViewStyle,
 } from "react-native";
 import type { ITheme } from "@xterm/xterm";
-import type { TerminalState } from "@getpaseo/protocol/messages";
+import type { TerminalState } from "@kivotos/protocol/messages";
 import {
   TerminalInputModeTracker,
   terminalInputModeStatesEqual,
   type TerminalInputModeState,
-} from "@getpaseo/protocol/terminal-input-mode";
+} from "@kivotos/protocol/terminal-input-mode";
 import type { TerminalEmulatorHandle, TerminalEmulatorProps } from "./terminal-emulator-contract";
 import {
   createNativeHeadlessTerminal,

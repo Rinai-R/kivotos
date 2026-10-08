@@ -1,0 +1,32 @@
+{
+  "worktree": {
+    "setup": [
+      "npm ci",
+      "node ./scripts/seed-ios-native-cache.mjs",
+      "node ./scripts/seed-worktree-dev-state.mjs",
+      "npm run build:server",
+      "npm run build --workspace=@kivotos/expo-two-way-audio"
+    ]
+  },
+  "scripts": {
+    "daemon": {
+      "type": "service",
+      "command": "KIVOTOS_DEV_MANAGED_HOME=1 KIVOTOS_DEV_ROOT=\"${KIVOTOS_WORKTREE_PATH:-$PWD}\" KIVOTOS_HOME=\"${KIVOTOS_WORKTREE_PATH:-$PWD}/.dev/kivotos-home\" KIVOTOS_SKIP_DEV_SERVER_BUILD=1 KIVOTOS_LISTEN=0.0.0.0:${KIVOTOS_PORT:-6768} ./scripts/dev-daemon.sh"
+    },
+    "app": {
+      "type": "service",
+      "command": "KIVOTOS_DEV_MANAGED_HOME=1 KIVOTOS_DEV_ROOT=\"${KIVOTOS_WORKTREE_PATH:-$PWD}\" KIVOTOS_HOME=\"${KIVOTOS_WORKTREE_PATH:-$PWD}/.dev/kivotos-home\" KIVOTOS_LISTEN=0.0.0.0:${KIVOTOS_SERVICE_DAEMON_PORT:-6768} KIVOTOS_DEV_DAEMON_ENDPOINT=localhost:${KIVOTOS_SERVICE_DAEMON_PORT:-6768} EXPO_PORT=${KIVOTOS_PORT:-} ./scripts/dev-app.sh"
+    },
+    "desktop": {
+      "type": "service",
+      "command": "KIVOTOS_DEV_MANAGED_HOME=1 KIVOTOS_DEV_ROOT=\"${KIVOTOS_WORKTREE_PATH:-$PWD}\" KIVOTOS_HOME=\"${KIVOTOS_WORKTREE_PATH:-$PWD}/.dev/kivotos-home\" KIVOTOS_LISTEN=0.0.0.0:${KIVOTOS_SERVICE_DAEMON_PORT:-6768} KIVOTOS_DEV_DAEMON_ENDPOINT=localhost:${KIVOTOS_SERVICE_DAEMON_PORT:-6768} EXPO_PORT=${KIVOTOS_PORT:-} exec ./packages/desktop/scripts/dev.sh"
+    },
+    "ios-simulator": {
+      "type": "service",
+      "command": "KIVOTOS_DEV_MANAGED_HOME=1 KIVOTOS_DEV_ROOT=\"$PWD\" KIVOTOS_HOME=\"$PWD/.dev/kivotos-home\" KIVOTOS_LISTEN=0.0.0.0:${KIVOTOS_SERVICE_DAEMON_PORT} KIVOTOS_DEV_DAEMON_ENDPOINT=localhost:${KIVOTOS_SERVICE_DAEMON_PORT} ./scripts/kivotos-ios-simulator-service.sh"
+    },
+    "typecheck": {
+      "command": "npm run typecheck"
+    }
+  }
+}

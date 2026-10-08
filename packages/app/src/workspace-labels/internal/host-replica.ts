@@ -1,7 +1,7 @@
-import type { WorkspaceLabelDefinition } from "@getpaseo/protocol/workspace-labels";
-import { workspaceLabelKey } from "@getpaseo/protocol/workspace-labels";
-import type { WorkspaceLabelListPayload } from "@getpaseo/client/internal/daemon-client";
-import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
+import type { WorkspaceLabelDefinition } from "@kivotos/protocol/workspace-labels";
+import { workspaceLabelKey } from "@kivotos/protocol/workspace-labels";
+import type { WorkspaceLabelListPayload } from "@kivotos/client/internal/daemon-client";
+import type { SessionOutboundMessage } from "@kivotos/protocol/messages";
 
 type WorkspaceLabelUpdate = Extract<SessionOutboundMessage, { type: "workspace.label.update" }>;
 

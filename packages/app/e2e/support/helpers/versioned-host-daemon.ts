@@ -23,16 +23,16 @@ export interface RestartableHostDaemon {
 }
 
 export async function startRestartableHostDaemon(version: string): Promise<RestartableHostDaemon> {
-  const paseoHomeRoot = await mkdtemp(path.join(tmpdir(), "paseo-e2e-restartable-host-"));
+  const kivotosHomeRoot = await mkdtemp(path.join(tmpdir(), "kivotos-e2e-restartable-host-"));
   const port = await getAvailableHostDaemonPort();
   let current: VersionedHostDaemon | null = null;
   async function dispose(): Promise<void> {
     await current?.stop();
     current = null;
-    await rm(paseoHomeRoot, { recursive: true, force: true });
+    await rm(kivotosHomeRoot, { recursive: true, force: true });
   }
   try {
-    current = await startVersionedHostDaemon({ version, port, paseoHomeRoot });
+    current = await startVersionedHostDaemon({ version, port, kivotosHomeRoot });
   } catch (error) {
     await dispose();
     throw error;
@@ -51,7 +51,7 @@ export async function startRestartableHostDaemon(version: string): Promise<Resta
       await current?.stop();
       current = null;
       await waitForPortReleased(port);
-      current = await startVersionedHostDaemon({ version: nextVersion, port, paseoHomeRoot });
+      current = await startVersionedHostDaemon({ version: nextVersion, port, kivotosHomeRoot });
       if (current.serverId !== serverId) {
         throw new Error(
           `Restarted host daemon reported serverId ${current.serverId}, expected ${serverId}`,
@@ -72,17 +72,17 @@ interface VersionedHostDaemon {
 interface VersionedHostDaemonOptions {
   version: string;
   port: number;
-  paseoHomeRoot: string;
+  kivotosHomeRoot: string;
 }
 
-// Starts the versioned test daemon on an explicit port with a caller-owned PASEO_HOME. The caller
+// Starts the versioned test daemon on an explicit port with a caller-owned KIVOTOS_HOME. The caller
 // removes the home root.
 async function startVersionedHostDaemon(
   options: VersionedHostDaemonOptions,
 ): Promise<VersionedHostDaemon> {
   const child = spawnTsx(
     VERSIONED_DAEMON_ENTRYPOINT,
-    [options.version, String(options.port), options.paseoHomeRoot],
+    [options.version, String(options.port), options.kivotosHomeRoot],
     { stdio: ["ignore", "pipe", "pipe", "ipc"] },
   );
   const ready = Promise.withResolvers<{ port: number; serverId: string }>();

@@ -11,7 +11,7 @@ import {
   type DaemonTestContext,
 } from "../test-utils/index.js";
 import { createWorktree as createWorktreePrimitive } from "../../utils/worktree.js";
-import type { PullRequestMergeable } from "@getpaseo/protocol/messages";
+import type { PullRequestMergeable } from "@kivotos/protocol/messages";
 
 const GhPrViewSchema = z.object({
   state: z.string(),
@@ -60,11 +60,11 @@ const testWithGitHubCliAuth = hasRequiredGitHubCliAuth ? test : test.skip;
 
 function initGitRepo(repoDir: string): void {
   execSync("git init -b main", { cwd: repoDir, stdio: "pipe" });
-  execSync("git config user.email 'paseo-test@example.com'", {
+  execSync("git config user.email 'kivotos-test@example.com'", {
     cwd: repoDir,
     stdio: "pipe",
   });
-  execSync("git config user.name 'Paseo Test'", {
+  execSync("git config user.name 'Kivotos Test'", {
     cwd: repoDir,
     stdio: "pipe",
   });
@@ -216,7 +216,7 @@ describe("daemon checkout PR merge loop", () => {
             branchName: "merge-pr-squash",
           },
           runSetup: true,
-          paseoHome: ctx.daemon.paseoHome,
+          kivotosHome: ctx.daemon.kivotosHome,
         });
         worktreePath = worktree.worktreePath;
 
@@ -284,7 +284,7 @@ describe("daemon checkout PR merge loop", () => {
         });
         expect(readFetchedFile(repoDir, "feature.txt")).toBe("squash merge\n");
 
-        const archiveResult = await ctx.client.archivePaseoWorktree({
+        const archiveResult = await ctx.client.archiveKivotosWorktree({
           worktreePath: worktree.worktreePath,
         });
         expect(archiveResult.error).toBeNull();
@@ -297,7 +297,7 @@ describe("daemon checkout PR merge loop", () => {
         agentId = null;
       } finally {
         if (worktreePath) {
-          await ctx.client.archivePaseoWorktree({ worktreePath }).catch(() => undefined);
+          await ctx.client.archiveKivotosWorktree({ worktreePath }).catch(() => undefined);
         }
         if (agentId) {
           await ctx.client.deleteAgent(agentId).catch(() => undefined);

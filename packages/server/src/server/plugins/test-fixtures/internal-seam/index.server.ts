@@ -1,5 +1,5 @@
-import { defineRpc } from "@getpaseo/plugin";
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { defineRpc } from "@kivotos/plugin";
+import type { PluginServerContext } from "@kivotos/plugin/server";
 import { z } from "zod";
 
 const state = defineRpc({

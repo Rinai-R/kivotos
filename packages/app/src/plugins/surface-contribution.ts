@@ -1,4 +1,4 @@
-import type { PluginScreenLocation, PluginScreenParams } from "@getpaseo/plugin/client";
+import type { PluginScreenLocation, PluginScreenParams } from "@kivotos/plugin/client";
 import {
   parsePluginScreenParams,
   parsePluginSurfaceRoute,
