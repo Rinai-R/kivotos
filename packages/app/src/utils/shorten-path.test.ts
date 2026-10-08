@@ -3,11 +3,11 @@ import { shortenPath } from "./shorten-path";
 
 describe("shortenPath", () => {
   it("shortens a macOS home directory path", () => {
-    expect(shortenPath("/Users/moboudra/dev/kivotos")).toBe("~/dev/kivotos");
+    expect(shortenPath("/Users/kivotos/dev/kivotos")).toBe("~/dev/kivotos");
   });
 
   it("shortens a Linux home directory path", () => {
-    expect(shortenPath("/home/moboudra/dev/kivotos")).toBe("~/dev/kivotos");
+    expect(shortenPath("/home/kivotos/dev/kivotos")).toBe("~/dev/kivotos");
   });
 
   it("leaves non-home absolute paths unchanged", () => {
@@ -15,7 +15,9 @@ describe("shortenPath", () => {
   });
 
   it("leaves Windows paths unchanged", () => {
-    expect(shortenPath("C:\\Users\\moboudra\\dev\\kivotos")).toBe("C:\\Users\\moboudra\\dev\\kivotos");
+    expect(shortenPath("C:\\Users\\kivotos\\dev\\kivotos")).toBe(
+      "C:\\Users\\kivotos\\dev\\kivotos",
+    );
   });
 
   it("returns an empty string for null or undefined", () => {
