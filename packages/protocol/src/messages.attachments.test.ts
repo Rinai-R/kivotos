@@ -176,7 +176,7 @@ describe("shared messages attachments", () => {
           mimeType: "application/github-issue",
           number: 55,
           title: "Improve startup error details",
-          url: "https://github.com/getpaseo/paseo/issues/55",
+          url: "https://github.com/Rinai-R/kivotos/issues/55",
         },
       ],
     });
@@ -187,7 +187,7 @@ describe("shared messages attachments", () => {
         mimeType: "application/github-issue",
         number: 55,
         title: "Improve startup error details",
-        url: "https://github.com/getpaseo/paseo/issues/55",
+        url: "https://github.com/Rinai-R/kivotos/issues/55",
       },
     ]);
   });
@@ -207,7 +207,7 @@ describe("shared messages attachments", () => {
           mimeType: "application/github-pr",
           number: 123,
           title: "Fix race in worktree setup",
-          url: "https://github.com/getpaseo/paseo/pull/123",
+          url: "https://github.com/Rinai-R/kivotos/pull/123",
           body: "Body",
           baseRefName: "main",
           headRefName: "fix/worktree-race",
@@ -226,7 +226,7 @@ describe("shared messages attachments", () => {
         mimeType: "application/github-pr",
         number: 123,
         title: "Fix race in worktree setup",
-        url: "https://github.com/getpaseo/paseo/pull/123",
+        url: "https://github.com/Rinai-R/kivotos/pull/123",
         body: "Body",
         baseRefName: "main",
         headRefName: "fix/worktree-race",
@@ -246,7 +246,7 @@ describe("shared messages attachments", () => {
           mimeType: "application/github-issue",
           number: 55,
           title: "Improve startup error details",
-          url: "https://github.com/getpaseo/paseo/issues/55",
+          url: "https://github.com/Rinai-R/kivotos/issues/55",
           body: "Body",
         },
         {
@@ -263,7 +263,7 @@ describe("shared messages attachments", () => {
         mimeType: "application/github-issue",
         number: 55,
         title: "Improve startup error details",
-        url: "https://github.com/getpaseo/paseo/issues/55",
+        url: "https://github.com/Rinai-R/kivotos/issues/55",
         body: "Body",
       },
     ]);
@@ -367,7 +367,7 @@ describe("shared messages attachments", () => {
             mimeType: "application/github-pr",
             number: 99,
             title: "Fork-safe PR checkout",
-            url: "https://github.com/getpaseo/paseo/pull/99",
+            url: "https://github.com/Rinai-R/kivotos/pull/99",
           },
           {
             type: "future_attachment",
@@ -384,7 +384,7 @@ describe("shared messages attachments", () => {
         mimeType: "application/github-pr",
         number: 99,
         title: "Fork-safe PR checkout",
-        url: "https://github.com/getpaseo/paseo/pull/99",
+        url: "https://github.com/Rinai-R/kivotos/pull/99",
       },
     ]);
     expect(parsed.firstAgentContext?.prompt).toBe("Investigate flaky test");

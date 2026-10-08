@@ -34,4 +34,4 @@ No telemetry, no tracking, no account required. The app talks only to daemons yo
 
 This app is not useful on its own. Install the Kivotos daemon on the computer where your code and agent CLIs live, then pair this app with it from Settings. The desktop app bundles the daemon, or you can run it from npm, Docker, or Nix.
 
-Setup instructions: https://paseo.sh
+Setup instructions: https://github.com/Rinai-R/kivotos

@@ -10,7 +10,7 @@ test("retries a failing asset and keeps its siblings", async () => {
   const exitCodes = { "a.dmg": [1, 1, 0], "b.zip": [0] };
 
   const exitCode = await uploadWithRetry(
-    { release: "rel", files: ["a.dmg", "b.zip"], repo: "getpaseo/paseo" },
+    { release: "rel", files: ["a.dmg", "b.zip"], repo: "Rinai-R/kivotos" },
     {
       sleep: noSleep,
       upload: ({ file }) => {
@@ -28,7 +28,7 @@ test("gives up after the attempt limit and reports failure", async () => {
   let calls = 0;
 
   const exitCode = await uploadWithRetry(
-    { release: "rel", files: ["a.dmg", "b.zip"], repo: "getpaseo/paseo" },
+    { release: "rel", files: ["a.dmg", "b.zip"], repo: "Rinai-R/kivotos" },
     {
       attempts: 3,
       sleep: noSleep,

@@ -28,12 +28,12 @@ describe("GitHub repository search", () => {
         {
           id: " R_recent ",
           name: " kivotos ",
-          nameWithOwner: " getpaseo/paseo ",
+          nameWithOwner: " Rinai-R/kivotos ",
           description: null,
           isPrivate: false,
           updatedAt: "2026-07-15T12:00:00Z",
-          sshUrl: " git@github.com:getpaseo/paseo.git ",
-          url: "https://github.com/getpaseo/paseo",
+          sshUrl: " git@github.com:Rinai-R/kivotos.git ",
+          url: "https://github.com/Rinai-R/kivotos",
         },
       ]),
       "ssh\n",
@@ -49,11 +49,11 @@ describe("GitHub repository search", () => {
       {
         id: "R_recent",
         name: "kivotos",
-        nameWithOwner: "getpaseo/paseo",
+        nameWithOwner: "Rinai-R/kivotos",
         description: null,
         visibility: "public",
         updatedAt: "2026-07-15T12:00:00Z",
-        cloneUrl: "git@github.com:getpaseo/paseo.git",
+        cloneUrl: "git@github.com:Rinai-R/kivotos.git",
       },
     ]);
     expect(runner.calls).toEqual([

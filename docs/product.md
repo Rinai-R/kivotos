@@ -34,7 +34,7 @@ For example, someone can use the relay to connect their phone with minimal setup
 
 Kivotos should provide useful defaults while keeping these choices available. You should not have to adopt every part of the system to benefit from the parts you want.
 
-See the [connectivity guide](https://paseo.sh/docs/connectivity) for supported connection methods and [architecture](architecture.md) for the system design.
+See the [connectivity guide](https://github.com/Rinai-R/kivotos/tree/main/docs) for supported connection methods and [architecture](architecture.md) for the system design.
 
 ## Freedom, ownership, and privacy
 
@@ -66,9 +66,9 @@ Plugins are a central part of how Kivotos gains capability.
 
 Someone who needs a different agent provider, a specialized workspace panel, or a custom command should be able to build and share it independently. They can make the choices that fit their users and maintain the integration on their own schedule.
 
-Kivotos's role is to provide interfaces that make those contributions possible across the daemon and connected clients. The [plugin documentation](https://paseo.sh/docs/plugins) describes what each released API supports.
+Kivotos's role is to provide interfaces that make those contributions possible across the daemon and connected clients. The [plugin documentation](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md) describes what each released API supports.
 
-The [SDK](https://paseo.sh/docs/sdk) lets applications and services use the daemon directly. A separate dashboard, automation service, or client can build on the same agent infrastructure. Those projects do not all need to become features of the main app.
+The [SDK](https://github.com/Rinai-R/kivotos/tree/main/docs) lets applications and services use the daemon directly. A separate dashboard, automation service, or client can build on the same agent infrastructure. Those projects do not all need to become features of the main app.
 
 Composition means useful pieces can be combined in ways the maintainer did not have to predict. Keeping the daemon independent, offering multiple connection methods, and exposing agent operations through APIs gives people room to choose those combinations.
 

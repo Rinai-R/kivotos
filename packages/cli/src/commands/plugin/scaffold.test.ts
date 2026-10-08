@@ -90,14 +90,14 @@ describe("plugin scaffold", () => {
       const cliPackageJson = JSON.parse(
         await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
       ) as { version: string };
-      expect(JSON.parse(await readFile(path.join(directory, "kivotos-plugin.json"), "utf8"))).toEqual(
-        {
-          id: "hello-plugin",
-          $comment: expect.stringContaining('"icon": "assets/icon.png"'),
-          media: [],
-          requirements: { kivotos: `>=${cliPackageJson.version}` },
-        },
-      );
+      expect(
+        JSON.parse(await readFile(path.join(directory, "kivotos-plugin.json"), "utf8")),
+      ).toEqual({
+        id: "hello-plugin",
+        $comment: expect.stringContaining('"icon": "assets/icon.png"'),
+        media: [],
+        requirements: { kivotos: `>=${cliPackageJson.version}` },
+      });
       expect(JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"))).toEqual({
         name: "hello-plugin",
         private: true,
@@ -145,7 +145,7 @@ describe("plugin scaffold", () => {
       );
       await expect(
         readFile(path.join(directory, "client/greeting.tsx"), "utf8"),
-      ).resolves.toContain(`openExternal("https://paseo.sh")`);
+      ).resolves.toContain(`openExternal("https://github.com/Rinai-R/kivotos")`);
       await expect(readFile(path.join(directory, "server/greeting.ts"), "utf8")).resolves.toContain(
         '"Hello, " + name + "!"',
       );

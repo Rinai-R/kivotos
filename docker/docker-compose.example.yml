@@ -1,10 +1,13 @@
 # Minimal Kivotos daemon + web UI deployment.
 #
+# Build the image first, there is no published one:
+#   docker build -f docker/base/Dockerfile -t kivotos:latest .
+#
 # Open http://localhost:6767 after `docker compose up -d`.
 # For any network-reachable deployment, change KIVOTOS_PASSWORD first.
 services:
   kivotos:
-    image: ghcr.io/getpaseo/paseo:latest
+    image: kivotos:latest
     container_name: kivotos
     restart: unless-stopped
     ports:

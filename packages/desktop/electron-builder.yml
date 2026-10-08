@@ -37,7 +37,7 @@ extraResources:
     to: editor-target-icons
 publish:
   provider: github
-  owner: getpaseo
+  owner: Rinai-R
   repo: kivotos
 mac:
   artifactName: "Kivotos-${version}-${arch}.${ext}"

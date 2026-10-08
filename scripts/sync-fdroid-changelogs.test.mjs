@@ -134,7 +134,10 @@ test("stays inside the 500 character limit and keeps the full-notes link", () =>
         contents.length <= CHANGELOG_CHARACTER_LIMIT,
         `expected <= ${CHANGELOG_CHARACTER_LIMIT}, got ${contents.length}`,
       );
-      assert.match(contents, /Full notes: https:\/\/paseo\.sh\/changelog\n$/);
+      assert.match(
+        contents,
+        /Full notes: https:\/\/github\.com\/Rinai-R\/kivotos\/blob\/main\/CHANGELOG\.md\n$/,
+      );
       // Truncation happens at a bullet boundary, never mid-sentence.
       assert.equal(contents.includes("Shipped improvement number 0."), true);
       assert.equal(/- Shipped improvement number \d+\.\.\.$/m.test(contents), false);
@@ -180,7 +183,7 @@ test("preserves a blockquoted notice ahead of the bullets", () => {
   const contents = formatFdroidChangelog([
     "> **Important update notice**",
     ">",
-    "> If you installed Kivotos Desktop 0.1.108, you need to [reinstall manually](https://paseo.sh/download).",
+    "> If you installed Kivotos Desktop 0.1.108, you need to [reinstall manually](https://github.com/Rinai-R/kivotos/releases/latest).",
     "",
     "### Fixed",
     "",
@@ -243,11 +246,11 @@ test("renders the real 0.1.109 notice, which is the entry's whole point", () => 
     "",
     "> **Important update notice**",
     ">",
-    "> If you installed Kivotos Desktop 0.1.108, you need to [download and reinstall Kivotos manually](https://paseo.sh/download) to get this fix. The bug in 0.1.108 prevents its automatic updater from installing 0.1.109. Users on 0.1.107 or earlier can update normally.",
+    "> If you installed Kivotos Desktop 0.1.108, you need to [download and reinstall Kivotos manually](https://github.com/Rinai-R/kivotos/releases/latest) to get this fix. The bug in 0.1.108 prevents its automatic updater from installing 0.1.109. Users on 0.1.107 or earlier can update normally.",
     "",
     "### Fixed",
     "",
-    "- Kivotos Desktop no longer gets stuck connecting or loses native window controls after updating ([#2111](https://github.com/getpaseo/paseo/pull/2111) by [@cleiter](https://github.com/cleiter))",
+    "- Kivotos Desktop no longer gets stuck connecting or loses native window controls after updating ([#2111](https://github.com/Rinai-R/kivotos/pull/2111) by [@cleiter](https://github.com/cleiter))",
     "",
   ].join("\n");
 

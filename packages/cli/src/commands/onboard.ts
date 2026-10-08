@@ -118,8 +118,8 @@ function printNextSteps(pairingUrl: string | null, kivotosHome: string, richUi: 
       ? "1. Open Kivotos and scan the QR code above, or paste the pairing link."
       : "1. Open Kivotos and connect to your daemon.",
     "2. Web app: https://app.paseo.sh",
-    "3. Desktop app: https://github.com/getpaseo/paseo/releases/latest",
-    "4. Docs: https://paseo.sh/docs",
+    "3. Desktop app: https://github.com/Rinai-R/kivotos/releases/latest",
+    "4. Docs: https://github.com/Rinai-R/kivotos/tree/main/docs",
     `5. Example: kivotos run --home ${JSON.stringify(kivotosHome)} --output-schema schema.json "extract fields"`,
   ];
   const quickReferenceLines = [

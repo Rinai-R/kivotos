@@ -1229,7 +1229,6 @@ export const ja: TranslationResources = {
       diagnostics: "診断を実行",
       shortcuts: "キーボードショートカット",
       reportIssue: "問題を報告",
-      discord: "Discord",
       github: "GitHub Issueを作成",
       whatsNew: "新着情報",
       appName: "Kivotos",

@@ -189,7 +189,7 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   }, [router]);
 
   const handleOpenKivotosSite = useCallback(() => {
-    void openExternalUrl("https://paseo.sh");
+    void openExternalUrl("https://github.com/Rinai-R/kivotos");
   }, []);
 
   const handleOpenSettings = useCallback(() => {
@@ -292,7 +292,7 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
             <Text style={styles.subtitle}>{t("onboarding.subtitle")}</Text>
             {isNative ? (
               <Pressable style={styles.setupLink} onPress={handleOpenKivotosSite}>
-                <Text style={styles.setupLinkText}>paseo.sh</Text>
+                <Text style={styles.setupLinkText}>github.com/Rinai-R/kivotos</Text>
                 <ExternalLink size={14} color={theme.colors.accent} />
               </Pressable>
             ) : null}

@@ -504,7 +504,7 @@ export function LocalDaemonSection() {
   );
 }
 
-const ADVANCED_DAEMON_SETTINGS_URL = "https://paseo.sh/docs/configuration";
+const ADVANCED_DAEMON_SETTINGS_URL = "https://github.com/Rinai-R/kivotos/tree/main/docs";
 
 const styles = StyleSheet.create((theme) => ({
   actionGroup: {

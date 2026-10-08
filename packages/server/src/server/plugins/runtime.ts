@@ -286,7 +286,7 @@ async function resolveEntryPaths(directory: string): Promise<{
   const legacyEntry = await findEntry(directory, ["index.ts", "index.tsx"]);
   if (legacyEntry) {
     throw new Error(
-      "This plugin was made for an older version of Kivotos and cannot run on Kivotos v0.8. Ask its author to update it. Plugin authors can follow the migration guide: https://paseo.sh/docs/plugins/migration",
+      "This plugin was made for an older version of Kivotos and cannot run on Kivotos v0.8. Ask its author to update it. Plugin authors can follow the migration guide: https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md",
     );
   }
   throw new Error(
@@ -332,7 +332,11 @@ export class PluginRuntime {
     if (this.plugins.has(pluginId)) throw new Error(`Plugin is already running: ${pluginId}`);
     this.appendLog(pluginId, "stdout", "[kivotos] Loading plugin");
     const loaded = await this.loadDirectoryPlugin(pluginId, configuredPath).catch((error) => {
-      this.appendLog(pluginId, "stderr", `[kivotos] Plugin failed to load: ${describeError(error)}`);
+      this.appendLog(
+        pluginId,
+        "stderr",
+        `[kivotos] Plugin failed to load: ${describeError(error)}`,
+      );
       throw error;
     });
     if (!canPublish()) {

@@ -103,7 +103,8 @@ function createWorkflowForRequestTest(options: {
 }) {
   return async (input: Parameters<CreateKivotosWorktreeFn>[0]) => {
     const createKivotosWorktree =
-      options.createKivotosWorktree ?? createKivotosWorktreeForTest({ kivotosHome: options.kivotosHome });
+      options.createKivotosWorktree ??
+      createKivotosWorktreeForTest({ kivotosHome: options.kivotosHome });
     return createKivotosWorktreeWorkflow(
       {
         kivotosHome: options.kivotosHome,
@@ -625,7 +626,10 @@ function createGitRepo(options?: { kivotosConfig?: Record<string, unknown> }) {
   execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir, stdio: "pipe" });
   writeFileSync(path.join(repoDir, "README.md"), "hello\n");
   if (options?.kivotosConfig) {
-    writeFileSync(path.join(repoDir, "kivotos.json"), JSON.stringify(options.kivotosConfig, null, 2));
+    writeFileSync(
+      path.join(repoDir, "kivotos.json"),
+      JSON.stringify(options.kivotosConfig, null, 2),
+    );
   }
   execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], {
@@ -1624,7 +1628,7 @@ describe("handleCreateKivotosWorktreeRequest", () => {
           mimeType: "application/github-pr",
           number: 123,
           title: "Fix worktree naming",
-          url: "https://github.com/getpaseo/paseo/pull/123",
+          url: "https://github.com/Rinai-R/kivotos/pull/123",
           baseRefName: "main",
           headRefName: "fix/worktree-naming",
         },
@@ -1804,8 +1808,10 @@ describe("handleCreateKivotosWorktreeRequest", () => {
       const response = emitted.find(
         (
           message,
-        ): message is Extract<SessionOutboundMessage, { type: "create_kivotos_worktree_response" }> =>
-          message.type === "create_kivotos_worktree_response",
+        ): message is Extract<
+          SessionOutboundMessage,
+          { type: "create_kivotos_worktree_response" }
+        > => message.type === "create_kivotos_worktree_response",
       );
       expect(response?.payload.error).toBeNull();
     } finally {
@@ -1853,8 +1859,10 @@ describe("handleCreateKivotosWorktreeRequest", () => {
       const response = emitted.find(
         (
           message,
-        ): message is Extract<SessionOutboundMessage, { type: "create_kivotos_worktree_response" }> =>
-          message.type === "create_kivotos_worktree_response",
+        ): message is Extract<
+          SessionOutboundMessage,
+          { type: "create_kivotos_worktree_response" }
+        > => message.type === "create_kivotos_worktree_response",
       );
       expect(response?.payload.error).toBeNull();
       expect(response?.payload.workspace?.id).toBeTruthy();
@@ -1926,8 +1934,10 @@ describe("handleCreateKivotosWorktreeRequest", () => {
       const response = emitted.find(
         (
           message,
-        ): message is Extract<SessionOutboundMessage, { type: "create_kivotos_worktree_response" }> =>
-          message.type === "create_kivotos_worktree_response",
+        ): message is Extract<
+          SessionOutboundMessage,
+          { type: "create_kivotos_worktree_response" }
+        > => message.type === "create_kivotos_worktree_response",
       );
       expect(response?.payload.workspace).toBeNull();
       expect(response?.payload.error).toBe('action "checkout" requires refName or checkoutSource');
@@ -1965,8 +1975,10 @@ describe("handleCreateKivotosWorktreeRequest", () => {
       const response = emitted.find(
         (
           message,
-        ): message is Extract<SessionOutboundMessage, { type: "create_kivotos_worktree_response" }> =>
-          message.type === "create_kivotos_worktree_response",
+        ): message is Extract<
+          SessionOutboundMessage,
+          { type: "create_kivotos_worktree_response" }
+        > => message.type === "create_kivotos_worktree_response",
       );
       expect(response?.payload.workspace).toBeNull();
       expect(response?.payload.error).toBe("Unknown branch: missing-branch");

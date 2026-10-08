@@ -80,7 +80,9 @@ it("marks pre-0.8 plugins failed on startup and recovers after migration and rel
   expect(await service.listPlugins()).toEqual([
     expect.objectContaining({
       status: "failed",
-      error: expect.stringContaining("https://paseo.sh/docs/plugins/migration"),
+      error: expect.stringContaining(
+        "https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md",
+      ),
     }),
   ]);
   await writePlugin(root, ">=0.8.0");
@@ -97,7 +99,7 @@ it("still requires entry migration when an old plugin adds a compatible requirem
   await writeFile(path.join(root, "index.ts"), "export default () => () => {};");
   const { service } = await host();
   await expect(service.installDirectory({ path: root })).rejects.toThrow(
-    "https://paseo.sh/docs/plugins/migration",
+    "https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md",
   );
 });
 

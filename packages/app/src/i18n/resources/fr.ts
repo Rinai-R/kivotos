@@ -1243,7 +1243,6 @@ export const fr: TranslationResources = {
       diagnostics: "Lancer le diagnostic",
       shortcuts: "Raccourcis clavier",
       reportIssue: "Signaler un problème",
-      discord: "Discord",
       github: "Créer un ticket GitHub",
       whatsNew: "Nouveautés",
       appName: "Kivotos",

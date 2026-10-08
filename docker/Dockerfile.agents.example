@@ -1,11 +1,14 @@
-# Example child image that adds agent CLIs to the official Kivotos image.
+# Example child image that adds agent CLIs to the locally built Kivotos image.
 #
-# Build:
+# Build the base image first, there is no published one:
+#   docker build -f docker/base/Dockerfile -t kivotos:latest .
+#
+# Then build this child image:
 #   docker build -f docker/Dockerfile.agents.example -t kivotos-with-agents .
 #
 # Then set `image: kivotos-with-agents` in docker/docker-compose.example.yml.
 
-FROM ghcr.io/getpaseo/paseo:latest
+FROM kivotos:latest
 
 USER root
 RUN npm install -g \

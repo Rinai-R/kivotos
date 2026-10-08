@@ -58,7 +58,7 @@ function fakeGitService() {
     isGit: true,
     repoRoot: "/tmp/repo",
     currentBranch: "feature/scripts",
-    remoteUrl: "https://github.com/getpaseo/paseo.git",
+    remoteUrl: "https://github.com/Rinai-R/kivotos.git",
     hasRemote: true,
   };
 
@@ -346,7 +346,7 @@ describe("start", () => {
     expect(spawnCalls[0]).toMatchObject({
       repoRoot: "/tmp/repo",
       workspaceId: "ws-1",
-      projectSlug: "paseo",
+      projectSlug: "kivotos",
       branchName: "feature/scripts",
       scriptName: "app",
       daemonPort: 6767,

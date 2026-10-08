@@ -1222,7 +1222,6 @@ export const ko: TranslationResources = {
       diagnostics: "진단 실행",
       shortcuts: "키보드 단축키",
       reportIssue: "문제 신고",
-      discord: "Discord",
       github: "GitHub 이슈 만들기",
       whatsNew: "새로운 소식",
       appName: "Kivotos",
@@ -1394,7 +1393,8 @@ export const ko: TranslationResources = {
         pauseAndStop: "일시 중지 후 중지",
         registrationFailed:
           "내장 데몬이 시작되었지만 Kivotos가 localhost 연결을 저장하지 못했습니다. 데몬 관리를 껐다가 다시 켜거나 localhost를 수동으로 추가하세요.",
-        pausedStopFailed: "내장 데몬 관리가 일시 중지되었지만 Kivotos가 데몬을 중지하지 못했습니다.",
+        pausedStopFailed:
+          "내장 데몬 관리가 일시 중지되었지만 Kivotos가 데몬을 중지하지 못했습니다.",
         updateFailed: "내장 데몬 관리를 업데이트할 수 없습니다.",
       },
       keepRunning: {

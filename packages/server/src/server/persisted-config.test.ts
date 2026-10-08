@@ -685,7 +685,8 @@ describe("loadPersistedConfig", () => {
         configPath,
         `${JSON.stringify(
           {
-            $schema: "https://paseo.sh/schemas/kivotos.config.v1.json",
+            $schema:
+              "https://raw.githubusercontent.com/Rinai-R/kivotos/main/schemas/kivotos.config.v1.json",
             version: 1,
             daemon: {
               listen: "127.0.0.1:6767",

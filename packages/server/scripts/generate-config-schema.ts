@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 function main() {
   const repoRoot = path.resolve(__dirname, "../../..");
-  const outPath = path.join(repoRoot, "packages/website/public/schemas/kivotos.config.v1.json");
+  const outPath = path.join(repoRoot, "schemas/kivotos.config.v1.json");
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
   const schema = z.toJSONSchema(PersistedConfigSchema, {

@@ -11,11 +11,11 @@ You are helping a user understand, configure, or troubleshoot Kivotos itself. An
 
 ## Use current documentation
 
-Fetch [https://paseo.sh/llms.txt](https://paseo.sh/llms.txt) first. It is the current index of Kivotos documentation, with a description and Markdown URL for each page.
+Read the documentation index at [docs/](https://github.com/Rinai-R/kivotos/tree/main/docs) first. It is the current index of Kivotos documentation, one Markdown file per topic.
 
-Use that index to select the page that owns the user's question, then fetch the linked `.md` page before answering. For troubleshooting, begin with [Common problems](https://paseo.sh/docs/troubleshooting.md) and follow its links when the issue belongs to a more specific page.
+Use that index to select the page that owns the user's question, then read that page before answering. For container, install, and self-hosting problems, start from the troubleshooting section in [docs/docker.md](https://github.com/Rinai-R/kivotos/blob/main/docs/docker.md) and follow its links when the issue belongs to a more specific page.
 
-Prefer the deployed docs over memory. Answer the user directly, then link the relevant `.md` page as supporting documentation.
+Prefer the repository docs over memory. Answer the user directly, then link the relevant doc page as supporting documentation.
 
 ## Establish the topology first
 
@@ -87,6 +87,5 @@ Offer to fix the PATH or symlink; do not change shell configuration silently.
 
 If the current docs and diagnostics do not resolve the problem, collect the app and daemon versions, OS, install method, connection method, exact error, minimal reproduction, and a small redacted log excerpt.
 
-- Bugs: [GitHub Issues](https://github.com/getpaseo/paseo/issues)
-- Questions and quick help: [Kivotos Discord](https://discord.gg/jz8T2uahpH)
-- Product workflow discussions: [GitHub Discussions](https://github.com/getpaseo/paseo/discussions) or `#product` in Discord
+- Bugs: [GitHub Issues](https://github.com/Rinai-R/kivotos/issues)
+- Product workflow discussions: [GitHub Discussions](https://github.com/Rinai-R/kivotos/discussions)

@@ -26,7 +26,7 @@ await client.close();
 
 The public API is the package root. Imports under `@kivotos/client/internal/*` are unsupported implementation details used by Kivotos's own packages.
 
-Read the [SDK documentation](https://paseo.sh/docs/sdk) for agents, workspaces, terminals, provider discovery, events, recipes, and the API reference. Runnable TypeScript patterns also live in [`examples/`](./examples/README.md).
+Read the [SDK documentation](https://github.com/Rinai-R/kivotos/tree/main/docs) for agents, workspaces, terminals, provider discovery, events, recipes, and the API reference. Runnable TypeScript patterns also live in [`examples/`](./examples/README.md).
 
 ## Runtime
 
@@ -37,7 +37,7 @@ Use a WebSocket URL ending in `/ws`, such as `ws://127.0.0.1:6767/ws`. Pass `pas
 The client advertises its supported protocol capabilities by default. Optional `capabilities`
 overrides extend or override that declaration; browser hosting must be supplied by the caller.
 Connecting alone does not subscribe to agent timelines or catalog events. See the
-[event guide](https://paseo.sh/docs/sdk/events) for subscription lifetimes and timeline replacements.
+[event guide](https://github.com/Rinai-R/kivotos/tree/main/docs) for subscription lifetimes and timeline replacements.
 
 ## Stability
 

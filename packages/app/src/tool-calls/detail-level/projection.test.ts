@@ -315,14 +315,18 @@ describe("tool call detail-level projection", () => {
 
   it("counts Kivotos calls separately from other tools", () => {
     const calls = [
-      toolCall("1", { type: "unknown", input: null, output: null }, { name: "kivotos.list_agents" }),
+      toolCall(
+        "1",
+        { type: "unknown", input: null, output: null },
+        { name: "kivotos.list_agents" },
+      ),
       toolCall(
         "2",
         { type: "unknown", input: null, output: null },
         { name: "mcp__kivotos__list_worktrees" },
       ),
-      toolCall("3", { type: "fetch", url: "https://paseo.sh" }),
-      toolCall("4", { type: "fetch", url: "https://github.com/getpaseo" }),
+      toolCall("3", { type: "fetch", url: "https://github.com/Rinai-R/kivotos" }),
+      toolCall("4", { type: "fetch", url: "https://github.com/Rinai-R" }),
     ];
 
     const result = project({ level: "overview", head: calls });

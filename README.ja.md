@@ -11,37 +11,10 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
-  </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
-  </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
-  </a>
-  <a href="https://www.reddit.com/r/KivotosAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
-  </a>
-</p>
-
 <p align="center">Claude Code、Codex、Copilot、OpenCode、Pi のエージェントを、ひとつのインターフェースで。</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Kivotos アプリのスクリーンショット" width="100%">
-</p>
-
-<p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Kivotos モバイルアプリ" width="100%">
-</p>
 
 > [!NOTE]
 > 私はひとりでメンテナンスしているため、GitHub Issues を毎日確認できるとは限りません。
-> 急ぎの問題や作業がブロックされている場合は、[Discord](https://discord.gg/jz8T2uahpH) から連絡するのが一番早いです。
 
 ---
 
@@ -69,7 +42,7 @@ Kivotos はコーディングエージェントを管理するローカルサー
 
 ### デスクトップアプリ（推奨）
 
-[paseo.sh/download](https://paseo.sh/download) または [GitHub のリリースページ](https://github.com/getpaseo/paseo/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
+[リリースページ](https://github.com/Rinai-R/kivotos/releases)からダウンロードしてください。アプリを開くとデーモンが自動的に起動します。追加のインストールは不要です。
 
 スマートフォンから接続するには、Settings 画面に表示される QR コードをスキャンしてください。
 
@@ -86,8 +59,8 @@ kivotos
 
 詳しいセットアップと設定については以下を参照してください。
 
-- [ドキュメント](https://paseo.sh/docs)
-- [設定リファレンス](https://paseo.sh/docs/configuration)
+- [ドキュメント](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [設定リファレンス](https://github.com/Rinai-R/kivotos/tree/main/docs)
 
 ## CLI
 
@@ -105,14 +78,14 @@ kivotos send abc123 "also add tests" # 追加タスクを送信
 kivotos --host workstation.local:6767 run "run the full test suite"
 ```
 
-詳細は[完全な CLI リファレンス](https://paseo.sh/docs/cli)を参照してください。
+詳細は[完全な CLI リファレンス](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md)を参照してください。
 
 ## スキル
 
 スキルはエージェントに Kivotos を使って他のエージェントをオーケストレーションする方法を教えます。
 
 ```bash
-npx skills add getpaseo/paseo
+npx skills add Rinai-R/kivotos
 ```
 
 どのエージェントとの会話でも使用できます。
@@ -148,12 +121,6 @@ npm run build:server
 # リポジトリ全体のチェック
 npm run typecheck
 ```
-
-## スポンサー
-
-Kivotos は一人で開発しており、使ってくれる人たちの支援で成り立っています。[GitHub Sponsors](https://github.com/sponsors/boudra) で支援できます。企業として毎月[スポンサー](https://paseo.sh/sponsor#spot)になっていただくと、ロゴをここと paseo.sh のホームページに掲載します。
-
-<!-- Sponsor logos go here -->
 
 ## 関連プロジェクト
 

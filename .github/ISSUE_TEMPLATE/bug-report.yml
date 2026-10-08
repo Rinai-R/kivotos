@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Issues are only for bugs. Product discussions go in [GitHub Discussions](https://github.com/getpaseo/paseo/discussions) or `#product` in [Discord](https://discord.gg/jz8T2uahpH) — feature requests opened as issues get closed automatically.
+        Issues are only for bugs. Product discussions go in [GitHub Discussions](https://github.com/Rinai-R/kivotos/discussions) — feature requests opened as issues get closed automatically.
 
         Before opening, please:
 

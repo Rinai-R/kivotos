@@ -55,7 +55,7 @@ function contextAttachment(id: string): WorkspaceComposerAttachment {
     id,
     title: "Comment · octocat",
     text: "GitHub pull request comment\n\nLooks good.",
-    url: `https://github.com/getpaseo/paseo/pull/42#${id}`,
+    url: `https://github.com/Rinai-R/kivotos/pull/42#${id}`,
   };
 }
 

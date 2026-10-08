@@ -118,7 +118,6 @@ Muse Code for setup, per-agent options, and version limitations.
 ## Install from a registry
 
 `kivotos plugin add owner/slug` installs the registry's reviewed artifact by default.
-Browse published plugins at [paseo.sh/plugins](https://paseo.sh/plugins).
 Use `git:owner/repository` or a full Git URL for a Git source. Registry installs
 keep the registry URL and ID, so update checks use its approved pin. Explicit version/ref
 selection is unavailable for registry installs; install an explicit source to select your own.

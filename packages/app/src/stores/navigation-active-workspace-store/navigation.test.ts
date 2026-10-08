@@ -194,13 +194,13 @@ describe("workspace navigation", () => {
       pathname: "/",
       params: {
         serverId: "server-1",
-        workspaceId: "b64_L3RtcC9wYXNlby1taXNzaW5nLXdvcmtzcGFjZQ",
+        workspaceId: "b64_L3RtcC9raXZvdG9zLW1pc3Npbmctd29ya3NwYWNl",
       },
     });
 
     expect(selection).toEqual({
       serverId: "server-1",
-      workspaceId: "/tmp/paseo-missing-workspace",
+      workspaceId: "/tmp/kivotos-missing-workspace",
     });
   });
 

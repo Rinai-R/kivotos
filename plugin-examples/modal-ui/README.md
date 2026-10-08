@@ -18,12 +18,12 @@ The package ships the existing TypeScript entry and client sources. Kivotos comp
 its directory plugin loader; no package build or preparation command is required. React,
 React Native, and `@kivotos/plugin` are peer contracts supplied by the host. npm is needed for
 installation, not loading or reloading. You can also install this directory while developing.
-See the [source reference](https://paseo.sh/docs/plugins/reference#plugin-sources)
+See the [source reference](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)
 for supported identifiers and preparation rules.
 
 The examples demonstrate default and custom padding, a full-width body, author-owned ScrollView and
 FlatList scrolling, horizontal tabs, and clipboard actions with a keyboard-aware input. See the
-[host UI reference](https://paseo.sh/docs/plugins/reference#host-ui) for the API contract.
+[host UI reference](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md) for the API contract.
 
 The browser regression installs this exact example in an isolated daemon:
 
@@ -38,7 +38,7 @@ list, drag down on a row to dismiss the sheet. In Form,
 press **Copy text**, long-press the input, and choose **Paste**. The input should contain
 “Copied from Kivotos”. With the system keyboard enabled, focusing the input should keep it visible.
 
-Run the [native sheet regression](https://github.com/getpaseo/paseo/blob/main/packages/app/e2e/mobile/modal-sheet/README.md) to check body
+Run the [native sheet regression](https://github.com/Rinai-R/kivotos/blob/main/packages/app/e2e/mobile/modal-sheet/README.md) to check body
 dismissal, list scrolling and horizontal tabs together.
 
 These captures show Android copy/paste and custom padding on browser and wide native layouts.

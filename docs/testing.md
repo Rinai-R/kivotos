@@ -114,7 +114,7 @@ The harness launches the packaged app with isolated user data and daemon state, 
 - the renderer starts a fresh desktop-managed daemon through the normal startup bootstrap;
 - the bundled CLI can query that daemon and run a terminal command.
 
-The Desktop Packages workflow runs the Linux x64 smoke under Xvfb on main pushes and on pull requests that change `packages/desktop/**`, `nix/**`, or the workflow itself. The Linux job is pinned to Ubuntu 24.04 and runs twice: with AppArmor user namespace restrictions enabled, then with user namespaces available. It installs the real `.deb`, launches the real AppImage via `--appimage-extract-and-run`, and launches the extracted tar archive. It also replaces the Debian installation with the generated RPM through `rpm --install --nodeps` and checks its sandboxed launch under restrictions. Ubuntu supplies the runtime libraries under Debian package names, so this verifies the RPM payload and postinstall rather than Fedora dependency resolution. Each launch verifies the reported sandbox decision; enabled renderers must also have `NoNewPrivs: 1` and `Seccomp: 2` in `/proc`. The desktop release matrix retains its host-native smokes. Linux release builds stay on Ubuntu 22.04 to preserve their native-library baseline; the restricted-host regression runs on Ubuntu 24.04 after merge.
+This fork has no packaging CI. Desktop Packages, Docker, and Nix workflows were deleted; `.github/workflows/` holds only `ci.yml` and the manual `deploy-relay.yml`. Package and smoke-test the desktop app locally, on the platform you ship.
 
 Never repair `chrome-sandbox` in the smoke harness. The old unpacked smoke set its mode to 4755 and concealed a broken package installer. Run installer tests as root and launch tests as an ordinary user: a root-run namespace probe does not reproduce Ubuntu's AppArmor policy for desktop users. Preserve both restricted and unrestricted cases; either one alone permits another sandbox regression.
 
@@ -200,11 +200,16 @@ Test suites in this repo are heavy. Running them in bulk freezes the machine, es
 
 ## Pull-request test routing
 
-PR checks are routed by the behavior each suite proves, using `.github/ci-paths.yml`. A package does not inherit every test suite of its runtime consumers: app changes do not run CLI or Electron-wrapper tests, and protocol changes do not run every package that imports the protocol. Cross-package static compatibility belongs to `typecheck`; full integration coverage runs after merge on main and in manual CI runs.
+There is no path-based routing. `.github/workflows/ci.yml` runs one `test` job on every push to
+`main`, on pull requests targeting `main`, and on manual dispatch: it installs dependencies, builds
+the server stack, installs the agent CLIs the provider tests need, and then runs each workspace
+suite in order (protocol, client, relay, plugin, highlight, built-in plugins, cli, server, app).
+Every suite runs on every change; the whole job is the required check.
 
-Required matrix legs are declared as statically named jobs. Their shared steps use YAML anchors, while job-level `if` conditions let GitHub report an unaffected leg as genuinely skipped without allocating a runner or losing the exact required-check name.
-
-The smallest meaningful contract wins over package ownership. Tiny structural invariants such as daemon launch supervision run unconditionally in the always-running routing job instead of maintaining a transitive file list; this check reads source entrypoints and builds no product. Routed integration contracts use stable domain directories. Browser changes select the required Playwright shards; desktop changes select the existing required desktop jobs, with renderer and real-Electron coverage together in the Ubuntu leg. Packaging runs on main in the Desktop Packages, Docker, and Nix workflows. The CLI source suite runs once in the third required CLI job; only the separate local E2E runner is sharded, and that runner owns its dependency build. Repository scripts and the shared Vitest configuration run every PR contract because they are cross-cutting toolchain inputs.
+`.github/ci-paths.yml` and the routed matrix legs (Playwright shards, desktop jobs, packaging jobs)
+are gone: Desktop Packages, Docker, and Nix workflows were deleted, and `.github/workflows/`
+contains only `ci.yml` and the manual `deploy-relay.yml`. Run the suite you are changing locally
+before pushing, and let `ci.yml` be the full-suite authority.
 
 ## Agent authentication in tests
 

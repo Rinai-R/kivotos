@@ -210,7 +210,7 @@ export async function openRelaySecurityDocs(page: Page): Promise<void> {
   await page.getByRole("link", { name: "Read how Kivotos relay works" }).click();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("@kivotos:e2e-opened-url")))
-    .toBe("https://paseo.sh/docs/security");
+    .toBe("https://github.com/Rinai-R/kivotos/tree/main/docs");
 }
 
 export function expectDaemonPidUnchanged(

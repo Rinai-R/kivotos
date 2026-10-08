@@ -243,21 +243,21 @@ async function installPlugin(page: Page, source: string): Promise<void> {
 }
 
 async function expectPluginSourceDocsOpen(page: Page): Promise<void> {
+  const docsPath = "/Rinai-R/kivotos/blob/main/docs/plugins.md";
   const requestedPage = page
     .context()
     .waitForEvent(
       "request",
-      (request) => request.isNavigationRequest() && request.url().startsWith("https://paseo.sh/"),
+      (request) => request.isNavigationRequest() && request.url().startsWith("https://github.com/"),
     );
   const docsPagePromise = page.context().waitForEvent("page");
   await page.getByRole("link", { name: "Docs", exact: true }).click();
   const request = await requestedPage;
   const docsPage = await docsPagePromise;
   try {
-    expect(new URL(request.url()).pathname).toBe("/docs/plugins/reference");
-    // The deployed site can redirect while the matching website change is still in this PR.
+    expect(new URL(request.url()).pathname).toBe(docsPath);
     await docsPage.waitForURL(
-      (url) => url.origin === "https://paseo.sh" && url.hash === "#plugin-sources",
+      (url) => url.origin === "https://github.com" && url.pathname === docsPath,
       { waitUntil: "commit" },
     );
   } finally {

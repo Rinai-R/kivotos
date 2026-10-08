@@ -162,9 +162,9 @@ describe("resolveWorktreeCreationIntent", () => {
       number: 1790,
       baseRefName: "main",
       headRefName: "daemon-shutdown-diagnostics",
-      headOwnerLogin: "getpaseo",
-      headRepositorySshUrl: "git@github.com:getpaseo/paseo.git",
-      headRepositoryUrl: "https://github.com/getpaseo/paseo",
+      headOwnerLogin: "Rinai-R",
+      headRepositorySshUrl: "git@github.com:Rinai-R/kivotos.git",
+      headRepositoryUrl: "https://github.com/Rinai-R/kivotos",
       isCrossRepository: false,
     });
 

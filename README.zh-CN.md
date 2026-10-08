@@ -11,37 +11,10 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
-  </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
-  </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
-  </a>
-  <a href="https://www.reddit.com/r/KivotosAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
-  </a>
-</p>
-
 <p align="center">Claude Code、Codex、Copilot、OpenCode 和 Pi agents 的统一界面。</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Kivotos app screenshot" width="100%">
-</p>
-
-<p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Kivotos mobile app" width="100%">
-</p>
 
 > [!NOTE]
 > 我是独立维护者，不一定每天都能及时处理 GitHub Issues。
-> 如果问题很紧急或阻塞了你，[Discord](https://discord.gg/jz8T2uahpH) 是最快联系到我的地方。
 
 ---
 
@@ -69,7 +42,7 @@ Kivotos 会运行一个名为 daemon 的本地服务，用来管理你的 coding
 
 ### 桌面 app（推荐）
 
-从 [paseo.sh/download](https://paseo.sh/download) 或 [GitHub releases 页面](https://github.com/getpaseo/paseo/releases)下载。打开 app 后 daemon 会自动启动，不需要再安装其他东西。
+从 [releases 页面](https://github.com/Rinai-R/kivotos/releases)下载。打开 app 后 daemon 会自动启动，不需要再安装其他东西。
 
 如果要从手机连接，在 Settings 中扫描显示的二维码。
 
@@ -86,8 +59,8 @@ kivotos
 
 完整安装和配置见：
 
-- [文档](https://paseo.sh/docs)
-- [配置参考](https://paseo.sh/docs/configuration)
+- [文档](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [配置参考](https://github.com/Rinai-R/kivotos/tree/main/docs)
 
 ## CLI
 
@@ -105,14 +78,14 @@ kivotos send abc123 "also add tests" # 发送后续任务
 kivotos --host workstation.local:6767 run "run the full test suite"
 ```
 
-更多内容见[完整 CLI 参考](https://paseo.sh/docs/cli)。
+更多内容见[完整 CLI 参考](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md)。
 
 ## Skills
 
 Skills 会教你的 agent 使用 Kivotos 来编排其他 agents。
 
 ```bash
-npx skills add getpaseo/paseo
+npx skills add Rinai-R/kivotos
 ```
 
 然后在任意 agent 对话中使用：
@@ -130,7 +103,6 @@ Monorepo 包结构速览：
 - `packages/cli`：用于 daemon 和 agent 工作流的 `kivotos` CLI
 - `packages/desktop`：Electron 桌面 app
 - `packages/relay`：用于远程连接的 relay 包
-- `packages/website`：营销站点和文档（`paseo.sh`）
 
 常用命令：
 
@@ -149,12 +121,6 @@ npm run build:server
 # 全仓库检查
 npm run typecheck
 ```
-
-## 赞助
-
-Kivotos 由一个人开发，靠使用它的人来资助。你可以通过 [GitHub Sponsors](https://github.com/sponsors/boudra) 支持这项工作。公司也可以按月[赞助 Kivotos](https://paseo.sh/sponsor#spot)，logo 会展示在这里和 paseo.sh 首页上。
-
-<!-- Sponsor logos go here -->
 
 ## 相关项目
 

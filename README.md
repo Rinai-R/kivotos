@@ -11,33 +11,7 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
-  </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
-  </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
-  </a>
-  <a href="https://www.reddit.com/r/KivotosAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
-  </a>
-</p>
-
 <p align="center">One interface for Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code agents.</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Kivotos app screenshot" width="100%">
-</p>
-
-<p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Kivotos mobile app" width="100%">
-</p>
 
 Kivotos is an open source agentic development environment for desktop, mobile, web, and CLI. Open the desktop app and work: agents, editor, terminals, diffs, pull requests, and a browser in one window. Run many agents at once, each in its own worktree, on one machine or several. The mobile app is the full app, native on iOS and Android.
 
@@ -50,7 +24,7 @@ Kivotos is an open source agentic development environment for desktop, mobile, w
 - **Cross-device:** iOS, Android, desktop, web, and CLI. Start work at your desk, check in from your phone, script it from the terminal.
 - **Privacy-first:** Kivotos doesn't have any telemetry, tracking, or forced log-ins.
 
-[Run parallel tasks in Kivotos](https://paseo.sh/docs/parallel-development): start agents in separate worktrees, review their diffs, run each app, and check it in the built-in browser.
+[Run parallel tasks in Kivotos](https://github.com/Rinai-R/kivotos/tree/main/docs): start agents in separate worktrees, review their diffs, run each app, and check it in the built-in browser.
 
 ## Plugins
 
@@ -63,7 +37,7 @@ iOS, and Android. Write a plugin once and it is on your phone.
 
 Install from the registry with `kivotos plugin add owner/slug`, or from Git or a local directory.
 
-**[Browse plugins](https://paseo.sh/plugins)** · **[Plugin docs](https://paseo.sh/docs/plugins)**
+**[Plugin docs](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)**
 
 Plugins run with access to your daemon machine and inside connected clients; install only code you trust.
 
@@ -80,12 +54,12 @@ You need at least one agent CLI installed and configured with your credentials:
 - [GitHub Copilot](https://github.com/features/copilot/cli/)
 - [OpenCode](https://github.com/anomalyco/opencode)
 - [Pi](https://pi.dev)
-- [Antigravity](https://paseo.sh/docs/supported-providers#antigravity)
-- [Muse Code](https://paseo.sh/docs/muse-code)
+- [Antigravity](https://github.com/Rinai-R/kivotos/blob/main/docs/providers.md)
+- [Muse Code](https://github.com/Rinai-R/kivotos/blob/main/docs/providers.md)
 
 ### Desktop app (recommended)
 
-Download it from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open the app and the daemon starts automatically. Nothing else to install.
+Download it from the [releases page](https://github.com/Rinai-R/kivotos/releases). Open the app and the daemon starts automatically. Nothing else to install.
 
 To connect from your phone, open **Settings → your host → Pair Device**.
 
@@ -102,21 +76,23 @@ Kivotos starts, then asks whether to enable the end-to-end encrypted relay for d
 
 For full setup and configuration, see:
 
-- [Docs](https://paseo.sh/docs)
-- [Connectivity guide](https://paseo.sh/docs/connectivity)
-- [Configuration reference](https://paseo.sh/docs/configuration)
+- [Docs](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [Connectivity guide](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [Configuration reference](https://github.com/Rinai-R/kivotos/tree/main/docs)
 
 ### Docker
 
-Run the Kivotos daemon and self-hosted web UI in Docker:
+Build the image locally, then run the Kivotos daemon and self-hosted web UI in Docker. No image is published:
 
 ```bash
+docker build -f docker/base/Dockerfile -t kivotos:latest .
+
 docker run -d --name kivotos \
   -p 6767:6767 \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getpaseo/paseo:latest
+  kivotos:latest
 ```
 
 Open `http://localhost:6767` after it starts. Extend the base image with the agent CLIs you use, then provide credentials through environment variables or the persistent `/home/kivotos` volume. See the [Docker documentation](docs/docker.md) for full setup details.
@@ -137,7 +113,7 @@ kivotos send abc123 "also add tests" # follow-up task
 kivotos run --host workstation.local:6767 --cwd /workspace "run the full test suite"
 ```
 
-See the [full CLI reference](https://paseo.sh/docs/cli) for more.
+See the [full CLI reference](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md) for more.
 
 ## TypeScript SDK
 
@@ -161,14 +137,14 @@ console.log(result.lastMessage);
 await client.close();
 ```
 
-See the [SDK quickstart](https://paseo.sh/docs/sdk/quickstart), [recipes](https://paseo.sh/docs/sdk/recipes), and [API reference](https://paseo.sh/docs/sdk/reference).
+See the [SDK quickstart](https://github.com/Rinai-R/kivotos/tree/main/docs), [recipes](https://github.com/Rinai-R/kivotos/tree/main/docs), and [API reference](https://github.com/Rinai-R/kivotos/tree/main/docs).
 
 ## Skills
 
 Skills teach your agent to use Kivotos to orchestrate other agents.
 
 ```bash
-npx skills add getpaseo/paseo
+npx skills add Rinai-R/kivotos
 ```
 
 Then use them in any agent conversation:
@@ -204,12 +180,6 @@ npm run build:server
 # repo-wide checks
 npm run typecheck
 ```
-
-## Sponsors
-
-Kivotos is an independent project used by tens of thousands of developers daily, built by one person and funded by the people who use it. Support the work on [GitHub Sponsors](https://github.com/sponsors/boudra). Companies can [sponsor Kivotos](https://paseo.sh/sponsor#spot) monthly and have their logo shown here and on the paseo.sh homepage.
-
-<!-- Sponsor logos go here -->
 
 ## Related projects
 

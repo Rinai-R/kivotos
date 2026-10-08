@@ -11,33 +11,7 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
-  </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
-  </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
-  </a>
-  <a href="https://www.reddit.com/r/KivotosAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
-  </a>
-</p>
-
 <p align="center">Claude Code, Codex, Copilot, OpenCode, Pi 에이전트를 위한 하나의 인터페이스</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Kivotos app screenshot" width="100%">
-</p>
-
-<p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Kivotos mobile app" width="100%">
-</p>
 
 내 컴퓨터에서 에이전트를 병렬로 실행하세요. 데스크톱이나 휴대폰에서 배포하세요.
 
@@ -63,7 +37,7 @@ Kivotos는 코딩 에이전트를 관리하는 로컬 서버인 데몬을 실행
 
 ### 데스크톱 앱(권장)
 
-[paseo.sh/download](https://paseo.sh/download) 또는 [GitHub 릴리스 페이지](https://github.com/getpaseo/paseo/releases)에서 다운로드하세요. 앱을 열면 데몬이 자동으로 시작됩니다. 별도로 설치할 것은 없습니다.
+[릴리스 페이지](https://github.com/Rinai-R/kivotos/releases)에서 다운로드하세요. 앱을 열면 데몬이 자동으로 시작됩니다. 별도로 설치할 것은 없습니다.
 
 휴대폰에서 연결하려면 **설정 → 호스트 → 기기 페어링**을 여세요.
 
@@ -80,21 +54,23 @@ Kivotos가 로컬에서 시작된 뒤 기기 페어링을 위한 종단 간 암�
 
 자세한 설치와 설정은 아래 문서를 참고하세요.
 
-- [문서](https://paseo.sh/docs)
-- [연결 가이드](https://paseo.sh/docs/connectivity)
-- [설정 레퍼런스](https://paseo.sh/docs/configuration)
+- [문서](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [연결 가이드](https://github.com/Rinai-R/kivotos/tree/main/docs)
+- [설정 레퍼런스](https://github.com/Rinai-R/kivotos/tree/main/docs)
 
 ### Docker
 
-Docker에서 Kivotos 데몬과 셀프 호스팅 웹 UI를 실행하세요:
+이미지를 로컬에서 빌드한 뒤 Docker에서 Kivotos 데몬과 셀프 호스팅 웹 UI를 실행하세요. 게시되는 이미지는 없습니다:
 
 ```bash
+docker build -f docker/base/Dockerfile -t kivotos:latest .
+
 docker run -d --name kivotos \
   -p 6767:6767 \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getpaseo/paseo:latest
+  kivotos:latest
 ```
 
 컨테이너가 시작되면 `http://localhost:6767`을 여세요. 사용하는 에이전트 CLI를 기본 이미지에 추가한 뒤, 환경 변수나 영구 `/home/kivotos` 볼륨으로 인증 정보를 설정하세요. 자세한 내용은 [Docker 문서](docs/docker.md)를 참고하세요.
@@ -115,14 +91,14 @@ kivotos send abc123 "also add tests" # 후속 작업 전송
 kivotos --host workstation.local:6767 run "run the full test suite"
 ```
 
-자세한 내용은 [전체 CLI 레퍼런스](https://paseo.sh/docs/cli)를 참고하세요.
+자세한 내용은 [전체 CLI 레퍼런스](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md)를 참고하세요.
 
 ## 스킬
 
 스킬은 에이전트가 Kivotos를 통해 다른 에이전트를 오케스트레이션하는 방법을 알려 줍니다.
 
 ```bash
-npx skills add getpaseo/paseo
+npx skills add Rinai-R/kivotos
 ```
 
 그런 다음 어떤 에이전트 대화에서든 아래 명령을 사용할 수 있습니다.
@@ -158,12 +134,6 @@ npm run build:server
 # 레포 전체 검사 실행
 npm run typecheck
 ```
-
-## 스폰서
-
-Kivotos는 한 사람이 개발하며, 사용하는 분들의 후원으로 운영됩니다. [GitHub Sponsors](https://github.com/sponsors/boudra)로 후원할 수 있습니다. 회사는 매월 [Kivotos를 후원](https://paseo.sh/sponsor#spot)하고 로고를 이곳과 paseo.sh 홈페이지에 게재할 수 있습니다.
-
-<!-- Sponsor logos go here -->
 
 ## 관련 프로젝트
 

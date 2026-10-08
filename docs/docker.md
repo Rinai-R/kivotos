@@ -1,14 +1,16 @@
 # Running Kivotos in Docker
 
-Kivotos publishes a container image for running the daemon on a server, VM, NAS,
-or homelab box. The image also serves the bundled browser web UI, so one
-container gives you both the daemon API and a self-hosted UI.
+Kivotos builds a container image for running the daemon on a server, VM, NAS,
+or homelab box. Nothing is published: build the image locally from the
+checked-out source tree (see [Building Locally](#building-locally) below). The
+image also serves the bundled browser web UI, so one container gives you both
+the daemon API and a self-hosted UI.
 
 The image source lives in [`docker/`](../docker/).
 
 ## How it works
 
-The official image:
+The image:
 
 - builds `@kivotos/server` and `@kivotos/cli` from source-built workspace tarballs
 - runs the daemon as the non-root `kivotos` user
@@ -26,13 +28,21 @@ Host-side CLI commands select the container explicitly, for example `kivotos pro
 
 ## Quick Start
 
+Build the image locally:
+
+```bash
+docker build -f docker/base/Dockerfile -t kivotos:latest .
+```
+
+Then run it:
+
 ```bash
 docker run -d --name kivotos \
   -p 6767:6767 \
   -e KIVOTOS_PASSWORD=change-me \
   -v "$PWD/kivotos-home:/home/kivotos" \
   -v "$PWD:/workspace" \
-  ghcr.io/getpaseo/paseo:latest
+  kivotos:latest
 ```
 
 Then open:
@@ -54,12 +64,12 @@ $EDITOR docker-compose.yml
 docker compose up -d
 ```
 
-Minimal example:
+Minimal example (the locally built `kivotos:latest` image from [Quick Start](#quick-start)):
 
 ```yaml
 services:
   kivotos:
-    image: ghcr.io/getpaseo/paseo:latest
+    image: kivotos:latest
     restart: unless-stopped
     ports:
       - "6767:6767"
@@ -79,7 +89,7 @@ releases to third-party agent release cycles.
 Create a child image for the agents you use:
 
 ```Dockerfile
-FROM ghcr.io/getpaseo/paseo:latest
+FROM kivotos:latest
 
 USER root
 RUN npm install -g @openai/codex @anthropic-ai/claude-code opencode-ai
@@ -115,18 +125,18 @@ or `compose.environment`; Kivotos passes them to launched agents.
 
 ## Volumes
 
-| Mount         | Purpose                                                                  |
-| ------------- | ------------------------------------------------------------------------ |
+| Mount           | Purpose                                                                      |
+| --------------- | ---------------------------------------------------------------------------- |
 | `/home/kivotos` | Kivotos state under `.kivotos` plus agent config such as `.codex`, `.claude` |
-| `/workspace`  | Code that Kivotos and launched agents can read and write                   |
+| `/workspace`    | Code that Kivotos and launched agents can read and write                     |
 
 The image defaults:
 
-| Variable       | Default              |
-| -------------- | -------------------- |
-| `HOME`         | `/home/kivotos`        |
+| Variable         | Default                  |
+| ---------------- | ------------------------ |
+| `HOME`           | `/home/kivotos`          |
 | `KIVOTOS_HOME`   | `/home/kivotos/.kivotos` |
-| `KIVOTOS_LISTEN` | `0.0.0.0:6767`       |
+| `KIVOTOS_LISTEN` | `0.0.0.0:6767`           |
 
 If you bind-mount host directories on Linux, make sure the container user can
 write them. The built-in `kivotos` user has uid/gid `1000:1000`. For a different
@@ -205,28 +215,21 @@ docker build \
   .
 ```
 
-The Docker workflow builds the image on pull requests and on `main` as a
-non-publishing check. Stable `vX.Y.Z` tag pushes publish
-`ghcr.io/getpaseo/paseo:X.Y.Z` and `ghcr.io/getpaseo/paseo:latest`. Beta tags
-publish only the exact prerelease tag, such as
-`ghcr.io/getpaseo/paseo:0.1.102-beta.1`, and do not update `latest`.
+Nothing is published from CI: tag pushes do not build or publish
+`kivotos:X.Y.Z`, `kivotos:X.Y.Z-beta.N`, or `kivotos:latest`. The image you run
+is the one you build locally from the checked-out source tree, so tag the build
+you keep (`kivotos:local`, `kivotos:X.Y.Z`, or `kivotos:latest`).
 
-To replace a Docker image in place without rebuilding desktop, APK, or EAS
-mobile release artifacts, dispatch the Docker workflow manually instead of
-pushing a `v*` release tag:
+To replace the image without rebuilding desktop, APK, or EAS mobile release
+artifacts, rebuild and re-tag it from the release commit:
 
 ```bash
-gh workflow run docker.yml \
-  --ref main \
-  -f kivotos_version=0.1.102-beta.1 \
-  -f publish=true
+docker build \
+  --build-arg KIVOTOS_VERSION=X.Y.Z-beta.N \
+  -t kivotos:X.Y.Z-beta.N \
+  -f docker/base/Dockerfile \
+  .
 ```
-
-Manual Docker publishes require an explicit `kivotos_version`. The workflow builds
-from the checked-out source tree and publishes only the exact prerelease image
-tag for prerelease versions.
-
-The published image is multi-arch for `linux/amd64` and `linux/arm64`.
 
 ## Troubleshooting
 

@@ -134,11 +134,11 @@ export function GreetingScreen({ theme, layout }: PluginScreenProps) {
       </Pressable>
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel="Open the Kivotos website"
+        accessibilityLabel="Open the Kivotos repository"
         style={styles.button}
-        onPress={() => openExternal("https://paseo.sh")}
+        onPress={() => openExternal("https://github.com/Rinai-R/kivotos")}
       >
-        <Text style={styles.buttonText}>Open paseo.sh</Text>
+        <Text style={styles.buttonText}>Open the repository</Text>
       </Pressable>
     </View>
   );

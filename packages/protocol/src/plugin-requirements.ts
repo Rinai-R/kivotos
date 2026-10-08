@@ -33,7 +33,7 @@ export function assertPluginCompatibility(input: PluginCompatibilityInput): void
   if (satisfies(version, range) || satisfies(stableCore, range)) return;
   const action =
     input.requirements?.kivotos === undefined
-      ? "This plugin has no requirements.kivotos and targets Kivotos before 0.8. Ask its author to migrate it: https://paseo.sh/docs/plugins/migration"
+      ? "This plugin has no requirements.kivotos and targets Kivotos before 0.8. Ask its author to migrate it: https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md"
       : `Use a compatible plugin version or update the ${input.runtime}.`;
   throw new Error(
     `Plugin "${input.id}" requires Kivotos ${range}. Your ${input.runtime} is ${input.version}. ${action}`,

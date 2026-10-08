@@ -34,4 +34,4 @@ Kivotos 会在你的电脑上运行一个名为 daemon 的本地服务，由它�
 
 本应用无法独立使用。请在存放代码和 agent CLI 的电脑上安装 Kivotos daemon，然后在设置中将本应用与其配对。桌面应用已内置 daemon，你也可以通过 npm、Docker 或 Nix 运行。
 
-安装说明：https://paseo.sh
+安装说明：https://github.com/Rinai-R/kivotos

@@ -2,11 +2,11 @@
   "name": "@kivotos/plugin-example-modal-ui",
   "version": "0.1.1",
   "description": "Interactive Kivotos plugin example for modal forms, scrolling, and clipboard actions",
-  "homepage": "https://paseo.sh/docs/plugins",
+  "homepage": "https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/getpaseo/paseo.git",
+    "url": "git+https://github.com/Rinai-R/kivotos.git",
     "directory": "plugin-examples/modal-ui"
   },
   "files": [

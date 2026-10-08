@@ -11,13 +11,13 @@ Build or manage the requested plugin directly. Use the current public docs to ca
 
 ## Check current documentation
 
-Fetch [https://paseo.sh/llms.txt](https://paseo.sh/llms.txt) first. Select and fetch the current plugin Markdown pages from that index before changing a plugin:
+Read the current plugin documentation in [docs/plugins.md](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md) before changing a plugin:
 
-- [Plugin quickstart](https://paseo.sh/docs/plugins.md) ([browser page](https://paseo.sh/docs/plugins))
-- [Publishing](https://paseo.sh/docs/plugins/publishing.md): npm package contents, dependencies, Git preparation, and private registries.
-- [Plugin reference](https://paseo.sh/docs/plugins/reference.md) ([browser page](https://paseo.sh/docs/plugins/reference))
+- [Plugin quickstart](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)
+- [Publishing](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md): npm package contents, dependencies, Git preparation, and private registries.
+- [Plugin reference](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)
 
-Use the deployed docs when they disagree with this skill. Do not send the user away to read them instead of completing the work.
+Use the repository docs when they disagree with this skill. Do not send the user away to read them instead of completing the work.
 
 In the Kivotos repository, read the plugin SDK sources under `packages/plugin/src` for the checkout's
 API, including unreleased changes. Use `docs/plugins.md` for maintainer guidance. Complete contracts
@@ -39,15 +39,15 @@ Pick the contribution that matches the request. Each row names the registration,
 | Attachment source         | `client.addAttachmentSource` + `server.handle`              | Let the user attach a searchable external resource, such as an issue, to a prompt                             | reference.md → Add a composer attachment source; `plugin-examples/linear`                          |
 | Theme                     | `addTheme`                                                  | A light or dark palette under Settings → Appearance                                                           | reference.md → Contribute a theme; `plugin-examples/catppuccin`                                    |
 | Plugin RPC                | `defineRpc` + `server.handle` + `useRpc`                    | Daemon-side work that is not a normal Kivotos operation: vendor APIs, credentials, local files                | reference.md → Add plugin-specific backend behavior                                                |
-| Lifecycle events          | `server.on`                                                 | Observe agent/workspace lifecycle, inspect ended turns, and answer permission requests                        | [Lifecycle hooks](https://paseo.sh/docs/plugins/reference.md#lifecycle-hooks)                      |
-| Creation and launch hooks | `server.before`                                             | Change agent config, provider options, MCP servers, environment, or workspace isolation before the operation  | [Before hooks](https://paseo.sh/docs/plugins/reference.md#before-hooks)                            |
+| Lifecycle events          | `server.on`                                                 | Observe agent/workspace lifecycle, inspect ended turns, and answer permission requests                        | [Lifecycle hooks](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md#lifecycle-hooks)    |
+| Creation and launch hooks | `server.before`                                             | Change agent config, provider options, MCP servers, environment, or workspace isolation before the operation  | [Before hooks](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)                       |
 | Kivotos SDK               | `useKivotos()` / handler `{ kivotos }`                      | Normal Kivotos operations: workspaces, agents, providers, config                                              | reference.md → Use the Kivotos SDK                                                                 |
 
-| Lifecycle task                                                      | Example                                                                                                |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Log all eleven hooks                                                | [lifecycle-logger](https://github.com/getpaseo/paseo/tree/main/plugin-examples/lifecycle-logger)       |
-| Follow-ups, permissions, environment, provider switching, worktrees | [lifecycle-actions](https://github.com/getpaseo/paseo/tree/main/plugin-examples/lifecycle-actions)     |
-| Inject MCP servers and change Codex sandbox/approval options        | [agent-configuration](https://github.com/getpaseo/paseo/tree/main/plugin-examples/agent-configuration) |
+| Lifecycle task                                                      | Example                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Log all eleven hooks                                                | [lifecycle-logger](https://github.com/Rinai-R/kivotos/tree/main/plugin-examples/lifecycle-logger)       |
+| Follow-ups, permissions, environment, provider switching, worktrees | [lifecycle-actions](https://github.com/Rinai-R/kivotos/tree/main/plugin-examples/lifecycle-actions)     |
+| Inject MCP servers and change Codex sandbox/approval options        | [agent-configuration](https://github.com/Rinai-R/kivotos/tree/main/plugin-examples/agent-configuration) |
 
 ## Create the project
 
@@ -85,7 +85,7 @@ by the CLI version. Raise the minimum when adopting newer APIs; add an upper bou
 Kivotos release is incompatible. Use npm semver ranges and explicitly include beta versions when
 targeting betas. Missing requirements mean `<0.8.0`; complete the 0.8 entry migration before adding
 `>=0.8.0`. Verify compatibility with both the daemon and the app running client contributions.
-See [requirements](https://paseo.sh/docs/plugins/reference#requirements).
+See [requirements](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md).
 
 Each runtime has its own optional entry. A plugin must have at least one. Both entries accept
 `.ts` or `.tsx`; use `.tsx` when an entry imports components.
@@ -258,7 +258,7 @@ export default function contribute(client: PluginClientContext) {
 Icons are Lucide icon names. `theme` is a typed `PluginTheme` on every screen and panel. Primary text uses `theme.colors.foreground`; labels use `theme.colors.foregroundMuted`; the root view uses `theme.colors.surface0`. `layout.compact` is true on mobile and narrow windows. Kivotos owns the route, header, host picker, close action, error boundary, and per-installation query client.
 
 Before writing imports, classify each module as shared, client, or server. Follow the
-[SDK import boundaries](https://paseo.sh/docs/plugins/reference.md#runtime-modules), including
+[SDK import boundaries](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md#sdk-import-boundaries), including
 transitive and type dependencies. The root is shared-only; hooks and client contexts belong to
 `@kivotos/plugin/client`, server contexts to `/server`, and host UI to `/client/react-native` or `/client/ui`.
 Install dependencies locally for typechecking; Kivotos supplies host runtime modules. JSX uses the
@@ -319,7 +319,7 @@ function PullRequestAction() {
 }
 ```
 
-The API covers workspaces, agents, providers, and daemon config. It omits connection lifecycle because Kivotos owns the connection. Consult the current [SDK reference](https://paseo.sh/docs/sdk/reference.md) for method details.
+The API covers workspaces, agents, providers, and daemon config. It omits connection lifecycle because Kivotos owns the connection. Consult the current [SDK reference](https://github.com/Rinai-R/kivotos/tree/main/docs) for method details.
 
 ### Add daemon-side behavior
 
@@ -678,7 +678,7 @@ or lists of absent features. Keep only what helps someone choose the plugin.
 If your plugin is an unchanged imported record, you can propose an author-written overview
 to replace the registry stopgap. Do not add import credit to your own `OVERVIEW.md`.
 
-See [Your listing page](https://paseo.sh/docs/plugins/publishing.md#your-listing-page).
+See [Your listing page](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md#publishing-a-listing).
 
 ## Typecheck and manage
 
@@ -703,14 +703,14 @@ kivotos plugin remove my-plugin
 
 For npm, ensure npm is on the daemon's `PATH`; use that host's registry configuration and credentials. Install selectors choose
 content once; they do not pin updates. `install` and `add` are aliases. Follow the
-[publishing guide](https://paseo.sh/docs/plugins/publishing.md) for Kivotos's package contents and
+[publishing guide](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md) for Kivotos's package contents and
 preparation requirements; standard npm publishing commands apply.
 
 Use `--host <url>` when managing a daemon other than the CLI default. A Git source that must install or generate something declares `build` in `kivotos-plugin.json` as a list of argv arrays; Kivotos runs them without a shell on install and update and keeps the old version if one fails. Plugin source edits require `kivotos plugin reload`; config changes to the global switch require `kivotos reload`. A failed plugin reload stays failed; inspect `kivotos plugin ls` for the load error and `kivotos plugin logs <id>` for subprocess output, fix the source, typecheck, and reload again. `remove` keeps local source directories and deletes managed Git/npm installations.
 
 Do not restart the daemon to load source changes. Restarting it can kill the agent performing the work.
 
-For an old mixed entry, follow the standalone [runtime-entry migration guide](https://paseo.sh/docs/plugins/migration) mechanically.
+For an old mixed entry, follow the standalone [runtime-entry migration guide](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md) mechanically.
 
 ## Verify the outcome
 

@@ -37,7 +37,7 @@ export interface PairingOffer {
 }
 
 const PAIRING_DAEMON_RPC_TIMEOUT_MS = 1500;
-const RELAY_DOCS_URL = "https://paseo.sh/docs/security";
+const RELAY_DOCS_URL = "https://github.com/Rinai-R/kivotos/tree/main/docs";
 
 function createProcessOutput(): PairCommandOutput {
   return {
@@ -140,7 +140,9 @@ async function resolveDaemonPairingOffer(
 }
 
 export async function confirmRelayPairing(): Promise<boolean> {
-  log.message("Your connection is end-to-end encrypted. Kivotos cannot read your code or messages.");
+  log.message(
+    "Your connection is end-to-end encrypted. Kivotos cannot read your code or messages.",
+  );
   log.message(`Learn how it works: ${RELAY_DOCS_URL}`);
   const answer = await confirm({
     message: "Enable relay to pair a device?",

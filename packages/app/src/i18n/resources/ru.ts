@@ -1233,7 +1233,6 @@ export const ru: TranslationResources = {
       diagnostics: "Запустить диагностику",
       shortcuts: "Сочетания клавиш",
       reportIssue: "Сообщить о проблеме",
-      discord: "Discord",
       github: "Создать issue на GitHub",
       whatsNew: "Что нового",
       appName: "Kivotos",

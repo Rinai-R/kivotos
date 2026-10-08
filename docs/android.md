@@ -4,8 +4,8 @@
 
 Controlled by `APP_VARIANT` in `packages/app/app.config.js` (vanilla Expo, no custom Gradle plugin):
 
-| Variant       | App name    | Package ID       |
-| ------------- | ----------- | ---------------- |
+| Variant       | App name      | Package ID         |
+| ------------- | ------------- | ------------------ |
 | `production`  | Kivotos       | `sh.kivotos`       |
 | `development` | Kivotos Debug | `sh.kivotos.debug` |
 
@@ -199,32 +199,28 @@ Keep `react` and `react-dom` pinned to the React version embedded by the current
 adb exec-out screencap -p > screenshot.png
 ```
 
-## Cloud build + submit (EAS)
+## Cloud build + submit
 
-Stable tag pushes like `v0.1.0` trigger:
+This fork has no automated mobile pipeline. Only `.github/workflows/ci.yml` (the test suite) and
+the manual `.github/workflows/deploy-relay.yml` exist, and no EAS project is linked in
+`packages/app/app.config.js`. Tag pushes build and publish nothing.
 
-- The EAS GitHub app on Expo servers (iOS + Android production builds + store submit). There is no workflow file in this repo for it.
-- `.github/workflows/android-apk-release.yml` on GitHub Actions (APK asset on GitHub Release).
+To ship an Android build, build it yourself and upload it:
 
-iOS auto-submits to App Store review via a Fastlane lane after EAS uploads to TestFlight. Android auto-submits to the Play Store via EAS-managed credentials.
-
-Beta tags like `v0.1.1-beta.1` only trigger the GitHub APK workflow. They publish a GitHub prerelease APK for testing and do not submit to the stores.
-
-`android-v*` tags also trigger only the GitHub APK workflow — useful when you want to ship an APK without going through stores. The GitHub APK workflow supports `workflow_dispatch` with an existing `tag` input so you can rebuild without cutting a new tag.
+- locally, with the `## Local build + install` commands above, or
+- through your own EAS project: `npx eas init` writes `owner` and `extra.eas.projectId` into
+  `packages/app/app.config.js`, then `npx eas build --platform android --profile production`
+  and `npx eas submit --platform android`.
 
 ### Useful commands
 
 ```bash
 cd packages/app
 
-# Recent builds
+# Your own EAS project only, once `npx eas init` has been run.
 npx eas build:list --limit 10 --non-interactive --json | jq '.[] | {platform, status, appVersion, gitCommitHash}'
 
-# Inspect a build (the printed `Logs` URL opens the build's Expo dashboard page,
-# which has a Submissions section showing the auto-submit to the Play Store).
 npx eas build:view <build-id>
 ```
-
-The Play Console (Internal testing → Production tracks) is the final confirmation that the binary reached the store.
 
 See [docs/release.md](release.md) for the full mobile-build babysitting flow.

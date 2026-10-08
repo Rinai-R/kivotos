@@ -10,7 +10,10 @@
     "voice",
     "voice-assistant"
   ],
-  "homepage": "https://paseo.sh",
+  "homepage": "https://github.com/Rinai-R/kivotos",
+  "bugs": {
+    "url": "https://github.com/Rinai-R/kivotos/issues"
+  },
   "license": "Apache-2.0",
   "author": {
     "name": "Mohamed Boudra",
@@ -18,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/getpaseo/paseo.git"
+    "url": "https://github.com/Rinai-R/kivotos.git"
   },
   "workspaces": [
     "plugins",
@@ -105,19 +108,15 @@
     "version:all:beta:next": "node scripts/set-release-version.mjs --mode beta-next",
     "version:all:promote": "node scripts/set-release-version.mjs --mode promote",
     "release:check": "npm run release:prepare && npm run typecheck --workspace=@kivotos/highlight && npm run typecheck --workspace=@kivotos/relay && npm run typecheck --workspace=@kivotos/protocol && npm run build:client:clean && npm run typecheck --workspace=@kivotos/client && npm run typecheck --workspace=@kivotos/plugin && npm run build:server:clean && npm run typecheck --workspace=@kivotos/server && npm run typecheck --workspace=@kivotos/cli && npm pack --dry-run --workspace=@kivotos/highlight && npm pack --dry-run --workspace=@kivotos/relay && npm pack --dry-run --workspace=@kivotos/protocol && npm pack --dry-run --workspace=@kivotos/client && npm pack --dry-run --workspace=@kivotos/plugin && npm pack --dry-run --workspace=@kivotos/server && npm pack --dry-run --workspace=@kivotos/cli",
-    "release:publish:dry-run": "npm publish --dry-run --workspace=@kivotos/highlight --access public && npm publish --dry-run --workspace=@kivotos/relay --access public && npm publish --dry-run --workspace=@kivotos/protocol --access public && npm publish --dry-run --workspace=@kivotos/client --access public && npm publish --dry-run --workspace=@kivotos/plugin --access public && npm publish --dry-run --workspace=@kivotos/server --access public && npm publish --dry-run --workspace=@kivotos/cli --access public",
-    "release:publish:beta:dry-run": "npm publish --dry-run --workspace=@kivotos/highlight --access public --tag beta && npm publish --dry-run --workspace=@kivotos/relay --access public --tag beta && npm publish --dry-run --workspace=@kivotos/protocol --access public --tag beta && npm publish --dry-run --workspace=@kivotos/client --access public --tag beta && npm publish --dry-run --workspace=@kivotos/plugin --access public --tag beta && npm publish --dry-run --workspace=@kivotos/server --access public --tag beta && npm publish --dry-run --workspace=@kivotos/cli --access public --tag beta",
-    "release:publish": "npm publish --workspace=@kivotos/highlight --access public && npm publish --workspace=@kivotos/relay --access public && npm publish --workspace=@kivotos/protocol --access public && npm publish --workspace=@kivotos/client --access public && npm publish --workspace=@kivotos/plugin --access public && npm publish --workspace=@kivotos/server --access public && npm publish --workspace=@kivotos/cli --access public",
-    "release:publish:beta": "npm publish --workspace=@kivotos/highlight --access public --tag beta && npm publish --workspace=@kivotos/relay --access public --tag beta && npm publish --workspace=@kivotos/protocol --access public --tag beta && npm publish --workspace=@kivotos/client --access public --tag beta && npm publish --workspace=@kivotos/plugin --access public --tag beta && npm publish --workspace=@kivotos/server --access public --tag beta && npm publish --workspace=@kivotos/cli --access public --tag beta",
     "release:push": "node scripts/push-current-release-tag.mjs",
-    "release:beta:patch": "npm run release:check && npm run version:all:beta:patch && npm run release:publish:beta && npm run release:push",
-    "release:beta:minor": "npm run release:check && npm run version:all:beta:minor && npm run release:publish:beta && npm run release:push",
-    "release:beta:major": "npm run release:check && npm run version:all:beta:major && npm run release:publish:beta && npm run release:push",
-    "release:beta:next": "npm run release:check && npm run version:all:beta:next && npm run release:publish:beta && npm run release:push",
-    "release:promote": "npm run release:check && npm run version:all:promote && npm run release:publish && npm run release:push",
-    "release:patch": "npm run release:check && npm run version:all:patch && npm run release:publish && npm run release:push",
-    "release:minor": "npm run release:check && npm run version:all:minor && npm run release:publish && npm run release:push",
-    "release:major": "npm run release:check && npm run version:all:major && npm run release:publish && npm run release:push"
+    "release:beta:patch": "npm run release:check && npm run version:all:beta:patch && npm run release:push",
+    "release:beta:minor": "npm run release:check && npm run version:all:beta:minor && npm run release:push",
+    "release:beta:major": "npm run release:check && npm run version:all:beta:major && npm run release:push",
+    "release:beta:next": "npm run release:check && npm run version:all:beta:next && npm run release:push",
+    "release:promote": "npm run release:check && npm run version:all:promote && npm run release:push",
+    "release:patch": "npm run release:check && npm run version:all:patch && npm run release:push",
+    "release:minor": "npm run release:check && npm run version:all:minor && npm run release:push",
+    "release:major": "npm run release:check && npm run version:all:major && npm run release:push"
   },
   "devDependencies": {
     "@types/ws": "^8.5.14",

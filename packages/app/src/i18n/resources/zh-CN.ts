@@ -1207,7 +1207,6 @@ export const zhCN: TranslationResources = {
       diagnostics: "运行诊断",
       shortcuts: "键盘快捷键",
       reportIssue: "报告问题",
-      discord: "Discord",
       github: "创建 GitHub Issue",
       whatsNew: "新功能",
       appName: "Kivotos",
@@ -2581,7 +2580,8 @@ export const zhCN: TranslationResources = {
           dialogFailedMessage: "无法打开重启确认对话框。",
         },
         update: {
-          desktopManagedHint: "此 Daemon 由 Kivotos Desktop 管理。请在 Host 上更新 Kivotos Desktop。",
+          desktopManagedHint:
+            "此 Daemon 由 Kivotos Desktop 管理。请在 Host 上更新 Kivotos Desktop。",
           title: "Update daemon",
           hint: "Update the daemon to the latest version and restart it",
           confirm: "Update",

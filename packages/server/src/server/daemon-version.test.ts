@@ -38,7 +38,7 @@ describe("resolveDaemonVersion", () => {
     const root = createTempDir();
     writeFileSync(
       path.join(root, "package.json"),
-      JSON.stringify({ name: "not-getpaseo-server", version: "1.2.3" }),
+      JSON.stringify({ name: "not-kivotos-server", version: "1.2.3" }),
       "utf8",
     );
     const nestedDir = path.join(root, "dist", "server");

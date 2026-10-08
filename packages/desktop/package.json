@@ -3,7 +3,7 @@
   "version": "0.11.1",
   "private": true,
   "description": "Kivotos desktop app (Electron wrapper)",
-  "homepage": "https://paseo.sh",
+  "homepage": "https://github.com/Rinai-R/kivotos",
   "license": "Apache-2.0",
   "author": {
     "name": "Mohamed Boudra",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/getpaseo/paseo.git"
+    "url": "https://github.com/Rinai-R/kivotos.git"
   },
   "main": "dist/main.js",
   "scripts": {

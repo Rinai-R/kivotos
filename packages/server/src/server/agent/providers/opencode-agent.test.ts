@@ -1401,7 +1401,7 @@ describe("OpenCode adapter normalization", () => {
         mimeType: "application/github-issue",
         number: 55,
         title: "Improve startup error details",
-        url: "https://github.com/getpaseo/paseo/issues/55",
+        url: "https://github.com/Rinai-R/kivotos/issues/55",
         body: "Issue body",
       },
     ]);
