@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Kivotos</title>
+  <desc id="desc">An angular K constructed from three folded ribbon planes in blue, with light and shadow defining each fold, on a transparent background.</desc>
+  <path d="M104 136L184 96V376L104 416V136Z" fill="#3478DB"/>
+  <path d="M204 224L328 100H420L264 256L204 224Z" fill="#62A5F5"/>
+  <path d="M204 244L264 276L420 412H316L204 308V244Z" fill="#2455A4"/>
+</svg>
