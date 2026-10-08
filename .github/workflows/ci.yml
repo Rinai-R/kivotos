@@ -37,6 +37,9 @@ jobs:
       - name: Build server stack
         run: npm run build:server
 
+      - name: Install agent CLIs for provider tests
+        run: node scripts/npm-retry.mjs install -g @anthropic-ai/claude-code opencode-ai
+
       - name: protocol
         run: npm run test --workspace=@kivotos/protocol
 
