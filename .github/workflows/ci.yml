@@ -71,6 +71,13 @@ jobs:
         timeout-minutes: 30
         run: npm run test:unit --workspace=@kivotos/server
 
+      - name: Install Playwright browsers
+        timeout-minutes: 10
+        run: npx playwright install chromium
+
+      - name: Build app dependencies
+        run: npm run build:app-deps
+
       - name: app
         timeout-minutes: 30
         run: npm run test --workspace=@kivotos/app
