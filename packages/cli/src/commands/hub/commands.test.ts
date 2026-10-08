@@ -42,7 +42,7 @@ describe("Hub commands", () => {
       },
     });
     connect?.outputHelp();
-    assert.match(help, /active stored login.*https:\/\/hub\.kivotos\.sh/u);
+    assert.match(help, /active stored login.*https:\/\/hub\.paseo\.sh/u);
   });
 
   it("login stores the durable credential and marks its normalized origin active", async () => {

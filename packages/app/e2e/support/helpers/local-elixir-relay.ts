@@ -64,7 +64,8 @@ export async function startLocalElixirRelay(): Promise<LocalElixirRelay> {
   }
 
   const relayRoot =
-    process.env.KIVOTOS_RELAY_CHECKOUT ?? path.resolve(__dirname, "../../../../../..", "kivotos-relay");
+    process.env.KIVOTOS_RELAY_CHECKOUT ??
+    path.resolve(__dirname, "../../../../../..", "paseo-relay");
   if (!existsSync(path.join(relayRoot, "mix.exs"))) {
     throw new Error(
       `Expected the Elixir relay checkout at ${relayRoot}. Set KIVOTOS_RELAY_CHECKOUT to override it.`,

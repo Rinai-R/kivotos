@@ -64,8 +64,8 @@ describe("findHighlightRanges", () => {
   });
   it("uses the search matcher for typo and scattered-character matches", () => {
     expect(marked("billing", findHighlightRanges("bulling", "billing"))).toBe("[billing]");
-    expect(marked("kivotos-babysit", findHighlightRanges("pasbab", "kivotos-babysit"))).toBe(
-      "[pas]eo-[bab]ysit",
+    expect(marked("kivotos-babysit", findHighlightRanges("kivbab", "kivotos-babysit"))).toBe(
+      "[kiv]otos-[bab]ysit",
     );
   });
   it("does not highlight a query assembled across separate words", () => {

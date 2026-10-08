@@ -134,7 +134,7 @@ test("stays inside the 500 character limit and keeps the full-notes link", () =>
         contents.length <= CHANGELOG_CHARACTER_LIMIT,
         `expected <= ${CHANGELOG_CHARACTER_LIMIT}, got ${contents.length}`,
       );
-      assert.match(contents, /Full notes: https:\/\/kivotos\.sh\/changelog\n$/);
+      assert.match(contents, /Full notes: https:\/\/paseo\.sh\/changelog\n$/);
       // Truncation happens at a bullet boundary, never mid-sentence.
       assert.equal(contents.includes("Shipped improvement number 0."), true);
       assert.equal(/- Shipped improvement number \d+\.\.\.$/m.test(contents), false);

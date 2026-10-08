@@ -142,7 +142,9 @@ describe("test-daemon-connection connectToDaemon", () => {
     );
     await result.client.close();
 
-    expect(probe.createdConfigs()[0]?.url).toBe("kivotos+desktop://socket?path=%2Ftmp%2Fkivotos.sock");
+    expect(probe.createdConfigs()[0]?.url).toBe(
+      "kivotos+desktop://socket?path=%2Ftmp%2Fkivotos.sock",
+    );
   });
 
   it("uses the desktop transport for Remote SSH connections", async () => {
@@ -236,7 +238,7 @@ describe("test-daemon-connection connectToDaemon", () => {
     await plainResult.client.close();
 
     expect(probe.createdConfigs()[0]?.url).toMatch(/^wss:\/\/\[::1\]\/ws\?/);
-    expect(probe.createdConfigs()[1]?.url).toMatch(/^ws:\/\/relay\.kivotos\.sh:443\/ws\?/);
+    expect(probe.createdConfigs()[1]?.url).toMatch(/^ws:\/\/relay\.paseo\.sh:443\/ws\?/);
   });
 
   it("surfaces auth rejection as an incorrect password", async () => {
