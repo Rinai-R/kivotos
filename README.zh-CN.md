@@ -13,11 +13,6 @@
 
 <p align="center">Claude Code、Codex、Copilot、OpenCode 和 Pi agents 的统一界面。</p>
 
-> [!NOTE]
-> 我是独立维护者，不一定每天都能及时处理 GitHub Issues。
-
----
-
 在你自己的机器上并行运行 agents。无论在手机上还是桌前，都能推进交付。
 
 - **自托管：** Agents 在你的机器上运行，使用完整的本地开发环境、工具、配置和技能。

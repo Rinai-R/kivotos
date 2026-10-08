@@ -8,4 +8,4 @@ Run:
 npm run generate:validators --workspace=@kivotos/protocol
 ```
 
-The generated TypeScript is intentionally gitignored. zod-aot is exact-pinned because this is a young solo-maintainer project; keep the generated validator behind protocol regression tests when upgrading it.
+The generated TypeScript is intentionally gitignored. zod-aot is exact-pinned; keep the generated validator behind protocol regression tests when upgrading it.

@@ -60,7 +60,7 @@ linux:
   category: Development
   icon: assets
   artifactName: "Kivotos-${version}-${arch}.${ext}"
-  maintainer: "Mohamed Boudra <hello@moboudra.com>"
+  maintainer: "Rinai <1130157066@qq.com>"
   vendor: "Kivotos"
   extraResources:
     - from: bin/kivotos

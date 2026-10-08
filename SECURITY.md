@@ -94,4 +94,6 @@ Kivotos only talks to a forge host that is either a known cloud host or one the 
 
 ## Reporting vulnerabilities
 
-If you discover a security vulnerability, please report it privately by emailing hello@moboudra.com. Do not open a public issue.
+If you discover a security vulnerability, please report it privately through GitHub's private
+vulnerability reporting for this repository (Security → Report a vulnerability):
+https://github.com/Rinai-R/kivotos/security/advisories/new. Do not open a public issue.
