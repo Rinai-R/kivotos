@@ -71,6 +71,8 @@ import { MarkdownFenceBlock } from "@/components/markdown/fence";
 import type { MarkdownPhase } from "@/components/markdown/fence/types";
 import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
 import { useRevealedText } from "@/hooks/use-revealed-text";
+import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
+import { useActivityArrival } from "@/tool-calls/use-activity-arrival";
 import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
@@ -1131,17 +1133,17 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     overflow: "hidden",
   },
   iconBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 16,
+    height: 16,
+    borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: theme.spacing[1],
+    marginRight: theme.spacing[1.5],
     backgroundColor: "transparent",
   },
   label: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.content - 2,
     fontWeight: theme.fontWeight.normal,
     flexShrink: 0,
   },
@@ -1156,7 +1158,7 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     flexShrink: 1,
     minWidth: 0,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.content - 2,
     fontWeight: theme.fontWeight.normal,
     marginLeft: theme.spacing[2],
   },
@@ -1165,7 +1167,7 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
   },
   shimmerText: {
     color: "transparent",
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.content - 2,
     fontWeight: theme.fontWeight.normal,
   },
   spacer: {
@@ -2375,7 +2377,7 @@ function ExpandableBadgeWebShimmerOverlay({
   showOpenFileButton,
 }: ExpandableBadgeWebShimmerOverlayProps) {
   return (
-    <View style={expandableBadgeStylesheet.shimmerOverlay} pointerEvents="none">
+    <View style={expandableBadgeStylesheet.shimmerOverlay} pointerEvents="none" aria-hidden>
       <Text style={shimmerLabelTextStyle} numberOfLines={1}>
         {label}
       </Text>
@@ -2695,6 +2697,10 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   testID,
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
+  const reducedMotion = useReducedMotionPreference();
+  const panelActive = useRetainedPanelActive();
+  const animateLoading = isLoading && !reducedMotion && panelActive;
+  const headerArrivalStyle = useActivityArrival({ active: animateLoading, label });
   const [isHovered, setIsHovered] = useState(false);
   const [isOpenFileHovered, setIsOpenFileHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
@@ -2748,7 +2754,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   } = computeShimmerMetrics({
     label,
     secondaryLabel,
-    isLoading,
+    isLoading: animateLoading,
     labelRowWidth,
     labelRowHeight,
     labelOffsetX,
@@ -2861,7 +2867,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
     () => [
       expandableBadgeStylesheet.pressable,
       isPressed && isInteractive ? expandableBadgeStylesheet.pressablePressed : null,
-      isExpanded && expandableBadgeStylesheet.pressableExpanded,
+      isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpanded,
       isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpandedAttached,
     ],
     [borderlessWhenExpanded, isExpanded, isInteractive, isPressed],
@@ -2959,34 +2965,36 @@ export const ExpandableBadge = memo(function ExpandableBadge({
         accessibilityState={accessibilityState}
         style={pressableStyle}
       >
-        <View style={expandableBadgeStylesheet.headerRow}>
-          <View style={expandableBadgeStylesheet.iconBadge}>{iconSlotNode}</View>
-          <ExpandableBadgeLabelRow
-            label={label}
-            labelStyle={labelStyle}
-            secondaryLabel={secondaryLabel}
-            secondaryLabelStyle={secondaryLabelStyle}
-            shouldMeasureWebShimmer={shouldMeasureWebShimmer}
-            shouldMeasureNativeShimmer={shouldMeasureNativeShimmer}
-            isWebShimmer={isWebShimmer}
-            isNativeShimmer={isNativeShimmer}
-            shimmerLabelTextStyle={shimmerLabelTextStyle}
-            shimmerSecondaryTextStyle={shimmerSecondaryTextStyle}
-            labelRowWidth={labelRowWidth}
-            labelRowHeight={labelRowHeight}
-            nativeShimmerPeakWidth={nativeShimmerPeakWidth}
-            shimmerDuration={shimmerDuration}
-            nativeGradientId={nativeGradientIdRef.current}
-            onLabelRowLayout={handleLabelRowLayout}
-            onLabelLayout={handleLabelLayout}
-            onSecondaryLayout={handleSecondaryLayout}
-            showOpenFileButton={Boolean(onOpenFile && isHovered)}
-            isOpenFileHovered={isOpenFileHovered}
-            onOpenFilePress={handleOpenFilePress}
-            onOpenFileHoverIn={handleOpenFileHoverIn}
-            onOpenFileHoverOut={handleOpenFileHoverOut}
-          />
-        </View>
+        <Animated.View style={headerArrivalStyle}>
+          <View style={expandableBadgeStylesheet.headerRow}>
+            <View style={expandableBadgeStylesheet.iconBadge}>{iconSlotNode}</View>
+            <ExpandableBadgeLabelRow
+              label={label}
+              labelStyle={labelStyle}
+              secondaryLabel={secondaryLabel}
+              secondaryLabelStyle={secondaryLabelStyle}
+              shouldMeasureWebShimmer={shouldMeasureWebShimmer}
+              shouldMeasureNativeShimmer={shouldMeasureNativeShimmer}
+              isWebShimmer={isWebShimmer}
+              isNativeShimmer={isNativeShimmer}
+              shimmerLabelTextStyle={shimmerLabelTextStyle}
+              shimmerSecondaryTextStyle={shimmerSecondaryTextStyle}
+              labelRowWidth={labelRowWidth}
+              labelRowHeight={labelRowHeight}
+              nativeShimmerPeakWidth={nativeShimmerPeakWidth}
+              shimmerDuration={shimmerDuration}
+              nativeGradientId={nativeGradientIdRef.current}
+              onLabelRowLayout={handleLabelRowLayout}
+              onLabelLayout={handleLabelLayout}
+              onSecondaryLayout={handleSecondaryLayout}
+              showOpenFileButton={Boolean(onOpenFile && isHovered)}
+              isOpenFileHovered={isOpenFileHovered}
+              onOpenFilePress={handleOpenFilePress}
+              onOpenFileHoverIn={handleOpenFileHoverIn}
+              onOpenFileHoverOut={handleOpenFileHoverOut}
+            />
+          </View>
+        </Animated.View>
       </Pressable>
       {detailContent ? (
         <Pressable

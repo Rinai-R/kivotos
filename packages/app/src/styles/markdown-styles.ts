@@ -34,7 +34,7 @@ export function createMarkdownStyles(theme: Theme) {
       fontSize: theme.fontSize.content,
       // Prose line-height scales with the content size, not the
       // code-size-coupled lineHeight.diff token used by code/diff surfaces.
-      lineHeight: Math.round(theme.fontSize.content * 1.4),
+      lineHeight: Math.round(theme.fontSize.content * 1.55),
       flexShrink: 1,
       minWidth: 0,
       width: "100%" as const,
@@ -295,7 +295,7 @@ export function createMarkdownStyles(theme: Theme) {
       color: theme.colors.foregroundMuted,
       marginRight: 4,
       fontSize: theme.fontSize.content,
-      lineHeight: Math.round(theme.fontSize.content * 1.4),
+      lineHeight: Math.round(theme.fontSize.content * 1.55),
     },
 
     ordered_list_icon: {
@@ -304,7 +304,7 @@ export function createMarkdownStyles(theme: Theme) {
       marginRight: 4,
       fontSize: theme.fontSize.content,
       fontWeight: theme.fontWeight.normal,
-      lineHeight: Math.round(theme.fontSize.content * 1.4),
+      lineHeight: Math.round(theme.fontSize.content * 1.55),
       minWidth: 12,
     },
 
@@ -366,12 +366,6 @@ export function createCompactMarkdownStyles(theme: Theme) {
 
   return {
     ...baseStyles,
-
-    body: {
-      ...baseStyles.body,
-      fontSize: theme.fontSize.content,
-      lineHeight: Math.round(theme.fontSize.content * 1.4),
-    },
 
     heading1: {
       ...baseStyles.heading1,

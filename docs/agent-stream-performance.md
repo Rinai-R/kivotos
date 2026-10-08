@@ -48,6 +48,9 @@ So arrival sets a _target_ and the reveal rate is derived from the backlog inste
   occurrence keys.
 - **First sight of a text is revealed whole.** Only growth is paced. This is what makes history hydration, timeline replay, a virtualized row remounting on scroll, and an already-finished message all render complete on first paint without a special case for each.
 - **Leaving `phase: "streaming"` snaps the reveal.** A completed turn must never be left holding characters. `layoutStream` sets the phase, so anything outside the live head with an active turn is already complete.
+- **Reduced motion bypasses pacing immediately.** The shared preference follows live OS changes. Enabling it reveals the full target on that render; disabling it only paces later growth, never replays text already shown.
+- **Visual arrival belongs to activity headers, not answers.** Tool and reasoning headers briefly resolve from blur on web/desktop, or fade on native. Completed rows stay still. Hidden retained panels and reduced-motion users run neither arrival nor shimmer animations.
+- **Reasoning is a disclosure, not tool output.** `reasoning-row.tsx` renders secondary Markdown directly in the conversation when expanded, without a code frame or nested scroll area. The collapsed preview advances at completed first lines rather than every token; only expanded reasoning needs paced repainting.
 - **The reducer queue commits on a frame, with a timer as the ceiling.** A frame callback never fires in a hidden tab, so a timer races it and wins when nothing is painting — the store has to keep advancing either way.
 - **A history row re-renders only when its item or layout item identity changes.** The inverted
   FlatList hands every mounted cell a new `index` and `ref` whenever a row is prepended, so without a

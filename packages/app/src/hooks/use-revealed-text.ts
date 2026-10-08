@@ -12,23 +12,29 @@ import {
   visibleRevealedText,
 } from "@/agent-stream/text-reveal";
 import type { MarkdownPhase } from "@/components/markdown/fence/types";
+import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
 
 /**
  * Binds the paced reveal in @/agent-stream/text-reveal to a frame clock.
  *
- * All of the policy — what is revealed when, and where it is safe to cut — lives
- * in that module and is tested there. This hook only owns the requestAnimationFrame
- * wiring, so the rendered behavior is covered end to end by
+ * The reveal module owns pacing and safe cuts. This hook connects it to
+ * requestAnimationFrame and the OS reduced-motion preference. Rendered pacing
+ * is covered end to end by
  * `packages/app/e2e/browser/agent-stream-smoothness.spec.ts`.
  */
 export function useRevealedText(text: string, phase: MarkdownPhase): string {
-  const pacingSupported = isTextRevealPacingSupported();
+  const reducedMotion = useReducedMotionPreference();
+  const shouldPace = isTextRevealPacingSupported() && !reducedMotion && phase === "streaming";
   const stateRef = useRef<TextRevealState>(beginTextReveal(text));
   const [, forceRender] = useState(0);
   const frameRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number | null>(null);
 
   stateRef.current = retargetTextReveal(stateRef.current, text);
+  if (!shouldPace) {
+    stateRef.current = completeTextReveal(stateRef.current);
+    lastFrameAtRef.current = null;
+  }
 
   useEffect(() => {
     const settle = () => {
@@ -40,7 +46,7 @@ export function useRevealedText(text: string, phase: MarkdownPhase): string {
       }
     };
 
-    if (!pacingSupported || phase !== "streaming") {
+    if (!shouldPace) {
       settle();
       return;
     }
@@ -79,9 +85,8 @@ export function useRevealedText(text: string, phase: MarkdownPhase): string {
         frameRef.current = null;
       }
     };
-  }, [text, pacingSupported, phase]);
+  }, [text, shouldPace]);
 
-  return pacingSupported
-    ? visibleRevealedText(stateRef.current, { streaming: phase === "streaming" })
-    : text;
+  if (!shouldPace) return text;
+  return visibleRevealedText(stateRef.current, { streaming: true });
 }

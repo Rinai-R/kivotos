@@ -48,19 +48,20 @@ export function getGapBetweenStreamItems(
     return SPACING[1];
   }
   if (item.kind === "user_message" && belowItem.kind === "assistant_message") {
-    return 0;
+    return SPACING[1];
   }
   if (isToolSequenceItem(item) && isToolSequenceItem(belowItem)) {
-    return 0;
+    return SPACING[1.5];
   }
   if (item.kind === "user_message" && isToolSequenceItem(belowItem)) {
     return SPACING[4];
   }
   if (item.kind === "assistant_message" && isToolSequenceItem(belowItem)) {
-    return SPACING[1];
+    // Assistant containers already contribute 12px of outer padding.
+    return 0;
   }
   if (isToolSequenceItem(item) && belowItem.kind === "assistant_message") {
-    return SPACING[1];
+    return 0;
   }
   if (isSameAssistantBlockGroup({ item, other: belowItem })) {
     return SPACING[3];

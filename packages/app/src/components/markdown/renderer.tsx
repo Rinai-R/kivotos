@@ -70,6 +70,23 @@ function compactMarkdownStyleMapping(theme: Theme): Partial<MarkdownWithStableRe
   return { style: createCompactMarkdownStyles(theme) };
 }
 
+function secondaryMarkdownStyleMapping(theme: Theme): Partial<MarkdownWithStableRendererProps> {
+  const styles = createCompactMarkdownStyles(theme);
+  const secondaryText = {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.content - 2,
+    lineHeight: Math.round((theme.fontSize.content - 2) * 1.7),
+  };
+  return {
+    style: {
+      ...styles,
+      body: { ...styles.body, ...secondaryText },
+      bullet_list_icon: { ...styles.bullet_list_icon, ...secondaryText },
+      ordered_list_icon: { ...styles.ordered_list_icon, ...secondaryText },
+    },
+  };
+}
+
 // Serves PR comment bodies and the markdown file preview; agent chat passes its
 // own parser. The preview has to show the bytes on disk, so no typographer.
 const defaultMarkdownParser = createMarkdownParser({ linkify: true });
@@ -78,6 +95,7 @@ const MARKDOWN_LIST_ITEM_CONTENT_FLEX: ViewStyle = { flex: 1, flexShrink: 1, min
 export interface MarkdownRendererProps {
   text: string;
   compact?: boolean;
+  tone?: "default" | "secondary";
   rules?: RenderRules;
   markdownit?: ReturnType<typeof MarkdownIt>;
   onLinkPress?: (url: string) => boolean;
@@ -89,6 +107,7 @@ export interface MarkdownRendererProps {
 export function MarkdownRenderer({
   text,
   compact = false,
+  tone = "default",
   rules,
   markdownit = defaultMarkdownParser,
   onLinkPress,
@@ -104,6 +123,7 @@ export function MarkdownRenderer({
   const rendererProps = useMemo(
     () => ({
       compact,
+      tone,
       rules: markdownRules,
       markdownit,
       onLinkPress,
@@ -113,6 +133,7 @@ export function MarkdownRenderer({
     [
       allowedImageHandlers,
       compact,
+      tone,
       markdownRules,
       markdownit,
       onLinkPress,
@@ -179,13 +200,15 @@ function MarkdownPart({
 function MarkdownFragment({
   text,
   compact,
+  tone,
   rules,
   markdownit,
   onLinkPress,
   allowedImageHandlers,
   topLevelMaxExceededItem,
 }: MarkdownRendererProps & { rules: RenderRules }) {
-  const uniProps = compact ? compactMarkdownStyleMapping : markdownStyleMapping;
+  let uniProps = compact ? compactMarkdownStyleMapping : markdownStyleMapping;
+  if (tone === "secondary") uniProps = secondaryMarkdownStyleMapping;
   return (
     <ThemedMarkdown
       uniProps={uniProps}
