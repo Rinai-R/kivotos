@@ -504,7 +504,7 @@ describe("absolute directory-path configuration", () => {
     homeDir = realpathSync.native(homeDir);
     outsideDir = realpathSync.native(outsideDir);
 
-    mkdirSync(path.join(homeDir, "projects", "kivotos"), { recursive: true });
+    mkdirSync(path.join(homeDir, "projects", "patches"), { recursive: true });
     mkdirSync(path.join(homeDir, "projects", "playground"), { recursive: true });
     mkdirSync(path.join(homeDir, "documents", "plans"), { recursive: true });
     mkdirSync(path.join(homeDir, ".hidden", "cache"), { recursive: true });
@@ -649,7 +649,7 @@ describe("absolute directory-path configuration", () => {
     });
 
     expect(result.map((entry) => realpathSync.native(entry))).toEqual([
-      realpathSync.native(path.join(homeDir, "projects", "kivotos")),
+      realpathSync.native(path.join(homeDir, "projects", "patches")),
       realpathSync.native(path.join(homeDir, "projects", "playground")),
     ]);
   });

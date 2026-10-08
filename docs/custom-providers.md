@@ -57,7 +57,7 @@ base provider's options unless it sets its own options record.
 }
 ```
 
-See the [SDK provider options guide](../public-docs/sdk/provider-options.md) for
+See the SDK provider options guide for
 per-agent examples and provider-specific keys.
 
 ---

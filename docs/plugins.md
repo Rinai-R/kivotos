@@ -69,7 +69,7 @@ runtime modules, so consumers do not install these packages when adding the plug
 ```
 
 Declare the supported Kivotos range and keep it current when adopting newer APIs. See the
-[requirements contract](../public-docs/plugins/reference.md#requirements), including legacy
+requirements contract, including legacy
 manifests and prerelease matching.
 
 The config key is the runtime plugin ID. The manifest ID is the default selected during install;
@@ -113,7 +113,7 @@ availability and a diagnostic after the daemon resolves the executable. Configur
 environment, or enablement overrides under `agents.providers.muse`. Omit `extends` to keep
 the bundled integration; an entry with `extends` shadows it with a custom provider. See
 [provider contributions](#contribute-a-provider) for the contract and
-[Muse Code](../public-docs/muse-code.md) for setup, per-agent options, and version limitations.
+Muse Code for setup, per-agent options, and version limitations.
 
 ## Install from a registry
 
@@ -157,8 +157,8 @@ and ask for approval. `ls` reports the installed commit without contacting the r
 
 ## Managed source ownership
 
-The [public source reference](../public-docs/plugins/reference.md#plugin-sources) owns identifier
-syntax and npm prerequisites; the [publishing guide](../public-docs/plugins/publishing.md) owns distribution. The CLI resolves directory sources before
+The public source reference owns identifier
+syntax and npm prerequisites; the publishing guide owns distribution. The CLI resolves directory sources before
 calling `installPluginSource`; see the public source reference for CLI and app path semantics.
 Only the daemon reads plugin files and acquires sources.
 
@@ -237,10 +237,9 @@ Shared files import contract helpers and types from `@kivotos/plugin`. Server ha
 set; an unknown name renders nothing so it cannot break the plugin surface.
 Its controlled modal keeps presentation metadata on `<Modal title="…" icon={…}>` and body UI in
 `<Modal.Content>`. Body layout, sheet-aware scrolling, and clipboard actions follow the
-[host UI contract](../public-docs/plugins/reference.md#host-ui).
+host UI contract.
 Plugin UI runs on desktop and mobile across multiple themes: color every `Text` from
 `theme.colors.foreground` or `theme.colors.foregroundMuted`, and size layout from `layout.compact`.
-See `public-docs/plugins/reference.md`.
 
 ### SDK import boundaries
 
@@ -281,7 +280,7 @@ The scaffold omits `"DOM"` from `tsconfig.json` and does not use `/// <reference
 browser globals are not available across the plugin. Put sanctioned web-only APIs in
 `client/web.ts`, declare only the globals that module uses, gate each export with
 `Platform.OS === "web"`, and provide a native implementation or no-op. See the
-[public plugin reference](../public-docs/plugins/reference.md#works-on-mobile) for the complete
+public plugin reference for the complete
 pattern.
 
 ```ts
@@ -352,7 +351,7 @@ workspaces, agents, terminals, providers, and daemon config. They do not expose 
 `client.kivotos`. Authors release their subscriptions in their own cleanup, and teardown (disable,
 reload, removal, host removal) disposes the client, which ends the rest; nothing is created or
 disposed per mounted surface. See the
-[public example](../public-docs/plugins/reference.md#use-the-kivotos-sdk). Switching the screen's host
+public example. Switching the screen's host
 changes both `useKivotos()` and `useRpc()` to that host's installation. An offline selected host fails there and never falls through to another
 installation. A server handler owns an IPC-backed daemon session for the life of its subprocess.
 Use plugin RPC for plugin-specific backend behavior that is not a normal Kivotos operation.
@@ -360,7 +359,7 @@ Use plugin RPC for plugin-specific backend behavior that is not a normal Kivotos
 Host-targeted clients and discovery are owned by `packages/app/src/plugins/hosts`, with per-installation
 bindings supplied by the bundle loader. Bind the imperative getter to that installation; do not
 resolve ownership through a mutable current-plugin global. Keep observation ownership in this module
-and transport ownership in the app host runtime. See the [public host API contract](../public-docs/plugins/reference.md#discover-hosts-and-target-another-host).
+and transport ownership in the app host runtime. See the public host API contract.
 
 Each subprocess gets an exclusively owned `plugin:<id>` session. That identity is reserved from
 normal clients, never resumes another session, and is cleaned immediately on exit without reconnect
@@ -370,7 +369,7 @@ catalog is complete.
 
 When the same plugin contribution exists on multiple hosts, Kivotos shows it once in the sidebar and
 adds a host picker to the screen header. The selected host supplies the bundle, RPC transport, and
-query cache. Explicit SDK targets follow the [host API contract](../public-docs/plugins/reference.md#discover-hosts-and-target-another-host).
+query cache. Explicit SDK targets follow the host API contract.
 
 Workspace panels, Command Center items, and client slash commands are client contributions. The
 daemon transports their compiled bundle without interpreting placement or callbacks. Panel props
@@ -389,14 +388,14 @@ existing agent-context instances, but it cannot create an agent panel without an
 Command Center callbacks use the selected host's existing `KivotosApi` for normal Kivotos operations.
 They use typed plugin RPC only for plugin-specific backend work. Surface and panel navigation
 belongs to the app; plugins do not receive Expo Router or workspace-layout store access.
-See the public [navigation fields](../public-docs/plugins/reference.md#screens-and-sidebar-items)
-and [external links and workspace browsers](../public-docs/plugins/reference.md#external-links-and-workspace-browsers)
+See the public navigation fields
+and external links and workspace browsers
 for the author-facing contract.
 
 ## Lifecycle hooks
 
 Server entries register lifecycle observers with `server.on()` and request transforms with
-`server.before()`. The [public reference](../public-docs/plugins/reference.md#lifecycle-hooks)
+`server.before()`. The public reference
 owns callback shapes, ordering, and failure behavior. `plugin-examples/lifecycle-logger` registers all
 eleven hooks; `plugin-examples/lifecycle-actions` demonstrates common automation callbacks.
 
@@ -480,7 +479,7 @@ and `plugin-examples/provider-acp-transformer`.
 Provider-emitted plugin timeline items use the same renderer registration as transformed and
 daemon-appended plugin items. The direct example includes both sides. The renderer-only
 `plugin-examples/inline-thinking` example shows that timeline presentation remains independent of a
-provider implementation. The public [provider plugin guide](../public-docs/plugins/providers.md)
+provider implementation. The public provider plugin guide
 owns author workflow, lifecycle, testing, and distribution guidance.
 
 `ProviderRegistration.icon` is a file path relative to the plugin directory, such as `icon.svg`.
@@ -492,14 +491,14 @@ SVG or URL.
 
 ## Usage sources
 
-Register a usage source from `index.server.ts` with `server.registerUsageSource()`. Import `UsageSourceRegistration` and normalization helpers from `@kivotos/plugin/server/usage`. The plugin owns account discovery, harness labels, and credential-store reads; the daemon owns account grouping and the fetch cache. Agent popovers use only the agent's own login. The host-wide Usage modal falls back across an account's logins; any success shows usage only, and all failures show every login's labeled error and remedy. Follow the [usage source discovery contract](../public-docs/plugins/reference.md#usage-sources). The resolved launch environment crosses into the trusted, unsandboxed plugin subprocess for session discovery. Usage queries never run lifecycle hooks. Inputs are validated in the plugin process and remain daemon-side. `icon` uses the same sanitized SVG file rules as provider icons.
+Register a usage source from `index.server.ts` with `server.registerUsageSource()`. Import `UsageSourceRegistration` and normalization helpers from `@kivotos/plugin/server/usage`. The plugin owns account discovery, harness labels, and credential-store reads; the daemon owns account grouping and the fetch cache. Agent popovers use only the agent's own login. The host-wide Usage modal falls back across an account's logins; any success shows usage only, and all failures show every login's labeled error and remedy. Follow the usage source discovery contract. The resolved launch environment crosses into the trusted, unsandboxed plugin subprocess for session discovery. Usage queries never run lifecycle hooks. Inputs are validated in the plugin process and remain daemon-side. `icon` uses the same sanitized SVG file rules as provider icons.
 
 The daemon calls discovery for `usage.list_reports`; the client gates this RPC on `server_info.features.usageSources`. The old `provider.usage.list` RPC maps discovered reports for older clients.
 
 ## Contribute sidebar items
 
 Sidebar header and footer items are plugin components, not descriptors. The
-[public reference](../public-docs/plugins/reference.md#sidebar-items) owns the author API. The host
+public reference owns the author API. The host
 lives in `packages/app/src/plugins/sidebar-items/`; `packages/app/src/sidebar-nav/model.ts` resolves
 one section's order from built-ins, plugin groups, and the section's preference
 (`sidebarNavItems` or `sidebarFooterItems`).
@@ -534,7 +533,7 @@ one section's order from built-ins, plugin groups, and the section's preference
 ## Contribute buttons
 
 Header buttons and composer pills share the client-only descriptor and registration lifecycle in
-`packages/app/src/plugins/buttons/`. The [public button reference](../public-docs/plugins/reference.md#header-buttons)
+`packages/app/src/plugins/buttons/`. The public button reference
 owns the author API and placement rules. Keep presentation policy in this module so another
 placement can reuse behavior without copying registration or action state.
 
@@ -658,7 +657,7 @@ drops the optional presentation fields.
 
 Register ordinary components with `client.addSettingsScreen` and open them with `openSettings`.
 The host settings shell owns navigation and layout; plugin content must not add another page
-scroll view or header. See the [author contract](../public-docs/plugins/reference.md#settings-screens)
+scroll view or header. See the author contract
 and `plugin-examples/settings` for the named UI components and persistence API.
 
 Settings storage is scoped to the runtime installation ID, never the source path or manifest ID.
@@ -693,7 +692,7 @@ stable rather than arrival-ordered. The app resolves that id
 against the installed catalog on every change; an id nothing contributes falls back to the default
 preference instead of painting the reserved slot's placeholder colors.
 
-Existing plugin authors should follow the standalone [v0.8 runtime-entry migration guide](../public-docs/plugins/migration.md).
+Existing plugin authors should follow the standalone v0.8 runtime-entry migration guide.
 
 See `plugin-examples/local-plugin` for a native surface, `plugin-examples/linear` for a complete
 attachment-source example, `plugin-examples/timeline-items` for timeline projection, and

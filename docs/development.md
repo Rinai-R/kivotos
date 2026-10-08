@@ -404,13 +404,13 @@ that reads what it needs from `process.env` and invoke it as
 
 Every `scripts` entry with `"type": "service"` receives these environment variables:
 
-| Variable                    | Value                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Variable                      | Value                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `KIVOTOS_SERVICE_<NAME>_URL`  | Proxied URL for a declared peer service. Prefer this for peer discovery; it survives peer restarts.                       |
 | `KIVOTOS_SERVICE_<NAME>_PORT` | Raw ephemeral port for a declared peer service. Use only as a bypass escape hatch; it can go stale if that peer restarts. |
-| `KIVOTOS_URL`                 | Self alias for `KIVOTOS_SERVICE_<SELF>_URL`.                                                                                |
-| `KIVOTOS_PORT`                | Self alias for `KIVOTOS_SERVICE_<SELF>_PORT`.                                                                               |
-| `HOST`                      | Bind host for the service process.                                                                                        |
+| `KIVOTOS_URL`                 | Self alias for `KIVOTOS_SERVICE_<SELF>_URL`.                                                                              |
+| `KIVOTOS_PORT`                | Self alias for `KIVOTOS_SERVICE_<SELF>_PORT`.                                                                             |
+| `HOST`                        | Bind host for the service process.                                                                                        |
 
 Service proxy hostnames use the double-dash shape: `web--feature-auth--project.localhost` or, on the default branch, `web--project.localhost`. Optional public aliases use the same leftmost label under the configured public base host.
 
@@ -440,7 +440,7 @@ so the port may already be bound. `portScript` takes precedence when both values
 
 ## Bundled daemon web UI
 
-> The user-facing guide for this feature (enabling it, reverse proxy, TLS, tunnels, security) lives at [public-docs/web-ui.md](../public-docs/web-ui.md). This section is the contributor/build reference: how the artifact is produced, bundled, and excluded from desktop packaging.
+> This section is the contributor/build reference: how the artifact is produced, bundled, and excluded from desktop packaging.
 
 The daemon can optionally serve the browser web client from the same HTTP server. This is disabled by default.
 
@@ -565,9 +565,9 @@ npm run cli -- --host ssh://user@host ls -a
 ```
 
 Set `KIVOTOS_HOST` to use the same target across invocations. An explicit
-selector overrides both environment selectors. With both `KIVOTOS_HOME` and `KIVOTOS_HOST` set, pass an explicit selector. See [CLI target selection](../public-docs/cli.md#select-one-daemon).
+selector overrides both environment selectors. With both `KIVOTOS_HOME` and `KIVOTOS_HOST` set, pass an explicit selector. See CLI target selection.
 
-In an SSH URI, the URL port is the SSH server port. The remote daemon defaults to `127.0.0.1:6767`; use `?daemonPort=7777` to override it. The transport runs non-interactively through the local OpenSSH client and never installs, starts, or configures the remote daemon. User-facing setup and troubleshooting live in [public-docs/connectivity.md](../public-docs/connectivity.md#ssh).
+In an SSH URI, the URL port is the SSH server port. The remote daemon defaults to `127.0.0.1:6767`; use `?daemonPort=7777` to override it. The transport runs non-interactively through the local OpenSSH client and never installs, starts, or configures the remote daemon.
 
 Desktop integrations can focus an existing agent without creating one or
 sending a message. Use `kivotos://h/<server-id>/agent/<agent-id>`, or run

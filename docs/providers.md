@@ -8,26 +8,26 @@ server integrations.
 Keep a bundled provider in `plugins/<id>/` and register it through
 `@kivotos/plugin/server/provider`. Antigravity and Muse Code follow this pattern. Built-in loading and SDK
 import rules belong to [plugins.md](plugins.md#built-in-plugins); the
-[public provider guide](../public-docs/plugins/providers.md) covers the provider contract.
+public provider guide covers the provider contract.
 
 The plugin owns the CLI transport, session state, catalog, and capabilities. Launch CLI transports
-and probes through the [SDK process helpers](../public-docs/plugins/providers.md#launch-the-provider-cli),
+and probes through the SDK process helpers,
 which share Windows launcher handling with core providers. The daemon owns
 executable resolution and applies `agents.providers.<provider-id>.command` and `env` before
 connecting. Register the provider's icon with the plugin rather than adding it to the app's
 provider icon map. You do not need a core manifest entry or provider factory.
 
-| Provider    | Transport                                  | Setup and limitations                                            |
-| ----------- | ------------------------------------------ | ---------------------------------------------------------------- |
-| Antigravity | Installed `agy` CLI                        | [Antigravity](../public-docs/supported-providers.md#antigravity) |
-| Muse Code   | MSP over one `muse serve` host per session | [Muse Code](../public-docs/muse-code.md)                         |
+| Provider    | Transport                                  | Setup and limitations |
+| ----------- | ------------------------------------------ | --------------------- |
+| Antigravity | Installed `agy` CLI                        | Antigravity           |
+| Muse Code   | MSP over one `muse serve` host per session | Muse Code             |
 
 ## Provider-native session options
 
 The provider owns validation and application of the opaque record in
 `AgentSessionConfig.providerOptions`. The registry supplies the effective options
 at session startup. See [provider configuration](custom-providers.md#provider-options)
-for defaults and merge rules, and the [SDK guide](../public-docs/sdk/provider-options.md)
+for defaults and merge rules, and the SDK guide
 for native keys and examples.
 
 Exact MCP preapproval is a separate daemon-owned contract. A new provider must fail
@@ -189,7 +189,7 @@ promise for completion: equal results, including equal discovery timestamps, emi
 
 ## Usage sources
 
-See the [public usage source reference](../public-docs/plugins/reference.md#usage-sources) for the
+See the public usage source reference for the
 contract, account and window identity, provider-derived period names, login fallback, and
 read-only credential rules. Usage adapters own the interpretation of provider fields; the app
 renders their names and resolves pins without provider-specific duration guesses.

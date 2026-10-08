@@ -19,9 +19,9 @@ Fetch [https://paseo.sh/llms.txt](https://paseo.sh/llms.txt) first. Select and f
 
 Use the deployed docs when they disagree with this skill. Do not send the user away to read them instead of completing the work.
 
-In the Kivotos repository, use `public-docs/plugins/reference.md` for the checkout's API, including
-unreleased changes. Use `docs/plugins.md` for maintainer guidance. Complete contracts belong in the
-public docs; this skill indexes the references and examples.
+In the Kivotos repository, read the plugin SDK sources under `packages/plugin/src` for the checkout's
+API, including unreleased changes. Use `docs/plugins.md` for maintainer guidance. Complete contracts
+belong in the SDK sources; this skill indexes the references and examples.
 
 ## What a plugin can contribute
 
@@ -35,13 +35,13 @@ Pick the contribution that matches the request. Each row names the registration,
 | Client slash command      | `addSlashCommand`                                           | A `/command args` in the composer that runs plugin code instead of prompting the agent                        | reference.md → Slash commands                                                                      |
 | Composer pill             | `addComposerPill`                                           | A per-agent button in the composer track bar next to Tasks and Subagents                                      | reference.md → Composer pills                                                                      |
 | Timeline transformer      | `addTimelineTransformer` + `addTimelineRenderer`            | Replace, explode, or hide a built-in timeline item, including while it streams                                | reference.md → Timeline items; `plugin-examples/timeline-items`, `plugin-examples/inline-thinking` |
-| Timeline row              | `kivotos.agents.ref(id).timeline.append(...)`                 | Push a plugin-owned row into an agent timeline from a server handler and update it later                      | reference.md → Append a timeline row from the daemon                                               |
+| Timeline row              | `kivotos.agents.ref(id).timeline.append(...)`               | Push a plugin-owned row into an agent timeline from a server handler and update it later                      | reference.md → Append a timeline row from the daemon                                               |
 | Attachment source         | `client.addAttachmentSource` + `server.handle`              | Let the user attach a searchable external resource, such as an issue, to a prompt                             | reference.md → Add a composer attachment source; `plugin-examples/linear`                          |
 | Theme                     | `addTheme`                                                  | A light or dark palette under Settings → Appearance                                                           | reference.md → Contribute a theme; `plugin-examples/catppuccin`                                    |
-| Plugin RPC                | `defineRpc` + `server.handle` + `useRpc`                    | Daemon-side work that is not a normal Kivotos operation: vendor APIs, credentials, local files                  | reference.md → Add plugin-specific backend behavior                                                |
+| Plugin RPC                | `defineRpc` + `server.handle` + `useRpc`                    | Daemon-side work that is not a normal Kivotos operation: vendor APIs, credentials, local files                | reference.md → Add plugin-specific backend behavior                                                |
 | Lifecycle events          | `server.on`                                                 | Observe agent/workspace lifecycle, inspect ended turns, and answer permission requests                        | [Lifecycle hooks](https://paseo.sh/docs/plugins/reference.md#lifecycle-hooks)                      |
 | Creation and launch hooks | `server.before`                                             | Change agent config, provider options, MCP servers, environment, or workspace isolation before the operation  | [Before hooks](https://paseo.sh/docs/plugins/reference.md#before-hooks)                            |
-| Kivotos SDK                 | `useKivotos()` / handler `{ kivotos }`                          | Normal Kivotos operations: workspaces, agents, providers, config                                                | reference.md → Use the Kivotos SDK                                                                   |
+| Kivotos SDK               | `useKivotos()` / handler `{ kivotos }`                      | Normal Kivotos operations: workspaces, agents, providers, config                                              | reference.md → Use the Kivotos SDK                                                                 |
 
 | Lifecycle task                                                      | Example                                                                                                |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
