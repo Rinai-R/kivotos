@@ -48,10 +48,46 @@ export interface Logger {
   warn(...args: unknown[]): void;
 }
 
+/** A dsh Session as the `session/event` feed passes it (`@deepseek-ai/dsh-session`). */
+export interface Session {
+  readonly id: string;
+}
+
+/** One appended Session event (`SessionEvent` in `@deepseek-ai/dsh-session`). */
+export interface SessionEvent {
+  type: string;
+  seq: number;
+  /** Unix epoch milliseconds. */
+  time: number;
+  data: unknown;
+}
+
+/** Root Context events Kivotos listens to. */
+export interface HostEvents {
+  /** Post-commit append feed of every Session in the store. */
+  "session/event": (session: Session, event: SessionEvent) => void;
+  "session/disposed": (session: Session) => void;
+}
+
+/** `ctx.sessionProjections` (`@deepseek-ai/dsh-session-projection`), read for the `title` unit. */
+export interface SessionProjections {
+  /** @returns the unit's current state, or undefined when the key is not registered. */
+  stateOf(session: Session, key: "title"): string | null | undefined;
+}
+
+/** Services read optionally, through `ctx.get`, so Kivotos does not require them. */
+export interface OptionalServices {
+  sessionProjections: SessionProjections;
+}
+
 /** The plugin Context with the services Kivotos injects. */
 export interface HostContext {
   readonly webServer: WebServer;
   readonly connection: HostConnection;
   readonly logger: Logger;
   effect(factory: () => () => void | Promise<void>, label?: string): void;
+  /** @returns the service when it is currently provided. */
+  get<K extends keyof OptionalServices>(name: K): OptionalServices[K] | undefined;
+  /** @returns the listener's disposer. */
+  on<K extends keyof HostEvents>(event: K, listener: HostEvents[K]): () => void;
 }

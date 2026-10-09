@@ -17,6 +17,7 @@ import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import type { Duplex } from "node:stream";
+import { AttentionTracker, type AttentionFrame } from "./attention.ts";
 import type { HostContext } from "./dsh.ts";
 import {
   forwardHttp,
@@ -35,6 +36,10 @@ export const inject = ["webServer", "connection"];
 const VERSION = "0.1.0";
 const PEER_PREFIX = "/kivotos/peer";
 const HELLO_PATH = "/kivotos/hello";
+const EVENTS_PATH = "/kivotos/events";
+const PENDING_PATH = "/kivotos/events/pending";
+/** SSE comment interval; keeps NAT and mobile radios from dropping an idle stream. */
+const HEARTBEAT_MS = 25_000;
 const PEERS_PATH = "/kivotos/peers";
 const MUX_PATH = "/api/remote.mux";
 const OWNS_HOST =
@@ -371,6 +376,7 @@ async function startListener(
   ctx: HostContext,
   config: KivotosConfig,
   status: TailnetStatus,
+  attention: AttentionTracker,
 ): Promise<() => Promise<void>> {
   const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
   if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
@@ -393,8 +399,20 @@ async function startListener(
       return;
     }
     const url = req.url ?? "/";
-    if (new URL(url, "http://x").pathname === HELLO_PATH) {
+    const parsed = new URL(url, "http://x");
+    if (parsed.pathname === HELLO_PATH) {
       sendJson(res, 200, { kivotos: VERSION, name: status.self.name, os: status.self.os });
+      return;
+    }
+    if (parsed.pathname === PENDING_PATH) {
+      sendJson(res, 200, { frames: attention.pending() });
+      return;
+    }
+    if (parsed.pathname === EVENTS_PATH) {
+      // A cursor from another Host process says nothing about this one: replay all.
+      const sameEpoch = parsed.searchParams.get("epoch") === attention.epoch;
+      const after = sameEpoch ? Number(parsed.searchParams.get("after") ?? "0") : 0;
+      streamAttention(req, res, attention, after);
       return;
     }
     const cookie = await session.get();
@@ -452,6 +470,37 @@ async function startListener(
     for (const socket of sockets) socket.destroy();
     return closed.promise;
   };
+}
+
+/**
+ * Serve the attention stream as Server-Sent Events: frames after `afterId`
+ * first, then live frames, with heartbeat comments. Runs only behind the
+ * tailnet listener's admission.
+ */
+function streamAttention(
+  req: IncomingMessage,
+  res: ServerResponse,
+  attention: AttentionTracker,
+  afterId: number,
+): void {
+  res.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-store",
+    connection: "keep-alive",
+    "x-accel-buffering": "no",
+  });
+  const send = (frame: AttentionFrame): void => {
+    res.write(`id: ${frame.id}\nevent: attention\ndata: ${JSON.stringify(frame)}\n\n`);
+  };
+  for (const frame of attention.since(Number.isFinite(afterId) ? afterId : 0)) send(frame);
+  const unsubscribe = attention.subscribe(send);
+  const heartbeat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
+  const stop = (): void => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  };
+  req.on("close", stop);
+  res.on("close", stop);
 }
 
 /** A mounted peer. */
@@ -692,6 +741,14 @@ function emptyStatus(): TailnetStatus {
 export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.effect(() => ctx.webServer.tapIndex(coverViewport), "kivotos: viewport-fit=cover");
 
+  // Every Session's appends, browser-opened or not: the source of the phone's notifications.
+  // ctx.on owns its listener's lifetime: it is removed when the plugin unloads.
+  const attention = new AttentionTracker((session) =>
+    ctx.get("sessionProjections")?.stateOf(session, "title"),
+  );
+  ctx.on("session/event", (session, event) => attention.observe(session, event));
+  ctx.on("session/disposed", (session) => attention.forget(session.id));
+
   ctx.effect(() => {
     const routes = new PeerRoutes(ctx);
     const disposeList = routes.registerList();
@@ -705,7 +762,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
         if (stopped) return;
         routes.self = { name: status.self.name, os: status.self.os };
         if (config.listen && listener === undefined) {
-          const starting = startListener(ctx, config, status);
+          const starting = startListener(ctx, config, status, attention);
           listener = starting;
           starting.catch((error: unknown) => {
             ctx.logger.warn("kivotos: tailnet listener failed to start", error);

@@ -47,6 +47,14 @@ A peer's index HTML is rewritten as it passes through the mount:
 
 Hops never chain. A peer mount marks every request it forwards with `x-kivotos-hop`, and a mount refuses any request that already carries the mark with `508`. A path such as `/kivotos/peer/b/kivotos/peer/a/` therefore does not reach a third machine, and A to B to A loops are impossible. The machine list always comes from the serving host.
 
+## Attention stream
+
+The tailnet listener also serves `/kivotos/events` (Server-Sent Events) and `/kivotos/events/pending` for the Android app's notifications. They are derived from every Session's log on that machine and carry, per event: the Session id and title, the approval request id and its reason (for example the command to approve), the first question of an `ask_user_question` call, and the error message of a failed turn.
+
+- Both endpoints sit behind the same admission as the rest of the listener (Host, same-site, own address, same tailnet user). They are not reachable through dsh's loopback port.
+- They only read. Answering an approval or a question still happens in dsh's own UI.
+- The Host keeps the last 200 events in memory and nothing on disk. A restart starts a new stream (`epoch`).
+
 ## Transport
 
 - Traffic between tailnet devices is encrypted by WireGuard, including plain HTTP to the tailnet listener.
