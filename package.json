@@ -25,7 +25,8 @@
     "url": "https://github.com/Rinai-R/kivotos.git"
   },
   "workspaces": [
-    "packages/kivotos"
+    "packages/kivotos",
+    "packages/mobile"
   ],
   "type": "module",
   "scripts": {
@@ -33,7 +34,7 @@
     "format:check": "oxfmt --check",
     "format:check:files": "oxfmt --check",
     "lint": "oxlint",
-    "typecheck": "npm run typecheck -w packages/kivotos",
+    "typecheck": "npm run typecheck -w packages/kivotos && npm run typecheck -w packages/mobile",
     "build": "npm run build -w packages/kivotos",
     "test": "npm test -w packages/kivotos",
     "prepare": "node scripts/install-hooks.mjs"

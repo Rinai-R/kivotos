@@ -11,7 +11,7 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-Kivotos 是 DeepSeek Harness（dsh）的插件。它让你在任意一个 dsh 中，以 dsh 的完整界面打开并操作 tailnet 上的每一个 dsh，同时为 dsh 提供完整的手机布局。Kivotos 没有自己的界面：你看到的每个页面都是 dsh 本身的界面。
+Kivotos 是 DeepSeek Harness（dsh）的插件。它让你在任意一个 dsh 中，以 dsh 的完整界面打开并操作 tailnet 上的每一个 dsh，为 dsh 提供完整的手机布局，并附带一个安卓 App，在会话需要你时通知你。会话页面全部是 dsh 本身的界面，Kivotos 不另做一套。
 
 ## 功能
 
@@ -29,6 +29,7 @@ Kivotos 是 DeepSeek Harness（dsh）的插件。它让你在任意一个 dsh �
   - 输入框固定在底部（使用 dsh 自身的 sticky composer），并适配安全区域与 `viewport-fit=cover`
   - 输入控件字号为 16px，iOS 聚焦时不会自动缩放
   - 只使用 dsh 主题变量，支持浅色和深色
+- **安卓 App。** 打开每台机器的完整 dsh 界面；当会话需要审批、向你提问或任务完成，而你当前没在看这个会话时，用系统通知加弹窗提醒你。点通知直达该会话。
 
 ## 环境要求
 
@@ -63,17 +64,38 @@ dsh --profile web --dump-config
 
 ## 在手机上使用
 
-1. 在手机上安装 Tailscale 应用，并登录与电脑相同的 tailnet 账号。
-2. 在手机浏览器中打开电脑的 tailnet 监听地址：
-   - `http://<computer's tailscale IP>:7380/`
-   - 或者在 tailnet 启用 HTTPS 证书后使用 `https://<name>.<tailnet>.ts.net:7380/`
-3. 在该页面上通过机器切换器访问其他机器。
+### 安卓 App
 
-不需要令牌，也不需要登录：tailnet 身份就是登录凭据。
+1. 在手机上安装 Tailscale 应用，并登录与电脑相同的 tailnet 账号。
+2. 安装 Kivotos 的 APK：从 GitHub Actions 最近一次 CI 下载 `kivotos-android`，或自行构建（见"开发"）。
+3. 在 App 中按 Tailscale IP 添加每台电脑（例如 `100.64.0.1`，端口 `7380` 会自动补上）。App 会确认电脑有响应并且允许这台手机访问。
+4. 打开 **通知**。安卓会请求通知权限；App 提示时请允许 Kivotos 在后台运行，否则系统可能为省电停止通知。
+5. 点某台机器即可打开它的完整 dsh 界面。
+
+通知开启后，App 会对每台机器保持一条连接（安卓会显示一条常驻的"正在关注 N 台机器"通知）。当某个会话出现以下情况时，你会收到带弹窗的系统通知：
+
+- 需要审批（通知里会写明要执行什么），
+- 向你提问，
+- 任务完成或失败。
+
+你在 App 里正在看的会话不会弹通知；打开某个会话会清除它的通知；审批或提问在任何地方处理后，对应通知会自动撤回。点通知会在对应机器上打开该会话。App 停留在其他页面时，同样的事件还会以 App 内横幅出现。
+
+App 只支持安卓，用 Expo（React Native）构建；dsh 页面是 WebView 中 dsh 自己的界面。通知来自每台电脑上的 Kivotos，而不是推送服务，因此不需要谷歌服务。
+
+### 浏览器
+
+也可以在手机浏览器中打开电脑的 tailnet 监听地址：
+
+- `http://<computer's tailscale IP>:7380/`
+- 或者在 tailnet 启用 HTTPS 证书后使用 `https://<name>.<tailnet>.ts.net:7380/`
+
+在该页面上通过机器切换器访问其他机器。浏览器方式没有通知。
+
+两种方式都不需要令牌，也不需要登录：tailnet 身份就是登录凭据。
 
 通过 Tailscale 的明文 HTTP 由 WireGuard 加密，但浏览器不会把该页面视为安全上下文，因此部分浏览器 API（例如剪贴板）可能不可用。为 tailnet 启用 HTTPS 证书即可解决，参见 [Tailscale HTTPS 证书](https://tailscale.com/kb/1153/enabling-https)。
 
-手机布局已在浏览器中以 390x844 尺寸验证。在真实手机上使用以及两台物理机器之间的使用尚未验证。
+App 和手机布局已在安卓 15 模拟器上、以及浏览器中以 390x844 尺寸验证。在真实手机上使用以及两台物理机器之间的使用尚未验证。
 
 ## 配置
 
@@ -141,6 +163,16 @@ npm test              # 直接在 TypeScript 源码上运行 node --test
 lefthook 的 pre-commit 钩子会运行格式检查、lint 和类型检查。
 
 如需在一台机器上测试联邦功能，可运行两个装有 Kivotos 的 dsh 实例，为每个实例设置不同的 `port`，设置 `allowSelf: true`，并通过 `staticPeers` 让它们互相指向对方。
+
+安卓 App 位于 `packages/mobile/`（Expo SDK 57，React Native）。它的通知服务是一个用 Kotlin 写的本地 Expo 模块：`packages/mobile/modules/kivotos-attention/`。构建 APK 需要 JDK 17 和安卓 SDK（`ANDROID_HOME`）：
+
+```sh
+npm install
+npm run apk -w packages/mobile   # expo prebuild，然后 gradlew assembleRelease
+# -> packages/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+`packages/mobile/android/` 由 `expo prebuild` 生成，不提交到仓库。Release APK 使用调试密钥签名，可以直接安装，但不适合上架应用商店。
 
 ## 许可证
 

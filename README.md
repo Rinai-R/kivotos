@@ -11,7 +11,7 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every dsh on your tailnet from any dsh, with dsh's full UI, and it gives dsh a complete phone layout. Kivotos has no UI of its own: every screen you see is dsh's own UI.
+Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every dsh on your tailnet from any dsh, with dsh's full UI, gives dsh a complete phone layout, and comes with an Android app that notifies you when a session needs you. Kivotos has no UI of its own for sessions: every session screen is dsh's own UI.
 
 ## Features
 
@@ -29,6 +29,7 @@ Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every
   - composer pinned at the bottom (dsh's own sticky composer) with safe-area insets and `viewport-fit=cover`
   - 16px inputs, so iOS does not zoom on focus
   - dsh theme tokens only, light and dark
+- **Android app.** Opens each machine's full dsh UI and notifies you, with a system notification and a pop-up, when a session needs an approval, asks a question, or finishes a task while you are not looking at it. Tapping the notification opens that session.
 
 ## Requirements
 
@@ -63,17 +64,38 @@ Open dsh as usual. The machine switcher in the sidebar footer lists this machine
 
 ## Use from a phone
 
-1. Install the Tailscale app on the phone and sign in with the same tailnet account as your computers.
-2. Open the computer's tailnet listener in the phone browser:
-   - `http://<computer's tailscale IP>:7380/`
-   - or `https://<name>.<tailnet>.ts.net:7380/` once HTTPS certificates are enabled for the tailnet
-3. Use the machine switcher on that page to reach the other machines.
+### Android app
 
-There is no token and no login: the tailnet identity is the login.
+1. Install the Tailscale app on the phone and sign in with the same tailnet account as your computers.
+2. Install the Kivotos APK. Download `kivotos-android` from the latest CI run on GitHub Actions, or build it yourself (see Development).
+3. In the app, add each computer by its Tailscale IP (for example `100.64.0.1`; port `7380` is added for you). The app checks that the computer answers and that it admits the phone.
+4. Turn on **Notifications**. Android asks for permission; allow Kivotos to run in the background when the app offers it, or the system may stop notifications to save battery.
+5. Tap a machine to open its full dsh UI.
+
+While notifications are on, the app keeps one connection per machine open (Android shows an ongoing "Watching N machines" notification for it). You get a system notification with a pop-up when a session:
+
+- needs an approval (the notification shows what it wants to run),
+- asks you a question,
+- finishes a task or fails.
+
+No notification is shown for the session you are looking at in the app; opening a session clears its notifications, and an approval or question answered anywhere withdraws its notification. Tapping a notification opens the app on that machine, in that session. While the app is open on another screen, the same events also appear as an in-app banner.
+
+The app is Android only and built with Expo (React Native); the dsh screens are dsh's own UI in a WebView. Notifications come from Kivotos on each computer, not from a push service, so no Google services are needed.
+
+### Browser
+
+You can also open the computer's tailnet listener in the phone browser:
+
+- `http://<computer's tailscale IP>:7380/`
+- or `https://<name>.<tailnet>.ts.net:7380/` once HTTPS certificates are enabled for the tailnet
+
+Use the machine switcher on that page to reach the other machines. The browser gets no notifications.
+
+There is no token and no login in either case: the tailnet identity is the login.
 
 Plain HTTP over Tailscale is encrypted by WireGuard, but the browser does not treat the page as a secure context, so some browser APIs (for example the clipboard) may be unavailable. Enabling HTTPS certificates for the tailnet fixes that; see [Tailscale HTTPS certificates](https://tailscale.com/kb/1153/enabling-https).
 
-The phone layout has been verified in a browser at 390x844. Use on a real phone and between two physical machines has not been verified yet.
+The app and the phone layout have been verified on an Android 15 emulator and in a browser at 390x844. Use on a physical phone and between two physical machines has not been verified yet.
 
 ## Configuration
 
@@ -141,6 +163,16 @@ After changing `src/`, run `npm run build` and restart dsh.
 The lefthook pre-commit hook runs the format check, lint, and typecheck.
 
 To test federation on one machine, run two dsh instances with Kivotos, give each a distinct `port`, set `allowSelf: true`, and point each at the other through `staticPeers`.
+
+The Android app lives in `packages/mobile/` (Expo SDK 57, React Native). Its notification service is a local Expo module in Kotlin, `packages/mobile/modules/kivotos-attention/`. To build the APK you need JDK 17 and the Android SDK (`ANDROID_HOME`):
+
+```sh
+npm install
+npm run apk -w packages/mobile   # expo prebuild, then gradlew assembleRelease
+# -> packages/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+`packages/mobile/android/` is generated by `expo prebuild` and is not committed. The release APK is signed with the debug key; it installs directly but is not meant for an app store.
 
 ## License
 

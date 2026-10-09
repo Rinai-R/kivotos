@@ -11,7 +11,7 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에서 Kivotos를 실행 중인 모든 dsh를 다른 dsh에서 dsh 본래의 전체 UI 그대로 열고 조작할 수 있습니다. 또한 dsh에 완전한 휴대폰 레이아웃을 추가합니다. Kivotos 자체에는 UI가 없으며, 표시되는 화면은 모두 dsh의 UI입니다.
+Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에서 Kivotos를 실행 중인 모든 dsh를 다른 dsh에서 dsh 본래의 전체 UI 그대로 열고 조작할 수 있습니다. 또한 dsh에 완전한 휴대폰 레이아웃을 추가하고, 세션에 당신이 필요할 때 알려 주는 Android 앱도 함께 제공합니다. Kivotos 자체에는 UI가 없으며, 표시되는 화면은 모두 dsh의 UI입니다.
 
 ## 기능
 
@@ -29,6 +29,7 @@ Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에�
   - 입력창(dsh 자체의 sticky 컴포저)을 화면 하단에 고정하고 safe-area 여백을 확보합니다. `viewport-fit=cover`를 사용합니다.
   - 입력 요소는 16px로, iOS 자동 확대를 방지합니다.
   - dsh 테마 토큰만 사용하며 라이트와 다크 테마를 모두 지원합니다.
+- **Android 앱**: 각 머신의 전체 dsh UI를 열고, 당신이 그 세션을 보고 있지 않을 때 세션이 승인을 필요로 하거나 질문을 하거나 작업을 완료하면 시스템 알림과 팝업으로 알려 줍니다. 알림을 탭하면 해당 세션이 열립니다.
 
 ## 요구 사항
 
@@ -65,12 +66,38 @@ dsh 사이드바 하단(Settings 위)의 머신 전환기에서 다른 머신을
 
 ### 휴대폰에서 사용하기
 
-1. 휴대폰에 Tailscale 앱을 설치하고 **같은 tailnet 계정**으로 로그인합니다.
-2. 브라우저에서 `http://<컴퓨터의 Tailscale IP>:7380/`을 엽니다. tailnet에서 HTTPS 인증서를 활성화했다면 `https://<name>.<tailnet>.ts.net:7380/`을 사용합니다.
-3. 토큰이나 로그인은 필요 없습니다. tailnet ID가 곧 로그인입니다.
-4. 그 페이지의 머신 전환기에서 다른 머신으로도 이동할 수 있습니다.
+#### Android 앱
 
-HTTP와 HTTPS의 차이: Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라우저는 해당 페이지를 보안 컨텍스트로 취급하지 않습니다. 따라서 클립보드 등 일부 브라우저 API를 사용할 수 없을 수 있습니다. Tailscale 관리 콘솔에서 HTTPS 인증서를 활성화하면 해결됩니다. 방법은 [Tailscale 문서](https://tailscale.com/kb/1153/enabling-https)를 참고하세요.
+1. 휴대폰에 Tailscale 앱을 설치하고 컴퓨터와 같은 tailnet 계정으로 로그인합니다.
+2. Kivotos APK를 설치합니다. GitHub Actions의 최신 CI 실행에서 `kivotos-android`를 내려받거나 직접 빌드합니다("개발" 참고).
+3. 앱에서 각 컴퓨터를 Tailscale IP로 추가합니다(예: `100.64.0.1`. 포트 `7380`은 자동으로 붙습니다). 앱은 컴퓨터가 응답하는지, 그리고 이 휴대폰을 허용하는지 확인합니다.
+4. **알림**을 켭니다. Android가 권한을 요청하면 허용하고, 앱이 안내하면 Kivotos의 백그라운드 실행을 허용하세요. 그렇지 않으면 시스템이 배터리 절약을 위해 알림을 중지할 수 있습니다.
+5. 머신을 탭하면 해당 머신의 전체 dsh UI가 열립니다.
+
+알림이 켜져 있는 동안 앱은 머신마다 연결 하나를 열어 둡니다(Android는 이를 위해 "N개 머신 모니터링 중"이라는 상시 알림을 표시합니다). 다음 경우에 팝업이 있는 시스템 알림을 받습니다.
+
+- 승인이 필요할 때(알림에 실행하려는 내용이 표시됩니다)
+- 질문을 받았을 때
+- 작업이 완료되거나 실패했을 때
+
+앱에서 현재 보고 있는 세션에 대해서는 알림이 표시되지 않습니다. 세션을 열면 그 알림이 지워지고, 승인이나 질문이 어디서든 처리되면 해당 알림은 철회됩니다. 알림을 탭하면 그 머신의 그 세션에서 앱이 열립니다. 앱이 다른 화면을 열어 둔 동안에는 같은 이벤트가 앱 내 배너로도 표시됩니다.
+
+앱은 Android 전용이며 Expo(React Native)로 빌드되었습니다. dsh 화면은 WebView 안의 dsh 자체 UI입니다. 알림은 각 컴퓨터의 Kivotos에서 오는 것이며 푸시 서비스가 아니므로 Google 서비스가 필요하지 않습니다.
+
+#### 브라우저
+
+컴퓨터의 tailnet 리스너는 휴대폰 브라우저에서도 열 수 있습니다.
+
+- `http://<computer's tailscale IP>:7380/`
+- 또는 tailnet에서 HTTPS 인증서를 활성화한 경우 `https://<name>.<tailnet>.ts.net:7380/`
+
+그 페이지의 머신 전환기에서 다른 머신으로도 이동할 수 있습니다. 브라우저에는 알림이 오지 않습니다.
+
+두 경우 모두 토큰도 로그인도 필요 없습니다. tailnet ID가 곧 로그인입니다.
+
+Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라우저는 해당 페이지를 보안 컨텍스트로 취급하지 않습니다. 따라서 클립보드 등 일부 브라우저 API를 사용할 수 없을 수 있습니다. tailnet에서 HTTPS 인증서를 활성화하면 해결됩니다. 방법은 [Tailscale HTTPS 인증서](https://tailscale.com/kb/1153/enabling-https)를 참고하세요.
+
+앱과 휴대폰 레이아웃은 Android 15 에뮬레이터와 브라우저 390x844에서 검증되었습니다. 실제 휴대폰에서의 사용과 두 대의 물리 머신 간 사용은 아직 검증되지 않았습니다.
 
 ## 설정
 
@@ -146,6 +173,16 @@ npm test               # TypeScript 소스에서 node --test 실행
 lefthook pre-commit 훅이 포맷 검사, lint, 타입 검사를 실행합니다.
 
 테스트 팁: 한 머신에서 두 개의 dsh 인스턴스를 실행하고, 각각 서로 다른 `port`와 `allowSelf: true`를 설정한 뒤 `staticPeers`로 서로를 등록하면 페더레이션을 시험해 볼 수 있습니다.
+
+Android 앱은 `packages/mobile/`(Expo SDK 57, React Native)에 있습니다. 알림 서비스는 Kotlin으로 작성된 로컬 Expo 모듈 `packages/mobile/modules/kivotos-attention/`입니다. APK를 빌드하려면 JDK 17과 Android SDK(`ANDROID_HOME`)가 필요합니다.
+
+```sh
+npm install
+npm run apk -w packages/mobile   # expo prebuild, 그다음 gradlew assembleRelease
+# -> packages/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+`packages/mobile/android/`는 `expo prebuild`가 생성하며 커밋되지 않습니다. 릴리스 APK는 디버그 키로 서명되어 바로 설치할 수 있지만 앱 스토어용은 아닙니다.
 
 ## 라이선스
 

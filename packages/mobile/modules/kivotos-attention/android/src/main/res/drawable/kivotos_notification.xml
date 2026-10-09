@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon: the Kivotos K as a single-color silhouette (Android tints it). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <path android:fillColor="#FFFFFFFF" android:pathData="M104 136L184 96V376L104 416V136Z" />
+  <path android:fillColor="#FFFFFFFF" android:pathData="M204 224L328 100H420L264 256L204 224Z" />
+  <path android:fillColor="#FFFFFFFF" android:pathData="M204 244L264 276L420 412H316L204 308V244Z" />
+</vector>
