@@ -35,7 +35,7 @@
     "lint": "oxlint",
     "typecheck": "tsc -p tsconfig.json",
     "build": "node --check packages/kivotos/index.js && node --check packages/kivotos/client.js",
-    "test": "node --test packages/kivotos/test/",
+    "test": "node --test \"packages/kivotos/test/*.test.js\"",
     "prepare": "lefthook install --force"
   },
   "devDependencies": {
