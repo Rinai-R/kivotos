@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#1f2a44"/>
-  <rect x="9" y="14" width="26" height="18" rx="3" fill="none" stroke="#8fb4ff" stroke-width="3"/>
-  <rect x="38" y="26" width="16" height="26" rx="3" fill="none" stroke="#f2c94c" stroke-width="3"/>
-  <path d="M22 32v8h16" fill="none" stroke="#8fb4ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="46" cy="46" r="2" fill="#f2c94c"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Kivotos</title>
+  <desc id="desc">An angular K constructed from three folded ribbon planes in blue, with light and shadow defining each fold, on a transparent background.</desc>
+  <path d="M104 136L184 96V376L104 416V136Z" fill="#3478DB"/>
+  <path d="M204 224L328 100H420L264 256L204 224Z" fill="#62A5F5"/>
+  <path d="M204 244L264 276L420 412H316L204 308V244Z" fill="#2455A4"/>
 </svg>
