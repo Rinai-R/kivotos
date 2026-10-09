@@ -1,6 +1,0 @@
-{
-  "id": "provider-direct-example",
-  "requirements": {
-    "kivotos": ">=0.8.0"
-  }
-}

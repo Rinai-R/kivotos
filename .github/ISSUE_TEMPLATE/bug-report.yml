@@ -1,26 +1,24 @@
 name: Bug report
-description: Something is broken or doesn't behave the way it should.
+description: Something in the Kivotos plugin is broken or doesn't behave the way it should.
 title: "bug: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Issues are only for bugs. Product discussions go in [GitHub Discussions](https://github.com/Rinai-R/kivotos/discussions) — feature requests opened as issues get closed automatically.
+        Issues are only for bugs. Feature ideas and questions go in [GitHub Discussions](https://github.com/Rinai-R/kivotos/discussions).
 
-        Before opening, please:
+        Security problems must not be reported here. Use [private vulnerability reporting](https://github.com/Rinai-R/kivotos/security/advisories/new).
 
-        - search existing issues for the same symptom
-        - try to reproduce on the latest version
-        - if it's a UI bug, capture a screenshot or short video. text descriptions of UI bugs almost always lose detail.
+        Before opening, please search existing issues and try to reproduce on the latest commit. For layout bugs, attach a screenshot.
 
   - type: textarea
     id: description
     attributes:
       label: What's broken
-      description: What happened, and what did you expect to happen instead?
+      description: What happened, and what did you expect instead?
       placeholder: |
-        I tried to X, expected Y, got Z.
+        I opened another machine from the machine switcher, expected its sessions, got Z.
     validations:
       required: true
 
@@ -30,10 +28,9 @@ body:
       label: Steps to reproduce
       description: The shortest sequence that triggers the bug. If you can't reproduce on demand, say so.
       placeholder: |
-        1. Open the desktop app
-        2. Pair a daemon
-        3. Click X
-        4. ...
+        1. Open http://100.x.y.z:7380/ on the phone
+        2. Open the drawer
+        3. Tap X
     validations:
       required: true
 
@@ -41,14 +38,11 @@ body:
     id: surface
     attributes:
       label: Where did this happen
-      description: The surface you saw the bug on. Pick the closest match.
       options:
-        - iOS app
-        - Android app
-        - Web (browser)
-        - Desktop (Electron)
-        - CLI
-        - Daemon
+        - Computer, this machine's dsh
+        - Computer, another machine through the switcher
+        - Phone browser
+        - Tailnet listener / discovery (no UI)
         - Other
     validations:
       required: true
@@ -56,68 +50,44 @@ body:
   - type: input
     id: kivotos-version
     attributes:
-      label: Kivotos version
-      description: Settings → About in the app, or `kivotos --version` from the CLI.
-      placeholder: "0.1.71"
+      label: Kivotos commit or version
+      description: "`git rev-parse --short HEAD` in your clone, or the version in packages/kivotos/package.json."
     validations:
       required: true
 
   - type: input
-    id: os-version
+    id: dsh-version
     attributes:
-      label: OS version
-      description: Only relevant for desktop, CLI, or daemon issues. Skip for mobile or web.
-      placeholder: "macOS 15.2, Windows 11, Ubuntu 24.04"
+      label: DeepSeek Harness version
+      description: "`dsh --version`. Kivotos targets 0.2.1-alpha.1."
+    validations:
+      required: true
 
-  - type: dropdown
-    id: provider
+  - type: input
+    id: environment
     attributes:
-      label: Agent provider
-      description: If the bug involves a specific agent provider, pick which one.
-      options:
-        - Not relevant
-        - Claude Code
-        - Codex
-        - OpenCode
-        - Custom provider
+      label: OS, browser, Tailscale version
+      placeholder: "macOS 15.2 + Chrome 141, Android 15 + Chrome, Tailscale 1.104.1"
+    validations:
+      required: true
 
   - type: textarea
-    id: provider-details
+    id: config
     attributes:
-      label: Provider configuration
-      description: |
-        If the bug involves an agent, what version are you on and what API are you using? Provider behavior changes a lot across versions and API backends.
-      placeholder: |
-        Claude Code v1.2.3 with Anthropic API
-        Codex CLI v0.5.0 with OpenAI API
-        OpenCode v0.3.1
-        (or paste the relevant section of ~/.kivotos/config.json for custom providers)
+      label: Kivotos config
+      description: The `kivotos` entry from `dsh --profile <profile> --dump-config`, if you changed anything.
+      render: yaml
 
   - type: textarea
     id: logs
     attributes:
       label: Logs
       description: |
-        Paste relevant log output. Strongly preferred for crashes and daemon issues.
-
-        - **Daemon log:** `~/.kivotos/daemon.log` (override with `$KIVOTOS_HOME`)
-        - **Electron log (macOS):** `~/Library/Logs/Kivotos/main.log`
-        - **Electron log (Windows):** `%APPDATA%\Kivotos\logs\main.log`
-        - **Electron log (Linux):** `~/.config/Kivotos/logs/main.log`
-
-        Paste the **full log around the time of the bug**, not a summary. If you used an AI to investigate, paste the raw log it read, not the AI's interpretation. AI summaries skew the signal and waste my time.
+        dsh's terminal output around the time of the bug (lines starting with `kivotos:` matter most) and the browser console. Paste raw output, not a summary. Remove tokens from any `?token=` URL.
       render: text
 
   - type: textarea
     id: screenshots
     attributes:
-      label: Screenshots or video
-      description: |
-        **Required for UI bugs.** Drag and drop directly into this field. Short videos beat screenshots for anything involving interaction or animation.
-
-  - type: markdown
-    attributes:
-      value: |
-        ---
-
-        **A note on AI-assisted reports.** Using an agent to gather information (logs, repro steps, version checks) is fine and useful. Using an agent to *diagnose* the bug and then submitting only that diagnosis is not. Agents routinely correlate adjacent log lines as cause-and-effect when they aren't related, and once a report is filtered through an AI summary I lose the signal I need to actually fix the bug. Paste the raw inputs.
+      label: Screenshots
+      description: Required for layout bugs. Include the viewport size and whether the theme was light or dark.

@@ -11,181 +11,135 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">One interface for Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code agents.</p>
+Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every dsh on your tailnet from any dsh, with dsh's full UI, and it gives dsh a complete phone layout. Kivotos has no UI of its own: every screen you see is dsh's own UI.
 
-Kivotos is an open source agentic development environment for desktop, mobile, web, and CLI. Open the desktop app and work: agents, editor, terminals, diffs, pull requests, and a browser in one window. Run many agents at once, each in its own worktree, on one machine or several. The mobile app is the full app, native on iOS and Android.
+## Features
 
-- **Parallel agents:** Run many agents at once, each in its own worktree.
-- **Built-in orchestration:** Agents in Kivotos can create worktrees, launch other agents, and talk to them, across providers.
-- **Complete development workflow:** Edit files, review diffs, open pull requests, and run terminals, in split panes you arrange how you want.
-- **Self-hosted:** Agents run on your machine with your full dev environment. Use your tools, your configs, and your skills.
-- **Multi-provider:** Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code through the same interface. Pick the right model for each job.
-- **Voice control:** Dictate tasks or talk through problems in voice mode. Hands-free when you need it.
-- **Cross-device:** iOS, Android, desktop, web, and CLI. Start work at your desk, check in from your phone, script it from the terminal.
-- **Privacy-first:** Kivotos doesn't have any telemetry, tracking, or forced log-ins.
+- **Federation over Tailscale.** From any dsh, open the complete UI of any other dsh on your tailnet that also runs Kivotos. The remote UI is the remote dsh's own UI served through a reverse proxy, not a reimplementation, so everything works remotely:
+  - sessions: new, delete, archive
+  - approvals and user questions
+  - model listing and switching
+  - settings
+  - workspace files
+  - terminal
+- **Machine switcher.** An entry in the dsh sidebar footer, above Settings, lists "this machine" plus the peers the serving host mounts. Selecting one navigates to `/` or `/kivotos/peer/<id>/`.
+- **Phone layout.** Below 768px width:
+  - single column; the sidebar becomes a slide-in drawer (`min(86vw, 320px)`) with a dimmed backdrop that closes it
+  - a drawer toggle button before the conversation title
+  - composer pinned at the bottom (dsh's own sticky composer) with safe-area insets and `viewport-fit=cover`
+  - 16px inputs, so iOS does not zoom on focus
+  - dsh theme tokens only, light and dark
 
-[Run parallel tasks in Kivotos](https://github.com/Rinai-R/kivotos/tree/main/docs): start agents in separate worktrees, review their diffs, run each app, and check it in the built-in browser.
+## Requirements
 
-## Plugins
+- DeepSeek Harness (dsh) `0.2.1-alpha.1`
+- Node `^22.19.0 || >=24`
+- Tailscale installed and signed in on each machine, all machines signed in to the same tailnet account
 
-Plugins run on the daemon and show up in every client you connect, with the same UI on desktop, web,
-iOS, and Android. Write a plugin once and it is on your phone.
+## Install
 
-- **UI:** screens, sidebar items, workspace panels, Command Center items, slash commands, composer pills, attachment sources, timeline items, themes.
-- **Agent lifecycle:** change configuration, environment, and MCP servers, answer permissions, follow up when a turn ends.
-- **Providers:** add a coding agent as a provider.
+On each machine:
 
-Install from the registry with `kivotos plugin add owner/slug`, or from Git or a local directory.
-
-**[Plugin docs](https://github.com/Rinai-R/kivotos/blob/main/docs/plugins.md)**
-
-Plugins run with access to your daemon machine and inside connected clients; install only code you trust.
-
-## Getting Started
-
-Kivotos runs a local server called the daemon that manages your coding agents. Clients like the desktop app, mobile app, web app, and CLI connect to it.
-
-### Prerequisites
-
-You need at least one agent CLI installed and configured with your credentials:
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [Codex](https://github.com/openai/codex)
-- [GitHub Copilot](https://github.com/features/copilot/cli/)
-- [OpenCode](https://github.com/anomalyco/opencode)
-- [Pi](https://pi.dev)
-- [Antigravity](https://github.com/Rinai-R/kivotos/blob/main/docs/providers.md)
-- [Muse Code](https://github.com/Rinai-R/kivotos/blob/main/docs/providers.md)
-
-### Desktop app (recommended)
-
-Download it from the [releases page](https://github.com/Rinai-R/kivotos/releases). Open the app and the daemon starts automatically. Nothing else to install.
-
-To connect from your phone, open **Settings → your host → Pair Device**.
-
-### Server
-
-For a server, a VM, or any machine without the desktop app. Install the CLI and start the daemon:
-
-```bash
-npm install -g @kivotos/cli
-kivotos
+```sh
+git clone git@github.com:Rinai-R/kivotos.git
+dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
 ```
 
-Kivotos starts, then asks whether to enable the end-to-end encrypted relay for device pairing. If you decline, connect directly over TCP, Tailscale, or another VPN. The desktop, mobile, and web apps connect to this daemon like any other host.
+Restart dsh. Repeat on every machine you want to reach or reach from.
 
-For full setup and configuration, see:
+Verify that the plugin is registered; the output shows the `kivotos` entry:
 
-- [Docs](https://github.com/Rinai-R/kivotos/tree/main/docs)
-- [Connectivity guide](https://github.com/Rinai-R/kivotos/tree/main/docs)
-- [Configuration reference](https://github.com/Rinai-R/kivotos/tree/main/docs)
-
-### Docker
-
-Build the image locally, then run the Kivotos daemon and self-hosted web UI in Docker. No image is published:
-
-```bash
-docker build -f docker/base/Dockerfile -t kivotos:latest .
-
-docker run -d --name kivotos \
-  -p 6767:6767 \
-  -e KIVOTOS_PASSWORD=change-me \
-  -v "$PWD/kivotos-home:/home/kivotos" \
-  -v "$PWD:/workspace" \
-  kivotos:latest
+```sh
+dsh --profile web --dump-config
 ```
 
-Open `http://localhost:6767` after it starts. Extend the base image with the agent CLIs you use, then provide credentials through environment variables or the persistent `/home/kivotos` volume. See the [Docker documentation](docs/docker.md) for full setup details.
+The commands above use the `web` profile. The desktop app uses the `desktop` profile, which has not been tested with Kivotos.
 
-## CLI
+## Use from a computer
 
-Everything you can do in the app, you can do from the terminal.
+Open dsh as usual. The machine switcher in the sidebar footer lists this machine and every peer that was discovered. Select a peer to open its full UI at `/kivotos/peer/<id>/`; select "this machine" to return to `/`.
 
-```bash
-kivotos run --provider claude/opus-4.6 "implement user authentication"
-kivotos run --provider codex/gpt-5.5 --worktree feature-x "implement feature X"
+## Use from a phone
 
-kivotos ls                           # list running agents
-kivotos attach abc123                # stream live output
-kivotos send abc123 "also add tests" # follow-up task
+1. Install the Tailscale app on the phone and sign in with the same tailnet account as your computers.
+2. Open the computer's tailnet listener in the phone browser:
+   - `http://<computer's tailscale IP>:7380/`
+   - or `https://<name>.<tailnet>.ts.net:7380/` once HTTPS certificates are enabled for the tailnet
+3. Use the machine switcher on that page to reach the other machines.
 
-# run on a remote daemon; --cwd is a path on that host
-kivotos run --host workstation.local:6767 --cwd /workspace "run the full test suite"
+There is no token and no login: the tailnet identity is the login.
+
+Plain HTTP over Tailscale is encrypted by WireGuard, but the browser does not treat the page as a secure context, so some browser APIs (for example the clipboard) may be unavailable. Enabling HTTPS certificates for the tailnet fixes that; see [Tailscale HTTPS certificates](https://tailscale.com/kb/1153/enabling-https).
+
+The phone layout has been verified in a browser at 390x844. Use on a real phone and between two physical machines has not been verified yet.
+
+## Configuration
+
+The plugin's config row id is `kivotos`. Override it in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. Defaults:
+
+```yaml
+- id: kivotos
+  config:
+    port: 7380 # tailnet listener port, same on every machine
+    tls: auto # auto | on | off
+    discover: true # probe same-user tailnet nodes
+    refreshSeconds: 30 # 5..3600
+    listen: true # run the tailnet listener on this machine
+    listenHost: "" # "" = this node's Tailscale IPv4
+    allowSelf: false # admit requests from this node's own address (lab only)
+    tailscale: tailscale # CLI path
+    staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
 ```
 
-See the [full CLI reference](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md) for more.
+A matching override replaces the complete `config` object of the row; keys you leave out fall back to the defaults above.
 
-## TypeScript SDK
+`tls: auto` uses HTTPS when the tailnet has HTTPS certificates enabled and issues the certificate with `tailscale cert` into `$DSH_HOME/kivotos/tls/`. `on` requires HTTPS; `off` never uses it. Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
 
-Build issue integrations, dashboards, and orchestration services with `@kivotos/client`:
+## Security
 
-```ts
-import { createKivotosClient } from "@kivotos/client";
+**Anyone signed in to your tailnet account has full control of every dsh running Kivotos on it**, the same as sitting at that computer: run commands, read and write files, use the terminal, approve tool calls. Only Tailscale identity is checked; there is no second factor. Keep the tailnet account secure and do not share it.
 
-const client = createKivotosClient({ url: "ws://127.0.0.1:6767/ws" });
-await client.connect();
+The tailnet listener admits a request only if:
 
-const agent = await client.agents.create({
-  config: { provider: "codex/gpt-5.5" },
-  cwd: "/Users/me/dev/storefront",
-  prompt: "Review the current diff and name the riskiest change.",
-});
+- the `Host` header names this node (its Tailscale IPs or MagicDNS name); otherwise 421
+- the request is not cross-site: no `Sec-Fetch-Site: cross-site`, and any `Origin` equals the request authority; otherwise 403
+- `tailscale whois` of the remote address belongs to the same tailnet user as this node; otherwise 403. Tagged devices, device sharing, and other users of a shared tailnet are rejected
+- it does not come from this node's own address, unless `allowSelf: true`
 
-const result = await agent.waitForFinish();
-console.log(result.lastMessage);
+The listener binds only the Tailscale address, not `0.0.0.0` and not the LAN. Peer mounts on the serving dsh sit behind dsh's own connection fence (dsh login cookie plus Host and Origin checks).
 
-await client.close();
-```
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
-See the [SDK quickstart](https://github.com/Rinai-R/kivotos/tree/main/docs), [recipes](https://github.com/Rinai-R/kivotos/tree/main/docs), and [API reference](https://github.com/Rinai-R/kivotos/tree/main/docs).
+## How it works
 
-## Skills
+- Every dsh running Kivotos opens a second HTTP listener on its Tailscale address only (default port 7380). dsh itself stays on loopback. Admitted requests are forwarded to the loopback dsh with a dsh login cookie that Kivotos obtains in-process; the browser never sees that cookie.
+- Every `refreshSeconds`, Kivotos reads `tailscale status --json`, takes the online nodes of the same tailnet user, probes `GET /kivotos/hello` on `port` (HTTPS first, then HTTP), and mounts those that answer, plus any `staticPeers`.
+- Each peer is mounted on the serving dsh at `/kivotos/peer/<id>/`, behind dsh's connection fence, and forwarded to the peer's tailnet listener. Each peer page gets its own `localStorage` namespace so peer UIs on the same origin do not overwrite each other's client state.
+- Hops do not chain. A mount marks forwarded requests and refuses marked ones with 508, so `/kivotos/peer/b/kivotos/peer/a/` does not work. The machine list always comes from the serving host.
 
-Skills teach your agent to use Kivotos to orchestrate other agents.
+## Compatibility
 
-```bash
-npx skills add Rinai-R/kivotos
-```
-
-Then use them in any agent conversation:
-
-- `/kivotos-handoff` — hand off work between agents. I use this to plan with Claude and then handoff to Codex to implement.
-- `/kivotos-advisor` — spin up a single agent as an advisor for a second opinion, without delegating the work itself.
-- `/kivotos-committee` — form a committee of two contrasting agents to step back, do root cause analysis, and produce a plan.
+Kivotos is pinned to dsh `0.2.1-alpha.1`. dsh ships no phone layout and no slot owns the frame grid, so the phone stylesheet targets dsh internals (CSS-module class names and data attributes of 0.2.1-alpha.1). The index rewrites (viewport meta, manifest link) also match the exact 0.2.1-alpha.1 markup and silently do nothing if it changes. Re-verify Kivotos on every dsh upgrade.
 
 ## Development
 
-Quick monorepo package map:
+The plugin lives in `packages/kivotos/`. It is plain ESM JavaScript with no build step and no runtime dependencies. Scripts at the repository root:
 
-- `packages/server`: Kivotos daemon (agent process orchestration, WebSocket API, MCP server)
-- `packages/app`: Expo client (iOS, Android, web)
-- `packages/cli`: `kivotos` CLI for daemon and agent workflows
-- `packages/desktop`: Electron desktop app
-- `packages/relay`: Relay transport and encryption used by the daemon and clients
-
-Common commands:
-
-```bash
-# run all local dev services
-npm run dev
-
-# run individual surfaces
-npm run dev:server
-npm run dev:app
-npm run dev:desktop
-
-# build the server stack
-npm run build:server
-
-# repo-wide checks
-npm run typecheck
+```sh
+npm run typecheck     # tsc --checkJs
+npm run lint          # oxlint
+npm run format        # oxfmt
+npm run format:check  # oxfmt, check only
+npm run build         # node --check
+npm test              # node --test
 ```
 
-## Related projects
+The lefthook pre-commit hook runs the format check, lint, and typecheck.
 
-- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — official distributed relay, written in Elixir
-- [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code extension
+To test federation on one machine, run two dsh instances with Kivotos, give each a distinct `port`, set `allowSelf: true`, and point each at the other through `staticPeers`.
 
 ## License
 
-Apache-2.0
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Kivotos is not affiliated with DeepSeek or Tailscale.

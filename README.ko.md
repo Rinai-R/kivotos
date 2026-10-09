@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/kivotos-logo.svg" width="64" height="64" alt="Kivotos 로고">
+  <img src="assets/kivotos-logo.svg" width="64" height="64" alt="Kivotos logo">
 </p>
 
 <h1 align="center">Kivotos</h1>
@@ -11,136 +11,138 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-<p align="center">Claude Code, Codex, Copilot, OpenCode, Pi 에이전트를 위한 하나의 인터페이스</p>
+Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에서 Kivotos를 실행 중인 모든 dsh를 다른 dsh에서 dsh 본래의 전체 UI 그대로 열고 조작할 수 있습니다. 또한 dsh에 완전한 휴대폰 레이아웃을 추가합니다. Kivotos 자체에는 UI가 없으며, 표시되는 화면은 모두 dsh의 UI입니다.
 
-내 컴퓨터에서 에이전트를 병렬로 실행하세요. 데스크톱이나 휴대폰에서 배포하세요.
+## 기능
 
-- **셀프 호스팅:** 에이전트는 완전한 개발 환경이 갖춰진 내 컴퓨터에서 실행됩니다. 평소 쓰던 도구, 설정, 스킬을 그대로 쓸 수 있습니다.
-- **여러 제공자 지원:** Claude Code, Codex, Copilot, OpenCode, Pi를 하나의 인터페이스에서 사용할 수 있습니다. 작업마다 알맞은 모델을 고를 수 있습니다.
-- **음성 제어:** 음성 모드에서 작업을 말로 지시하거나 문제를 음성으로 함께 검토할 수 있습니다. 손을 쓰지 않고 작업해야 할 때 유용합니다.
-- **여러 기기 지원:** iOS, Android, 데스크톱, 웹, CLI를 지원합니다. 데스크톱에서 시작해 휴대폰으로 확인하고 터미널에서 자동화할 수 있습니다.
-- **개인정보 보호 우선:** Kivotos는 텔레메트리, 추적, 강제 로그인을 사용하지 않습니다.
+- **Tailscale을 통한 페더레이션**: 어떤 dsh에서든 같은 tailnet에서 Kivotos를 실행 중인 다른 dsh의 UI를 그대로 열 수 있습니다. 원격 dsh 자신의 UI를 리버스 프록시로 제공하는 방식이므로 재구현이 아니며, 다음 기능이 모두 동작합니다.
+  - 세션 생성, 삭제, 보관
+  - 승인 및 사용자 질문
+  - 모델 목록 조회 및 전환
+  - 설정
+  - 워크스페이스 파일
+  - 터미널
+- **머신 전환기**: dsh 사이드바 하단(Settings 위)에 "이 머신"과 제공 호스트가 마운트한 피어 목록을 표시합니다. 클릭하면 `/` 또는 `/kivotos/peer/<id>/`로 이동합니다.
+- **휴대폰 레이아웃**: 너비 768px 미만에서 적용됩니다.
+  - 단일 열 레이아웃. 사이드바는 슬라이드인 드로어(`min(86vw, 320px)`)가 되며, 어둡게 처리된 배경을 누르면 닫힙니다.
+  - 대화 제목 앞에 드로어 토글 버튼을 배치합니다.
+  - 입력창(dsh 자체의 sticky 컴포저)을 화면 하단에 고정하고 safe-area 여백을 확보합니다. `viewport-fit=cover`를 사용합니다.
+  - 입력 요소는 16px로, iOS 자동 확대를 방지합니다.
+  - dsh 테마 토큰만 사용하며 라이트와 다크 테마를 모두 지원합니다.
 
-## 시작하기
+## 요구 사항
 
-Kivotos는 코딩 에이전트를 관리하는 로컬 서버인 데몬을 실행합니다. 데스크톱 앱, 모바일 앱, 웹 앱, CLI 같은 클라이언트가 이 데몬에 연결합니다.
+- Node `^22.19.0 || >=24`
+- dsh 0.2.1-alpha.1
+- 각 머신에서 Tailscale에 로그인되어 있을 것
 
-### 준비 사항
+## 설치
 
-아래 에이전트 CLI 중 하나 이상을 설치하고 인증 정보를 설정해야 합니다.
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [Codex](https://github.com/openai/codex)
-- [GitHub Copilot](https://github.com/features/copilot/cli/)
-- [OpenCode](https://github.com/anomalyco/opencode)
-- [Pi](https://pi.dev)
-
-### 데스크톱 앱(권장)
-
-[릴리스 페이지](https://github.com/Rinai-R/kivotos/releases)에서 다운로드하세요. 앱을 열면 데몬이 자동으로 시작됩니다. 별도로 설치할 것은 없습니다.
-
-휴대폰에서 연결하려면 **설정 → 호스트 → 기기 페어링**을 여세요.
-
-### CLI / 헤드리스 환경
-
-CLI를 설치하고 Kivotos를 시작하세요.
-
-```bash
-npm install -g @kivotos/cli
-kivotos
+```sh
+git clone git@github.com:Rinai-R/kivotos.git
+dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
 ```
 
-Kivotos가 로컬에서 시작된 뒤 기기 페어링을 위한 종단 간 암호화 릴레이를 켤지 묻습니다. 거절하면 TCP, Tailscale 또는 다른 VPN으로 직접 연결할 수 있습니다. 이 방식은 서버나 원격 머신에서 유용합니다.
+설치 후 dsh를 재시작합니다. Kivotos를 사용할 모든 머신에서 같은 절차를 반복하세요.
 
-자세한 설치와 설정은 아래 문서를 참고하세요.
+다음 명령의 출력에 `kivotos` 항목이 있으면 설치가 완료된 것입니다.
 
-- [문서](https://github.com/Rinai-R/kivotos/tree/main/docs)
-- [연결 가이드](https://github.com/Rinai-R/kivotos/tree/main/docs)
-- [설정 레퍼런스](https://github.com/Rinai-R/kivotos/tree/main/docs)
-
-### Docker
-
-이미지를 로컬에서 빌드한 뒤 Docker에서 Kivotos 데몬과 셀프 호스팅 웹 UI를 실행하세요. 게시되는 이미지는 없습니다:
-
-```bash
-docker build -f docker/base/Dockerfile -t kivotos:latest .
-
-docker run -d --name kivotos \
-  -p 6767:6767 \
-  -e KIVOTOS_PASSWORD=change-me \
-  -v "$PWD/kivotos-home:/home/kivotos" \
-  -v "$PWD:/workspace" \
-  kivotos:latest
+```sh
+dsh --profile web --dump-config
 ```
 
-컨테이너가 시작되면 `http://localhost:6767`을 여세요. 사용하는 에이전트 CLI를 기본 이미지에 추가한 뒤, 환경 변수나 영구 `/home/kivotos` 볼륨으로 인증 정보를 설정하세요. 자세한 내용은 [Docker 문서](docs/docker.md)를 참고하세요.
+데스크톱 앱 프로필은 `desktop`이지만 동작은 아직 검증되지 않았습니다.
 
-## CLI
+## 사용법
 
-앱에서 할 수 있는 모든 작업은 터미널에서도 할 수 있습니다.
+### 컴퓨터에서 사용하기
 
-```bash
-kivotos run --provider claude/opus-4.6 "implement user authentication"
-kivotos run --provider codex/gpt-5.4 --worktree feature-x "implement feature X"
+dsh 사이드바 하단(Settings 위)의 머신 전환기에서 다른 머신을 선택합니다. 해당 머신의 dsh UI가 `/kivotos/peer/<id>/`에서 열립니다. 머신 목록은 항상 현재 열려 있는 제공 호스트에서 가져옵니다.
 
-kivotos ls                           # 실행 중인 에이전트 목록
-kivotos attach abc123                # 실시간 출력 스트리밍
-kivotos send abc123 "also add tests" # 후속 작업 전송
+### 휴대폰에서 사용하기
 
-# 원격 데몬에서 실행
-kivotos --host workstation.local:6767 run "run the full test suite"
+1. 휴대폰에 Tailscale 앱을 설치하고 **같은 tailnet 계정**으로 로그인합니다.
+2. 브라우저에서 `http://<컴퓨터의 Tailscale IP>:7380/`을 엽니다. tailnet에서 HTTPS 인증서를 활성화했다면 `https://<name>.<tailnet>.ts.net:7380/`을 사용합니다.
+3. 토큰이나 로그인은 필요 없습니다. tailnet ID가 곧 로그인입니다.
+4. 그 페이지의 머신 전환기에서 다른 머신으로도 이동할 수 있습니다.
+
+HTTP와 HTTPS의 차이: Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라우저는 해당 페이지를 보안 컨텍스트로 취급하지 않습니다. 따라서 클립보드 등 일부 브라우저 API를 사용할 수 없을 수 있습니다. Tailscale 관리 콘솔에서 HTTPS 인증서를 활성화하면 해결됩니다. 방법은 [Tailscale 문서](https://tailscale.com/kb/1153/enabling-https)를 참고하세요.
+
+## 설정
+
+설정 행의 id는 `kivotos`입니다. 재정의는 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`에 작성합니다. 기본값은 다음과 같습니다.
+
+```yaml
+- id: kivotos
+  config:
+    port: 7380 # tailnet 리스너 포트. 모든 머신에서 같은 값을 사용
+    tls: auto # auto | on | off
+    discover: true # 같은 사용자의 tailnet 노드를 탐색
+    refreshSeconds: 30 # 5..3600
+    listen: true # 이 머신에서 tailnet 리스너를 실행
+    listenHost: "" # "" = 이 노드의 Tailscale IPv4
+    allowSelf: false # 이 노드 자신의 주소에서 오는 요청을 허용(테스트 환경 전용)
+    tailscale: tailscale # CLI 경로
+    staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
 ```
 
-자세한 내용은 [전체 CLI 레퍼런스](https://github.com/Rinai-R/kivotos/blob/main/docs/development.md)를 참고하세요.
+일치하는 재정의는 `config` 객체 전체를 대체합니다.
 
-## 스킬
+`tls` 값의 의미:
 
-스킬은 에이전트가 Kivotos를 통해 다른 에이전트를 오케스트레이션하는 방법을 알려 줍니다.
+- `auto`(기본값): tailnet에서 HTTPS 인증서가 활성화된 경우 HTTPS를 사용합니다. 인증서는 `tailscale cert`로 `$DSH_HOME/kivotos/tls/`에 발급합니다.
+- `on`: HTTPS를 필수로 합니다.
+- `off`: HTTPS를 사용하지 않습니다.
 
-```bash
-npx skills add Rinai-R/kivotos
-```
+Kivotos는 `tailscale serve`를 실행하지 않으며 Tailscale 설정도 변경하지 않습니다.
 
-그런 다음 어떤 에이전트 대화에서든 아래 명령을 사용할 수 있습니다.
+## 보안
 
-- `/kivotos-handoff` — 에이전트 간에 작업을 넘깁니다. Claude로 계획을 세운 뒤 Codex에 구현을 넘길 때 이 기능을 씁니다.
-- `/kivotos-advisor` — 작업 자체를 넘기지 않고, 에이전트 하나를 조언자로 띄워 두 번째 의견을 받습니다.
-- `/kivotos-committee` — 서로 다른 관점의 에이전트 두 개로 위원회를 구성해, 한 발 물러나 근본 원인을 분석하고 계획을 세웁니다.
+**당신의 tailnet 계정에 로그인한 사람은 누구나 그 계정에서 Kivotos를 실행 중인 모든 dsh를 완전히 제어할 수 있습니다.** 이는 그 컴퓨터 앞에 앉아 있는 것과 같습니다. 명령 실행, 파일 읽기와 쓰기, 터미널 사용, 도구 호출 승인이 모두 가능합니다. 확인하는 것은 Tailscale ID뿐이며 2차 인증은 없습니다. tailnet 계정을 안전하게 유지하고 공유하지 마세요.
+
+tailnet 리스너는 다음 조건을 모두 만족하는 요청만 받아들입니다.
+
+- `Host` 헤더가 이 노드(Tailscale IP 또는 MagicDNS 이름)를 가리킬 것. DNS 리바인딩 방어이며, 만족하지 않으면 421을 반환합니다.
+- 크로스 사이트 요청이 아닐 것. `Sec-Fetch-Site: cross-site`가 없고, `Origin`이 있으면 요청 authority와 일치해야 합니다. 만족하지 않으면 403을 반환합니다.
+- 접속 원본 주소의 `tailscale whois`가 이 노드와 **같은 tailnet 사용자**에 속할 것. 만족하지 않으면 403을 반환합니다. 기기 공유, 공유 tailnet의 다른 사용자, 태그된 기기(사용자 없음)는 거부됩니다.
+- 기본적으로 이 노드 자신의 주소에서 온 요청이 아닐 것(`allowSelf: false`).
+
+tailnet 리스너는 Tailscale 주소에만 바인딩하며 `0.0.0.0`이나 LAN에는 노출하지 않습니다. 피어 마운트는 dsh 자체의 연결 펜스(dsh 로그인 쿠키와 Host/Origin 검사) 뒤에 있습니다.
+
+취약점 신고 방법은 [SECURITY.md](SECURITY.md)를 참고하세요.
+
+## 동작 방식
+
+- Kivotos를 실행하는 각 dsh는 **Tailscale 주소에서만** 두 번째 HTTP 리스너(tailnet 리스너, 기본 포트 7380)를 엽니다. dsh 본체는 루프백에 그대로 있습니다. 받아들인 요청은 Kivotos가 프로세스 내부에서 얻은 dsh 로그인 쿠키를 붙여 루프백 dsh로 전달됩니다. 이 쿠키는 브라우저에 전달되지 않습니다.
+- 제공 측 dsh는 발견한 각 피어를 `/kivotos/peer/<id>/`에 마운트합니다. 마운트는 dsh 자체의 연결 펜스 뒤에 있으며 피어의 tailnet 리스너로 전달합니다. 피어 페이지에는 피어별 `localStorage` 네임스페이스(`kivotos:<id>:`)가 주입되므로 각 피어의 클라이언트 상태가 서로 덮어쓰지 않습니다.
+- 피어 탐색은 `refreshSeconds`마다 수행됩니다. `tailscale status --json`에서 같은 tailnet 사용자의 온라인 노드를 가져오고, `port`의 `GET /kivotos/hello`에 응답한 노드를 마운트합니다. 설정의 `staticPeers`도 추가됩니다.
+- 홉은 연쇄되지 않습니다. `/kivotos/peer/b/kivotos/peer/a/`와 같은 다단 경로는 508로 거부됩니다.
+
+## 호환성
+
+Kivotos는 **dsh 0.2.1-alpha.1에 고정**되어 있습니다. dsh에는 휴대폰 레이아웃이 없고 프레임 그리드를 담당하는 슬롯도 없기 때문에, 휴대폰 스타일시트는 dsh 0.2.1-alpha.1의 내부 구조(CSS 모듈 클래스 이름 접미사와 data 속성)에 의존합니다. 이는 "다른 플러그인의 DOM이나 스타일시트를 읽지 않는다"는 dsh 플러그인 규칙을 의도적으로 어기는 것입니다. index HTML 재작성(viewport 메타, manifest 링크)도 0.2.1-alpha.1 마크업과 정확히 일치해야 하며, 마크업이 바뀌면 아무 동작 없이 무효가 됩니다. dsh를 업그레이드할 때마다 동작을 다시 확인하세요.
+
+그 외의 부분은 dsh 플러그인 규칙을 따릅니다.
 
 ## 개발
 
-모노레포 패키지 구성은 다음과 같습니다.
+순수 ESM JavaScript이며 빌드 단계나 런타임 의존성이 없습니다. 소스는 `packages/kivotos/`에 있습니다.
 
-- `packages/server`: Kivotos 데몬(에이전트 프로세스 오케스트레이션, WebSocket API, MCP 서버 제공)
-- `packages/app`: Expo 클라이언트(iOS, Android, 웹)
-- `packages/cli`: `kivotos` CLI(데몬과 에이전트 워크플로)
-- `packages/desktop`: Electron 데스크톱 앱
-- `packages/relay`: 데몬과 클라이언트가 쓰는 릴레이 전송 및 암호화 패키지
-
-자주 쓰는 명령:
-
-```bash
-# 모든 로컬 개발 서비스 실행
-npm run dev
-
-# 개별 환경 실행
-npm run dev:server
-npm run dev:app
-npm run dev:desktop
-
-# 서버 스택 빌드
-npm run build:server
-
-# 레포 전체 검사 실행
-npm run typecheck
+```sh
+npm run typecheck      # tsc --checkJs
+npm run lint           # oxlint
+npm run format         # oxfmt
+npm run format:check   # oxfmt
+npm run build          # node --check
+npm test               # node --test
 ```
 
-## 관련 프로젝트
+lefthook pre-commit 훅이 포맷 검사, lint, 타입 검사를 실행합니다.
 
-- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — Elixir로 작성한 공식 분산형 릴레이
-- [kivotos-skins](https://github.com/huangguang1999/kivotos-skins) — 커뮤니티 테마와 Agent Skill을 제공하고, 코드 수정 없이 쓸 수 있는 데스크톱 테마 로더
-- [kivotos-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.kivotos-vscode) — VS Code 확장 프로그램
+테스트 팁: 한 머신에서 두 개의 dsh 인스턴스를 실행하고, 각각 서로 다른 `port`와 `allowSelf: true`를 설정한 뒤 `staticPeers`로 서로를 등록하면 페더레이션을 시험해 볼 수 있습니다.
 
 ## 라이선스
 
-Apache-2.0
+Apache-2.0입니다. 자세한 내용은 [LICENSE](LICENSE)와 [NOTICE](NOTICE)를 참고하세요.
+
+Kivotos는 DeepSeek 및 Tailscale과 관련이 없습니다.

@@ -1,11 +1,15 @@
-Copyright (c) 2025-present Mohamed Boudra
+Copyright (c) 2026 Rinai
 
 Portions of this software are licensed as follows:
 
-* Third-party components incorporated into Paseo remain licensed under
-  the licenses provided by their respective copyright holders.
-* Except for those third-party components, Paseo is licensed under the
+* Third-party components incorporated into Kivotos remain licensed under
+  the licenses provided by their respective copyright holders; see NOTICE.
+* Except for those third-party components, Kivotos is licensed under the
   Apache License, Version 2.0, reproduced below.
+
+Earlier revisions of this repository were derived from Paseo,
+Copyright (c) 2025-present Mohamed Boudra, also licensed under the
+Apache License, Version 2.0; see NOTICE.
 
 
                                  Apache License

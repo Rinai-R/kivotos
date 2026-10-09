@@ -1,5 +1,0 @@
-appId: sh.kivotos
----
-- launchApp:
-    clearState: true
-- runFlow: flows/dev-client.yaml

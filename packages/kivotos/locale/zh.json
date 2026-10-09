@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Kivotos",
+    "description": "通过 Tailscale 在任意 dsh 中打开并操作同一 tailnet 内其它机器的 dsh(会话、审批、模型、文件、终端全部可用),并为手机提供完整布局。"
+  }
+}

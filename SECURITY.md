@@ -1,99 +1,72 @@
 # Security
 
-Kivotos follows a client-server architecture, similar to Docker. The daemon runs on your machine and manages your coding agents. Clients (the mobile app, CLI, or web interface) connect to the daemon to monitor and control those agents.
+Kivotos is a DeepSeek Harness (dsh) plugin that lets one dsh open and drive the full UI of other dsh instances on the same tailnet. This document describes what it trusts, what it checks, and how to report a vulnerability.
 
-Your code never leaves your machine. Kivotos is a local-first tool that connects directly to your development environment.
+## Trust model
 
-## Architecture
+**Anyone signed in to your tailnet account has full control of every dsh running Kivotos on that tailnet.** That is the same as sitting at the computer: they can run commands, read and write files, use the terminal, and approve tool calls. Tailscale identity is the only check. There is no token, no password, and no second factor.
 
-The Kivotos daemon can run anywhere you want to execute agents: your laptop, a Mac Mini, a VPS, or a Docker container. The daemon listens for connections and manages agent lifecycles.
+- A request is admitted only when `tailscale whois` attributes its source address to the same tailnet user that owns the node running Kivotos. Other users of a shared tailnet and devices shared into your tailnet from other accounts are rejected.
+- Tagged devices have no owning user and are rejected.
+- Do not share your tailnet account. Anyone who can sign in to it is trusted completely.
 
-Clients connect to the daemon over WebSocket. There are two ways to establish this connection:
+## What the tailnet listener checks
 
-- **Relay connection** — The daemon connects outbound to our relay server, and clients meet it there. No open ports required.
-- **Direct connection** — The daemon listens on a network address and clients connect directly.
+Every dsh running Kivotos opens a second HTTP listener (default port `7380`). dsh itself stays on loopback. The listener binds only this node's Tailscale address (`listenHost`, default: the node's Tailscale IPv4). It does not bind `0.0.0.0` or any LAN address.
 
-## Relay threat model
+Each HTTP request and each WebSocket upgrade passes these checks in order. The first failure ends the request with `kivotos: not admitted`.
 
-The relay is designed to be untrusted. All traffic between your phone and daemon is end-to-end encrypted. The relay server cannot read your messages, see your code, or modify traffic without detection. Even if the relay is compromised, your data remains protected.
+1. `Host` must name this node: its bind address, one of its Tailscale IPs, or its MagicDNS name. Otherwise `421`. This defends against DNS rebinding.
+2. The request must not be cross-site: `Sec-Fetch-Site: cross-site` is refused, and an `Origin` header, when present, must equal the request authority. `Origin: null` is refused. Otherwise `403`. This applies to WebSocket handshakes as well, because a WebSocket handshake is not subject to CORS and the forwarded hop no longer carries the browser's `Origin`, so the loopback dsh cannot apply its own check.
+3. The source address must not be one of this node's own Tailscale IPs unless `allowSelf: true`. Otherwise `403`. `allowSelf` defaults to `false` and is meant only for a lab setup on one machine.
+4. `tailscale whois` of the source address must report the same user as this node. Addresses outside the tailnet and tagged devices have no user. Otherwise `403`. Results are cached per address for 60 seconds.
 
-### How it works
+Admitted requests are forwarded to the loopback dsh. The browser's `Origin`, `Referer`, `Cookie`, and `Sec-Fetch-*` headers are not forwarded.
 
-1. The daemon generates a persistent Curve25519 keypair on first run and stores it at `$KIVOTOS_HOME/daemon-keypair.json` with mode `0600`
-2. The pairing URL (rendered as a QR code or opened directly) carries the daemon's public key in its URL fragment (`https://app.paseo.sh/#offer=...`). Fragments are not sent to the web server, so `app.paseo.sh` never sees the key.
-3. When the phone connects via the relay, it generates a fresh ephemeral Curve25519 keypair and sends an `e2ee_hello` message containing its public key. The daemon will not process any application messages until this handshake completes.
-4. Both sides perform a Curve25519 ECDH key exchange to derive a shared key. All subsequent messages are encrypted with XSalsa20-Poly1305 (NaCl `box`). The encrypted bundle is `[24-byte nonce][ciphertext]`. Peers optionally negotiate `binaryCiphertext` in `e2ee_hello` / `e2ee_ready`: negotiated application text is carried as a base64 WebSocket text frame, while application binary is carried as a raw WebSocket binary frame. A peer that does not negotiate the capability uses base64 text frames for both kinds.
+## The dsh side
 
-The WebSocket opcode is preserved end to end after negotiation; the receiver never guesses whether authenticated plaintext is text or binary from its byte contents. The plaintext handshake remains WebSocket text and contains only public keys and capability declarations.
+### Peer mounts
 
-The relay sees only: IP addresses, timing, message sizes, session IDs, and the plaintext `e2ee_hello` / `e2ee_ready` handshake frames (which contain only public keys). It cannot read message contents, forge messages, or derive encryption keys from observing the handshake.
+On the serving dsh, each discovered peer is mounted at `/kivotos/peer/<id>/` (an HTTP prefix route and the gateway WebSocket `/kivotos/peer/<id>/api/remote.mux`). The machine list at `/kivotos/peers` is served the same way. All of these sit behind dsh's own connection fence (`ctx.connection.requestRejection`): the dsh login cookie and dsh's Host and Origin checks. A request without a valid dsh login is rejected with dsh's status (for example `401`) before anything is forwarded to the peer.
 
-### Why the relay can't attack you
+### Loopback login cookie
 
-The daemon requires a valid cryptographic handshake before processing any commands. A compromised relay cannot:
+To forward admitted requests, the tailnet listener needs a dsh login cookie for the loopback dsh. Kivotos obtains it in-process through dsh's token exchange (`ctx.connection.authenticatedUrl`).
 
-- **Impersonate the daemon to your phone** — Without the daemon's secret key, it cannot derive the shared key, so any traffic it injects fails authenticated decryption on the phone
-- **Send commands as you** — The daemon only accepts traffic that decrypts and authenticates under a shared key derived with its own secret key. The phone's keypair is ephemeral per connection, so there is no persistent phone-side secret to steal; protection comes from the daemon's secret key never leaving the daemon.
-- **Read your traffic** — All messages are encrypted with XSalsa20-Poly1305 (NaCl box) after the handshake
-- **Forge messages** — NaCl box provides authenticated encryption; tampered messages are rejected
-- **Replay old messages across sessions** — Each session derives fresh encryption keys, so ciphertext from one session cannot be replayed into another session. Within a live session, replay protection is not yet implemented; the protocol uses random nonces and does not track nonce reuse or message counters.
+- The cookie is held in the dsh process and attached only to requests sent to the loopback dsh.
+- It is never sent to the browser: `Set-Cookie` is removed from every forwarded HTTP response and WebSocket upgrade response.
+- It is refreshed every 12 hours, and immediately after the loopback dsh answers `401`.
 
-### Trust model
+## Peer pages
 
-The QR code or pairing link is the trust anchor. It contains the daemon's public key, which is required to establish the encrypted connection. Treat it like a password — don't share it publicly.
+A peer's index HTML is rewritten as it passes through the mount:
 
-When a daemon password is configured, new relay clients send it in the encrypted `hello` message. This release still admits relay clients that send no credential so existing mobile builds continue to connect. A wrong password is rejected. The next release will require the password for relay connections after updated mobile builds are available.
+- `__DSH_TRANSPORT__.ownsHost = true` is injected (by the peer's tailnet listener). Without it, dsh would treat the page as a remote viewer and settings that persist on the host would not work. The page is the operator's own dsh, reached by the operator, so this is accurate.
+- A per-peer `localStorage` namespace (`kivotos:<id>:`) is injected. All peer UIs are served from the serving host's origin and would otherwise read and overwrite each other's client state. The peer id is escaped so it cannot break out of the injected script.
+- The web manifest link is made credentialed so the manifest request passes the dsh fence.
 
-## Local daemon trust boundary
+Hops never chain. A peer mount marks every request it forwards with `x-kivotos-hop`, and a mount refuses any request that already carries the mark with `508`. A path such as `/kivotos/peer/b/kivotos/peer/a/` therefore does not reach a third machine, and A to B to A loops are impossible. The machine list always comes from the serving host.
 
-By default, the daemon binds to `127.0.0.1`. With no password configured, anything that can reach the daemon socket can control the daemon. Loopback is reachable by other users on the machine and by some forwarding tools.
+## Transport
 
-The daemon supports an optional shared-secret password (set via `auth.password` in `config.json` or the `KIVOTOS_PASSWORD` env var; stored bcrypt-hashed). WebSocket clients send the password in `hello`; the daemon sends no session data before admission. Direct connections still accept bearer headers and WebSocket bearer subprotocols for older clients. HTTP stays bearer-header based. Health (`GET /api/health`) and CORS preflight (`OPTIONS`) are exempt; `/api/files/download` and `/mcp/agents` use their own capability tokens.
+- Traffic between tailnet devices is encrypted by WireGuard, including plain HTTP to the tailnet listener.
+- A page loaded over plain HTTP is not a secure context in the browser. Some browser APIs, such as clipboard access, may be unavailable.
+- With `tls: auto` (default), the listener uses HTTPS when the tailnet has HTTPS certificates enabled. Kivotos then issues the certificate with `tailscale cert` into `$DSH_HOME/kivotos/tls/` (directory mode `0700`). `tls: on` requires certificates and fails to start the listener without them; `tls: off` always uses HTTP. See [Enabling HTTPS](https://tailscale.com/kb/1153/enabling-https).
+- Kivotos never runs `tailscale serve` and never changes Tailscale configuration. It only reads `tailscale status`, runs `tailscale whois`, and, for HTTPS, runs `tailscale cert`.
 
-The daemon writes a new `$KIVOTOS_HOME/local-credential` on every run with mode `0600` and removes it on shutdown. The CLI and desktop main process read it only for the daemon whose PID lock `listen` matches their connection target. A same-user process can read this credential, so the password protects against network clients and other OS users, not processes running as the daemon user. Protect `$KIVOTOS_HOME` accordingly. Relay traffic remains end-to-end encrypted independently of password admission.
+## Recommendations
 
-Connected clients are trusted operators of the daemon user. File previews follow that authority: a preview request may read any regular file the daemon process can read, while keeping path normalization and symlink checks in the daemon file service. Workspace-relative paths remain a UI convenience, not a security boundary.
-
-When Kivotos checks out a change request from a different repository, it does not run that workspace's `kivotos.json` setup, automatic terminals, named scripts, or teardown until you explicitly run setup for that workspace. The decision lasts for the workspace and does not re-prompt after new commits. Same-repository changes, ordinary branches, local workspaces, agent launches, terminals, explicit shell commands, and metadata-generation instructions are outside this gate.
-
-If you expose the daemon beyond loopback, such as by binding to `0.0.0.0`, forwarding it through a tunnel or reverse proxy, or publishing it from a Docker container, you are responsible for restricting and securing that access. Setting a password is strongly recommended in that case.
-
-In Docker, the official image runs the daemon and agents as the non-root
-`kivotos` user by default. Mounted workspaces and credentials are still fully
-available to anything the agents run inside the container.
-
-For remote access, use the relay connection. It is the supported path for reaching the daemon off-machine, and it adds end-to-end encryption plus a pairing handshake before commands are accepted.
-
-Host header validation and CORS origin checks are defense-in-depth controls for localhost exposure. They help block DNS rebinding and browser-based attacks, but they do not replace network isolation.
-
-## DNS rebinding protection
-
-CORS is not a complete security boundary. It controls which browser origins can make requests, but does not prevent a malicious website from resolving its domain to your local machine (DNS rebinding).
-
-Kivotos validates the `Host` header on every HTTP request and every WebSocket upgrade against an allowlist (Vite-style semantics). By default, only `localhost`, `*.localhost`, and any literal IP address (IPv4 or IPv6) are accepted. Additional hostnames can be configured via `hostnames` in `config.json` or the `KIVOTOS_HOSTNAMES` env var (comma-separated; entries beginning with `.` match a domain and its subdomains; the value `true` disables the allowlist entirely). Requests with unrecognized hosts are rejected with `403 Host not allowed`.
-
-## HTML file preview
-
-Previewing an `.html` file in the file pane renders it as a page, so markup an agent wrote — or markup that arrived with a repo you cloned — executes when you open it. The preview is built to contain that, not to trust it.
-
-The document loads with an opaque origin and a policy that permits inline script and style and refuses everything else: no remote script, font, image, or media; no `fetch`, XHR, WebSocket, or beacon; no form posts; no plugins; no nested frames. It has no access to Kivotos's DOM, and storage and cookie APIs throw inside it rather than returning anything. It cannot navigate the top window, and it cannot open popups. It cannot read any file but itself.
-
-One gap remains on web and desktop: a sandboxed document may navigate _itself_, and no CSP directive in current browsers prevents that. `navigate-to` was dropped from CSP Level 3 and is not enforced, and `<meta http-equiv="refresh">` needs no script at all. A hostile page can therefore reach a server by navigating away, carrying data available inside the preview, such as its own contents, browser and device properties, user input inside the page, and your IP address. It cannot read Kivotos, another file, storage, or cookies.
-
-Native builds narrow this gap rather than closing it outright. The WebView refuses every navigation after the initial document, but that decision is made in the app's JavaScript, and on Android the WebView falls back to allowing a navigation when the decision doesn't come back in time. Treat it as a strong mitigation, not a guarantee: if the JS thread is stalled at the moment a page navigates, the same leak is possible there too.
-
-If you don't trust a page, read it in `Source`, which executes nothing. Source is available as an editable view on supported web hosts and a read-only view everywhere else.
-
-## Agent authentication
-
-Kivotos wraps agent CLIs (Claude Code, Codex, OpenCode) but does not manage their authentication. Each agent provider handles its own credentials. Kivotos never stores or transmits provider API keys. Agents run in your user context with your existing credentials.
-
-## Forge host trust
-
-Kivotos only talks to a forge host that is either a known cloud host or one the forge CLI is already authenticated to. It never probes or routes credentials to an unauthenticated, remote-derived host.
+- Secure the tailnet account: use a strong sign-in method with multi-factor authentication at your identity provider, and do not share the account.
+- Follow Tailscale's guidance on device approval and key expiry so that a new or stale device cannot silently join your tailnet with your identity.
+- Remove devices you no longer use from the tailnet.
+- Set `listen: false` on machines that should open other machines but never be opened.
+- Leave `allowSelf` at `false` outside a lab.
+- Enable HTTPS certificates for the tailnet if you use Kivotos from a browser that needs a secure context.
 
 ## Reporting vulnerabilities
 
-If you discover a security vulnerability, please report it privately through GitHub's private
-vulnerability reporting for this repository (Security → Report a vulnerability):
-https://github.com/Rinai-R/kivotos/security/advisories/new. Do not open a public issue.
+Report vulnerabilities privately through a GitHub security advisory:
+
+https://github.com/Rinai-R/kivotos/security/advisories/new
+
+Do not open public issues for security problems.

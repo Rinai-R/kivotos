@@ -1,4 +1,0 @@
-appId: sh.kivotos.debug
----
-- launchApp
-- runFlow: ../../../maestro/sidebar-scroll-retention.yaml

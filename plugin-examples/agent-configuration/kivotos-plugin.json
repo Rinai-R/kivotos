@@ -1,6 +1,0 @@
-{
-  "id": "agent-configuration",
-  "requirements": {
-    "kivotos": ">=0.8.0"
-  }
-}

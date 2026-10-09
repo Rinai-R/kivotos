@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Product discussion on GitHub
+  - name: Questions and ideas on GitHub Discussions
     url: https://github.com/Rinai-R/kivotos/discussions
-    about: Product discussion, including feature requests
+    about: Questions, feature ideas, and setup help
+  - name: Report a security vulnerability
+    url: https://github.com/Rinai-R/kivotos/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue

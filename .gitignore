@@ -42,54 +42,19 @@ tsconfig.tsbuildinfo
 # Testing
 coverage/
 
-# Playwright
-test-results/
-**/test-results/
-
-# Vercel
-.vercel/
-
-# Expo
-.expo/
-
 # Misc
 *.pem
-.vercel
+.dev/
+.debug/
 
 # Local Claude configuration
 CLAUDE.local.md
-
-# Task CLI
-.tasks/
-
-.debug.conversations/
-.debug/
-.dev/
-.kivotos/
-.wrangler/
-**/.wrangler/
-**/.tanstack/
-
-# Local agent/tooling artifacts (do not commit)
-PLAN.md
-.valknut/
-valknut-report.html/
-valknut-report.json/
-**/.playwright-mcp/
-**/.kivotos-provider-history/
 .claude/settings.local.json
 **/.claude/settings.local.json
-.claude/scheduled_tasks.lock
 .claude/worktrees/
-.plans/
-packages/server/src/server/fixtures/dictation/dictation-debug-largest.wav
-packages/server/src/server/fixtures/dictation/dictation-debug-largest.transcript.txt
-packages/protocol/src/generated/validation/*.aot.ts
 
-/artifacts
-packages/desktop/.cache/
-packages/desktop/src-tauri/resources/managed-runtime/
-app.json
+# Local build leftovers of an earlier attempt (kept on disk, never tracked)
+packages/dsh-link/
 
 # Heap snapshots dumped by --heapsnapshot-near-heap-limit; keep them for debugging.
 *.heapsnapshot
