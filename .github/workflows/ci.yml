@@ -32,8 +32,9 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      # npm ci runs the plugin's prepare script, which builds dist/.
+      - name: Install and build
+        run: npm ci
 
       - name: Format
         run: npm run format:check
@@ -44,8 +45,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
+      - name: Check build output
+        run: test -s packages/kivotos/dist/index.js && test -s packages/kivotos/dist/client.js
 
       - name: Test
         run: npm test

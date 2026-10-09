@@ -10,12 +10,14 @@
  *   `/kivotos/peer/<id>/` on the local webServer, behind dsh's own
  *   connection fence, so the browser opens the peer's complete UI.
  */
-import { mkdir } from "node:fs/promises";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import http from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
+import type { Duplex } from "node:stream";
+import type { HostContext } from "./dsh.ts";
 import {
   forwardHttp,
   forwardUpgrade,
@@ -23,8 +25,9 @@ import {
   hostnameOf,
   remoteIp,
   sendJson,
-} from "./proxy.js";
-import { issueCert, readStatus, whois } from "./tailscale.js";
+  type Upstream,
+} from "./proxy.ts";
+import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
 
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
@@ -43,32 +46,49 @@ const MANIFEST_FROM = '<link rel="manifest" href="./manifest.webmanifest" />';
 const MANIFEST_TO =
   '<link rel="manifest" href="./manifest.webmanifest" crossorigin="use-credentials" />';
 const PEER_ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
+const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
 
-/**
- * @typedef {object} StaticPeer
- * @property {string} id - URL-safe peer id.
- * @property {string} name - display name.
- * @property {string} host - address of the peer's tailnet listener.
- * @property {number} port - listener port.
- * @property {boolean} [tls] - listener speaks HTTPS.
- * @property {string} [servername] - TLS certificate name.
- */
+/** A peer configured without discovery. */
+export interface StaticPeer {
+  /** URL-safe peer id. */
+  id: string;
+  name: string;
+  /** Address of the peer's tailnet listener. */
+  host: string;
+  port: number;
+  /** The listener speaks HTTPS. */
+  tls?: boolean;
+  /** TLS certificate name. */
+  servername?: string;
+}
 
-/**
- * @typedef {object} KivotosConfig
- * @property {boolean} listen - run the tailnet listener.
- * @property {string} listenHost - bind address; "" = this node's Tailscale IPv4.
- * @property {number} port - tailnet listener port (all peers share it).
- * @property {"auto" | "on" | "off"} tls - HTTPS on the listener.
- * @property {boolean} discover - probe tailnet nodes of the same user.
- * @property {StaticPeer[]} staticPeers - peers added without discovery.
- * @property {boolean} allowSelf - admit requests from this node's own address.
- * @property {string} tailscale - tailscale CLI path.
- * @property {number} refreshSeconds - peer discovery interval.
- */
+/** Validated plugin config. */
+export interface KivotosConfig {
+  /** Run the tailnet listener. */
+  listen: boolean;
+  /** Bind address; "" = this node's Tailscale IPv4. */
+  listenHost: string;
+  /** Tailnet listener port, shared by all peers. */
+  port: number;
+  tls: "auto" | "on" | "off";
+  /** Probe tailnet nodes of the same user. */
+  discover: boolean;
+  staticPeers: StaticPeer[];
+  /** Admit requests from this node's own address. */
+  allowSelf: boolean;
+  /** tailscale CLI path. */
+  tailscale: string;
+  /** Peer discovery interval. */
+  refreshSeconds: number;
+}
 
-/** @type {KivotosConfig} */
-const DEFAULTS = {
+interface ConfigIssue {
+  message: string;
+  path: string[];
+}
+
+const DEFAULTS: KivotosConfig = {
   listen: true,
   listenHost: "",
   port: 7380,
@@ -80,26 +100,23 @@ const DEFAULTS = {
   refreshSeconds: 30,
 };
 
-/**
- * @param {Record<string, unknown>} input - raw row.
- * @param {(message: string, key: string) => void} issue - issue sink.
- * @returns {StaticPeer[]} peers.
- */
-function staticPeersOf(input, issue) {
+function staticPeersOf(
+  input: Record<string, unknown>,
+  issue: (message: string, key: string) => void,
+): StaticPeer[] {
   const raw = input.staticPeers ?? [];
   if (!Array.isArray(raw)) {
     issue("must be an array", "staticPeers");
     return [];
   }
-  return raw.map((entry, index) => {
-    const peer = /** @type {Record<string, unknown>} */ (entry ?? {});
+  return raw.map((entry: unknown, index) => {
+    const peer = (entry ?? {}) as Record<string, unknown>;
     const key = `staticPeers.${index}`;
     if (typeof peer.id !== "string" || !PEER_ID.test(peer.id))
       issue("id must match [A-Za-z0-9_-]{1,64}", key);
     if (typeof peer.host !== "string" || peer.host === "") issue("host is required", key);
     if (!Number.isInteger(peer.port)) issue("port must be an integer", key);
-    /** @type {StaticPeer} */
-    const parsed = {
+    const parsed: StaticPeer = {
       id: String(peer.id),
       name: typeof peer.name === "string" ? peer.name : String(peer.id),
       host: String(peer.host),
@@ -113,38 +130,37 @@ function staticPeersOf(input, issue) {
 
 /**
  * Validate a config row and fill defaults (Standard Schema v1, synchronous).
- * @param {unknown} value - raw config.
- * @returns {{ value: KivotosConfig } | { issues: { message: string, path: string[] }[] }} result.
+ * @param value - raw config.
+ * @returns the filled config, or every issue found.
  */
-function validate(value) {
-  const input = /** @type {Record<string, unknown>} */ (value ?? {});
-  /** @type {{ message: string, path: string[] }[]} */
-  const issues = [];
-  /** @type {(message: string, key: string) => void} */
-  const issue = (message, key) => {
+function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIssue[] } {
+  const input = (value ?? {}) as Record<string, unknown>;
+  const issues: ConfigIssue[] = [];
+  const issue = (message: string, key: string): void => {
     issues.push({ message, path: key.split(".") });
   };
-  /** @type {Record<string, unknown>} */
-  const out = { ...DEFAULTS };
-  for (const key of ["listen", "discover", "allowSelf"]) {
-    if (input[key] === undefined) continue;
-    if (typeof input[key] === "boolean") out[key] = input[key];
+  const out: KivotosConfig = { ...DEFAULTS };
+  for (const key of ["listen", "discover", "allowSelf"] as const) {
+    const given = input[key];
+    if (given === undefined) continue;
+    if (typeof given === "boolean") out[key] = given;
     else issue("must be a boolean", key);
   }
-  for (const key of ["listenHost", "tailscale"]) {
-    if (input[key] === undefined) continue;
-    if (typeof input[key] === "string") out[key] = input[key];
+  for (const key of ["listenHost", "tailscale"] as const) {
+    const given = input[key];
+    if (given === undefined) continue;
+    if (typeof given === "string") out[key] = given;
     else issue("must be a string", key);
   }
-  /** @type {[string, number, number][]} */
   const ranges = [
     ["port", 1, 65535],
     ["refreshSeconds", 5, 3600],
-  ];
+  ] as const;
   for (const [key, min, max] of ranges) {
-    if (input[key] === undefined) continue;
-    const n = input[key];
-    if (Number.isInteger(n) && Number(n) >= min && Number(n) <= max) out[key] = n;
+    const given = input[key];
+    if (given === undefined) continue;
+    if (typeof given === "number" && Number.isInteger(given) && given >= min && given <= max)
+      out[key] = given;
     else issue(`must be an integer in ${min}..${max}`, key);
   }
   if (input.tls !== undefined) {
@@ -153,20 +169,20 @@ function validate(value) {
   }
   out.staticPeers = staticPeersOf(input, issue);
   if (issues.length > 0) return { issues };
-  return { value: /** @type {KivotosConfig} */ (out) };
+  return { value: out };
 }
 
-export const Config = { "~standard": { version: 1, vendor: "kivotos", validate } };
+export const Config = { "~standard": { version: 1, vendor: "kivotos", validate } } as const;
 
 /**
  * Insert the ownsHost transport global right after the opening head tag.
  * A page served through a Kivotos hop belongs to the same tailnet user as the
  * host, so it gets the operator surface (host-persisted settings) that a
  * loopback page gets.
- * @param {string} html - index html.
- * @returns {string} html with the global.
+ * @param html - index html.
+ * @returns html with the global.
  */
-export function injectOwnsHost(html) {
+export function injectOwnsHost(html: string): string {
   return injectHead(html, OWNS_HOST);
 }
 
@@ -175,31 +191,30 @@ export function injectOwnsHost(html) {
  * served from the host page's origin, and dsh persists client stores
  * (current Session, layout, drafts) in localStorage by fixed keys, so
  * without a namespace two machines' UIs overwrite each other's state.
- * @param {string} html - peer index html.
- * @param {string} peerId - URL-safe peer id.
- * @returns {string} html with the namespace installed before any app script.
+ * @param html - peer index html.
+ * @param peerId - URL-safe peer id.
+ * @returns html with the namespace installed before any app script.
  */
-export function injectStorageNamespace(html, peerId) {
+export function injectStorageNamespace(html: string, peerId: string): string {
   // `<` is escaped so the id cannot close the script element, whatever the caller validated.
   const prefix = JSON.stringify(`kivotos:${peerId}:`).replaceAll("<", "\\u003c");
   const script = `<script>(()=>{const s=window.localStorage,p=${prefix},own=()=>{const k=[];for(let i=0;i<s.length;i++){const n=s.key(i);if(n!==null&&n.startsWith(p))k.push(n.slice(p.length))}return k};const v={getItem:k=>s.getItem(p+k),setItem:(k,x)=>s.setItem(p+k,String(x)),removeItem:k=>s.removeItem(p+k),key:i=>own()[i]??null,clear:()=>{for(const k of own())s.removeItem(p+k)},get length(){return own().length}};Object.defineProperty(window,"localStorage",{configurable:true,get:()=>v})})()</script>`;
   return injectHead(html, script);
 }
 
-/**
- * @param {string} html - document.
- * @param {string} markup - markup to place first in head.
- * @returns {string} document with markup.
- */
-function injectHead(html, markup) {
+function injectHead(html: string, markup: string): string {
   const open = /<head(?:\s[^>]*)?>/i.exec(html);
   if (open === null) return `${markup}${html}`;
   const at = open.index + open[0].length;
   return `${html.slice(0, at)}${markup}${html.slice(at)}`;
 }
 
-/** @param {string} html - index html. @returns {string} html with a safe-area viewport. */
-export function coverViewport(html) {
+/**
+ * Let the page draw under the phone's safe areas (notch, home indicator).
+ * @param html - index html.
+ * @returns html with a safe-area viewport.
+ */
+export function coverViewport(html: string): string {
   return html.replace(VIEWPORT_FROM, VIEWPORT_TO);
 }
 
@@ -208,48 +223,63 @@ export function coverViewport(html) {
  * request a manifest link without cookies, dsh serves it publicly, but every
  * path under a peer mount sits behind the dsh connection fence, so the
  * uncredentialed fetch would answer 401.
- * @param {string} html - peer index html.
- * @returns {string} html whose manifest link carries credentials.
+ * @param html - peer index html.
+ * @returns html whose manifest link carries credentials.
  */
-export function credentialedManifest(html) {
+export function credentialedManifest(html: string): string {
   return html.replace(MANIFEST_FROM, MANIFEST_TO);
 }
 
-/** @returns {string} dsh home (cert storage lives under it). */
-function dshHome() {
+/**
+ * Whether a request's browser markers are same-origin: no cross-site
+ * Fetch-Metadata, and an Origin (when attached) naming the request authority.
+ * @param headers - request headers.
+ * @returns false for a request a foreign page initiated.
+ */
+export function sameSite(headers: IncomingHttpHeaders): boolean {
+  if (headers["sec-fetch-site"] === "cross-site") return false;
+  const origin = headers.origin;
+  if (origin === undefined) return true;
+  try {
+    return new URL(origin).host === new URL(`http://${headers.host}`).host;
+  } catch {
+    // The literal "null" (sandboxed frames, file: pages) is an opaque origin.
+    return false;
+  }
+}
+
+/** dsh home; certificate storage lives under it. */
+function dshHome(): string {
   return process.env.DSH_HOME ?? path.join(os.homedir(), ".dsh");
 }
 
-/** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
-const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
-
 /**
  * Login cookie for the loopback dsh, obtained in-process through the
- * connection's token exchange and refreshed after an upstream 401.
+ * connection's token exchange and refreshed by age and after an upstream 401.
  */
 class LoopbackSession {
-  /** @param {any} ctx - plugin context. */
-  constructor(ctx) {
+  private readonly ctx: HostContext;
+  private cookie: Promise<string> | undefined;
+  private issuedAt = 0;
+
+  constructor(ctx: HostContext) {
     this.ctx = ctx;
-    /** @type {Promise<string> | undefined} */
-    this.cookie = undefined;
-    this.issuedAt = 0;
   }
 
-  /** @returns {string} loopback authority of the dsh webServer. */
-  get authority() {
+  /** Loopback authority of the dsh webServer. */
+  get authority(): string {
     return `127.0.0.1:${this.ctx.webServer.port}`;
   }
 
-  /** @returns {Promise<string>} Cookie header value. */
-  get() {
+  /** @returns Cookie header value. */
+  get(): Promise<string> {
     // dsh cookies carry an absolute lifetime. Logging in again well inside it
     // keeps a long-running host from answering one request with 401 when the
     // cached cookie lapses; the 401 invalidation covers shorter configured lifetimes.
     if (Date.now() - this.issuedAt > LOGIN_TTL_MS) this.cookie = undefined;
     if (this.cookie === undefined) {
       this.issuedAt = Date.now();
-      this.cookie = this.login().catch((error) => {
+      this.cookie = this.login().catch((error: unknown) => {
         this.cookie = undefined;
         throw error;
       });
@@ -258,12 +288,11 @@ class LoopbackSession {
   }
 
   /** Drop the cached cookie so the next request logs in again. */
-  invalidate() {
+  invalidate(): void {
     this.cookie = undefined;
   }
 
-  /** @returns {Promise<string>} fresh cookie. */
-  async login() {
+  private async login(): Promise<string> {
     const url = this.ctx.connection.authenticatedUrl(`http://${this.authority}/`);
     const res = await fetch(url, { redirect: "manual" });
     const cookie = res.headers.get("set-cookie")?.split(";")[0];
@@ -274,28 +303,21 @@ class LoopbackSession {
   }
 }
 
-/**
- * The listener's admission: tailnet identity, own user, expected authority.
- */
+/** The listener's admission: expected authority, same-site, own tailnet user. */
 class Admission {
-  /**
-   * @param {KivotosConfig} config - plugin config.
-   * @param {import("./tailscale.js").TailnetStatus} status - tailnet snapshot at start.
-   * @param {string} bindHost - listener bind address.
-   */
-  constructor(config, status, bindHost) {
+  private readonly config: KivotosConfig;
+  private readonly status: TailnetStatus;
+  private readonly hosts: Set<string>;
+  private readonly cache = new Map<string, { at: number; ok: boolean }>();
+
+  constructor(config: KivotosConfig, status: TailnetStatus, bindHost: string) {
     this.config = config;
     this.status = status;
     this.hosts = new Set([bindHost, ...status.self.ips, status.self.dnsName].filter(Boolean));
-    /** @type {Map<string, { at: number, ok: boolean }>} */
-    this.cache = new Map();
   }
 
-  /**
-   * @param {http.IncomingMessage} req - request.
-   * @returns {Promise<number | undefined>} rejection status, or undefined when admitted.
-   */
-  async check(req) {
+  /** @returns rejection status, or undefined when admitted. */
+  async check(req: IncomingMessage): Promise<number | undefined> {
     // DNS rebinding: a browser reaching this listener under any other name is
     // not talking to this node on purpose.
     if (!this.hosts.has(hostnameOf(req.headers.host))) return 421;
@@ -309,8 +331,7 @@ class Admission {
     return (await this.identify(ip)) ? undefined : 403;
   }
 
-  /** @param {string} ip - remote address. @returns {Promise<boolean>} same tailnet user. */
-  async identify(ip) {
+  private async identify(ip: string): Promise<boolean> {
     const now = Date.now();
     const hit = this.cache.get(ip);
     if (hit !== undefined && now - hit.at < 60_000) return hit.ok;
@@ -322,30 +343,13 @@ class Admission {
 }
 
 /**
- * Whether a request's browser markers are same-origin: no cross-site
- * Fetch-Metadata, and an Origin (when attached) naming the request authority.
- * @param {http.IncomingHttpHeaders} headers - request headers.
- * @returns {boolean} false for a request a foreign page initiated.
- */
-export function sameSite(headers) {
-  if (headers["sec-fetch-site"] === "cross-site") return false;
-  const origin = headers.origin;
-  if (origin === undefined) return true;
-  try {
-    return new URL(origin).host === new URL(`http://${headers.host}`).host;
-  } catch {
-    // The literal "null" (sandboxed frames, file: pages) is an opaque origin.
-    return false;
-  }
-}
-
-/**
  * Resolve the listener's TLS material per `config.tls`.
- * @param {KivotosConfig} config - plugin config.
- * @param {import("./tailscale.js").TailnetStatus} status - tailnet snapshot.
- * @returns {Promise<{ cert: Buffer, key: Buffer } | undefined>} material, or undefined for HTTP.
+ * @returns material, or undefined for plain HTTP.
  */
-async function listenerTls(config, status) {
+async function listenerTls(
+  config: KivotosConfig,
+  status: TailnetStatus,
+): Promise<{ cert: Buffer; key: Buffer } | undefined> {
   const domain = status.self.dnsName;
   const available = domain !== "" && status.certDomains.includes(domain);
   if (config.tls === "off" || (config.tls === "auto" && !available)) return undefined;
@@ -361,31 +365,27 @@ async function listenerTls(config, status) {
 
 /**
  * Start the tailnet listener.
- * @param {any} ctx - plugin context.
- * @param {KivotosConfig} config - plugin config.
- * @param {import("./tailscale.js").TailnetStatus} status - tailnet snapshot.
- * @returns {Promise<() => Promise<void>>} disposer.
+ * @returns its disposer.
  */
-async function startListener(ctx, config, status) {
+async function startListener(
+  ctx: HostContext,
+  config: KivotosConfig,
+  status: TailnetStatus,
+): Promise<() => Promise<void>> {
   const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
   if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
   const admission = new Admission(config, status, bindHost);
   const session = new LoopbackSession(ctx);
   const tls = await listenerTls(config, status);
 
-  /** @param {string} cookie - loopback cookie. */
-  const upstream = (cookie) => ({
+  const upstream = (cookie: string): Upstream => ({
     host: "127.0.0.1",
     port: ctx.webServer.port,
     authority: session.authority,
     cookie,
   });
 
-  /**
-   * @param {http.IncomingMessage} req - request.
-   * @param {http.ServerResponse} res - response.
-   */
-  const onRequest = async (req, res) => {
+  const onRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const rejection = await admission.check(req);
     if (rejection !== undefined) {
       res.writeHead(rejection, { "content-type": "text/plain; charset=utf-8" });
@@ -404,12 +404,7 @@ async function startListener(ctx, config, status) {
     forwardHttp(req, res, upstream(cookie), { path: url, prefix: "", html: injectOwnsHost });
   };
 
-  /**
-   * @param {http.IncomingMessage} req - upgrade request.
-   * @param {import("node:stream").Duplex} socket - client socket.
-   * @param {Buffer} head - first packet.
-   */
-  const onUpgrade = async (req, socket, head) => {
+  const onUpgrade = async (req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> => {
     const rejection = await admission.check(req);
     if (rejection !== undefined) {
       socket.end(`HTTP/1.1 ${rejection} Rejected\r\n\r\n`);
@@ -419,71 +414,73 @@ async function startListener(ctx, config, status) {
   };
 
   const server = tls === undefined ? http.createServer() : https.createServer(tls);
-  /** @type {Set<import("node:stream").Duplex>} */
-  const sockets = new Set();
-  const fail = (/** @type {unknown} */ error) =>
+  const sockets = new Set<Duplex>();
+  const fail = (error: unknown): void => {
     ctx.logger.warn("kivotos: listener request failed", error);
-  server.on("request", (req, res) => {
-    onRequest(req, res).catch((error) => {
+  };
+  server.on("request", (req: IncomingMessage, res: ServerResponse) => {
+    onRequest(req, res).catch((error: unknown) => {
       fail(error);
       if (!res.headersSent) res.writeHead(502);
       res.end();
     });
   });
-  server.on("upgrade", (req, socket, head) => {
+  server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
     socket.on("error", () => socket.destroy());
-    onUpgrade(req, socket, head).catch((error) => {
+    onUpgrade(req, socket, head).catch((error: unknown) => {
       fail(error);
       socket.destroy();
     });
   });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(config.port, bindHost, () => {
-      server.off("error", reject);
-      resolve(undefined);
-    });
+  const listening = Promise.withResolvers<void>();
+  server.once("error", listening.reject);
+  server.listen(config.port, bindHost, () => {
+    server.off("error", listening.reject);
+    listening.resolve();
   });
+  await listening.promise;
   server.on("error", (error) => ctx.logger.warn("kivotos: listener error", error));
   ctx.logger.info(
     `kivotos: listening on ${tls === undefined ? "http" : "https"}://${bindHost}:${config.port}`,
   );
-  return () =>
-    new Promise((resolve) => {
-      server.close(() => resolve());
-      server.closeAllConnections();
-      for (const socket of sockets) socket.destroy();
-    });
+  return () => {
+    const closed = Promise.withResolvers<void>();
+    server.close(() => closed.resolve());
+    server.closeAllConnections();
+    for (const socket of sockets) socket.destroy();
+    return closed.promise;
+  };
+}
+
+/** A mounted peer. */
+interface Peer {
+  /** URL-safe id. */
+  id: string;
+  name: string;
+  /** Operating system ("" when unknown). */
+  os: string;
+  /** The peer's tailnet listener. */
+  upstream: Upstream;
 }
 
 /**
- * @typedef {object} Peer
- * @property {string} id - URL-safe id.
- * @property {string} name - display name.
- * @property {string} os - operating system ("" when unknown).
- * @property {import("./proxy.js").Upstream} upstream - listener address.
- */
-
-/**
  * Probe one tailnet node's Kivotos listener.
- * @param {import("./tailscale.js").TailnetNode} node - candidate.
- * @param {number} port - listener port.
- * @returns {Promise<Peer | undefined>} the peer, or undefined when it runs no listener.
+ * @returns the peer, or undefined when it runs no listener.
  */
-async function probe(node, port) {
+async function probe(node: TailnetNode, port: number): Promise<Peer | undefined> {
   const ip = node.ips.find((address) => !address.includes(":"));
   if (ip === undefined) return undefined;
   const id = node.id.replace(/[^A-Za-z0-9_-]/g, "") || ip.replaceAll(".", "-");
-  const candidates = [
+  const candidates: Pick<Upstream, "tls" | "servername" | "authority">[] = [
     ...(node.dnsName === ""
       ? []
       : [{ tls: true, servername: node.dnsName, authority: `${node.dnsName}:${port}` }]),
     { tls: false, authority: `${ip}:${port}` },
   ];
   for (const candidate of candidates) {
-    const upstream = { host: ip, port, hop: true, ...candidate };
+    const upstream: Upstream = { host: ip, port, hop: true, ...candidate };
     const hello = await getJson(upstream, HELLO_PATH);
     if (hello?.kivotos !== undefined) {
       return {
@@ -497,75 +494,57 @@ async function probe(node, port) {
   return undefined;
 }
 
-/**
- * @param {import("./proxy.js").Upstream} upstream - target.
- * @param {string} pathname - path.
- * @returns {Promise<Record<string, unknown> | undefined>} parsed body, undefined on any failure.
- */
-function getJson(upstream, pathname) {
-  return new Promise((resolve) => {
-    const options = {
-      host: upstream.host,
-      port: upstream.port,
-      path: pathname,
-      headers: { host: upstream.authority, accept: "application/json" },
-      timeout: 3_000,
-    };
-    const req =
-      upstream.tls === true
-        ? https.get({ ...options, servername: upstream.servername })
-        : http.get(options);
-    req.on("response", (res) => {
-      /** @type {Buffer[]} */
-      const chunks = [];
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () =>
-        resolve(res.statusCode === 200 ? parseJson(Buffer.concat(chunks)) : undefined),
-      );
-      res.on("error", () => resolve(undefined));
-    });
-    req.on("timeout", () => req.destroy());
-    req.on("error", () => resolve(undefined));
+/** @returns the parsed body, undefined on any failure. */
+function getJson(
+  upstream: Upstream,
+  pathname: string,
+): Promise<Record<string, unknown> | undefined> {
+  const { promise, resolve } = Promise.withResolvers<Record<string, unknown> | undefined>();
+  const options = {
+    host: upstream.host,
+    port: upstream.port,
+    path: pathname,
+    headers: { host: upstream.authority, accept: "application/json" },
+    timeout: 3_000,
+  };
+  const req =
+    upstream.tls === true
+      ? https.get({ ...options, servername: upstream.servername })
+      : http.get(options);
+  req.on("response", (res) => {
+    const chunks: Buffer[] = [];
+    res.on("data", (chunk: Buffer) => chunks.push(chunk));
+    res.on("end", () =>
+      resolve(res.statusCode === 200 ? parseJson(Buffer.concat(chunks)) : undefined),
+    );
+    res.on("error", () => resolve(undefined));
   });
+  req.on("timeout", () => req.destroy());
+  req.on("error", () => resolve(undefined));
+  return promise;
 }
 
-/**
- * @param {Buffer} bytes - response body.
- * @returns {Record<string, unknown> | undefined} parsed object, undefined when not JSON.
- */
-function parseJson(bytes) {
+function parseJson(bytes: Buffer): Record<string, unknown> | undefined {
   try {
-    return JSON.parse(bytes.toString("utf8"));
+    return JSON.parse(bytes.toString("utf8")) as Record<string, unknown>;
   } catch {
     // A non-JSON 200 is some other service on the port: not a peer.
     return undefined;
   }
 }
 
-/**
- * Peer registry plus the per-peer webServer routes.
- */
+/** Peer registry plus the per-peer webServer routes. */
 class PeerRoutes {
-  /**
-   * @param {any} ctx - plugin context.
-   * @param {KivotosConfig} config - plugin config.
-   */
-  constructor(ctx, config) {
+  private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
+  private readonly ctx: HostContext;
+  self: { name: string; os: string } = { name: os.hostname(), os: process.platform };
+
+  constructor(ctx: HostContext) {
     this.ctx = ctx;
-    this.config = config;
-    /** @type {Map<string, { peer: Peer, dispose: () => void }>} */
-    this.mounted = new Map();
-    /** @type {{ name: string, os: string }} */
-    this.self = { name: os.hostname(), os: process.platform };
   }
 
-  /**
-   * Answer a dsh-side request through the connection fence.
-   * @param {http.IncomingMessage} req - request.
-   * @param {http.ServerResponse} res - response.
-   * @returns {boolean} true when rejected.
-   */
-  rejected(req, res) {
+  /** Answer a dsh-side request through the connection fence; true when rejected. */
+  private rejected(req: IncomingMessage, res: ServerResponse): boolean {
     const rejection = this.ctx.connection.requestRejection(req);
     if (rejection === undefined) return false;
     res.statusCode = rejection;
@@ -573,8 +552,7 @@ class PeerRoutes {
     return true;
   }
 
-  /** @param {Peer[]} peers - the current peer set. */
-  reconcile(peers) {
+  reconcile(peers: Peer[]): void {
     const next = new Map(peers.map((peer) => [peer.id, peer]));
     for (const [id, entry] of this.mounted) {
       const peer = next.get(id);
@@ -590,17 +568,13 @@ class PeerRoutes {
     }
   }
 
-  /** @param {Peer} peer - peer to mount. */
-  mount(peer) {
+  private mount(peer: Peer): void {
     const prefix = `${PEER_PREFIX}/${peer.id}`;
-    const entry = { peer, dispose: () => {} };
+    const entry = { peer, dispose: (): void => {} };
     const disposeHttp = this.ctx.webServer.register({
       kind: "prefix",
       path: prefix,
-      handler: (
-        /** @type {http.IncomingMessage} */ req,
-        /** @type {http.ServerResponse} */ res,
-      ) => {
+      handler: (req, res) => {
         if (this.rejected(req, res)) return;
         const url = new URL(req.url ?? "/", "http://x");
         if (url.pathname === prefix) {
@@ -623,11 +597,7 @@ class PeerRoutes {
     });
     const disposeUpgrade = this.ctx.webServer.registerUpgrade({
       path: `${prefix}${MUX_PATH}`,
-      handler: (
-        /** @type {http.IncomingMessage} */ req,
-        /** @type {import("node:stream").Duplex} */ socket,
-        /** @type {Buffer} */ head,
-      ) => {
+      handler: (req, socket, head) => {
         const rejection = this.ctx.connection.requestRejection(req);
         if (rejection !== undefined) {
           socket.end(`HTTP/1.1 ${rejection} Rejected\r\n\r\n`);
@@ -648,15 +618,12 @@ class PeerRoutes {
     this.mounted.set(peer.id, entry);
   }
 
-  /** @returns {() => void} disposer of the peers route. */
-  registerList() {
+  /** @returns disposer of the peers route. */
+  registerList(): () => void {
     return this.ctx.webServer.register({
       kind: "exact",
       path: PEERS_PATH,
-      handler: (
-        /** @type {http.IncomingMessage} */ req,
-        /** @type {http.ServerResponse} */ res,
-      ) => {
+      handler: (req, res) => {
         if (this.rejected(req, res)) return;
         const peers = [...this.mounted.values()].map(({ peer }) => ({
           id: peer.id,
@@ -668,40 +635,35 @@ class PeerRoutes {
     });
   }
 
-  dispose() {
+  dispose(): void {
     for (const entry of this.mounted.values()) entry.dispose();
     this.mounted.clear();
   }
 }
 
-/**
- * @param {import("./proxy.js").Upstream} a - upstream.
- * @param {import("./proxy.js").Upstream} b - upstream.
- * @returns {boolean} same target.
- */
-function sameUpstream(a, b) {
+function sameUpstream(a: Upstream, b: Upstream): boolean {
   return a.host === b.host && a.port === b.port && a.tls === b.tls && a.authority === b.authority;
 }
 
-/**
- * @param {KivotosConfig} config - plugin config.
- * @param {import("./tailscale.js").TailnetStatus} status - tailnet snapshot.
- * @returns {Promise<Peer[]>} reachable peers, static first.
- */
-async function discover(config, status) {
-  /** @type {Peer[]} */
-  const peers = config.staticPeers.map((peer) => ({
+function staticUpstream(peer: StaticPeer): Upstream {
+  const upstream: Upstream = {
+    host: peer.host,
+    port: peer.port,
+    hop: true,
+    tls: peer.tls === true,
+    authority: `${peer.tls === true && peer.servername !== undefined ? peer.servername : peer.host}:${peer.port}`,
+  };
+  if (peer.servername !== undefined) upstream.servername = peer.servername;
+  return upstream;
+}
+
+/** @returns reachable peers, static first. */
+async function discover(config: KivotosConfig, status: TailnetStatus): Promise<Peer[]> {
+  const peers: Peer[] = config.staticPeers.map((peer) => ({
     id: peer.id,
     name: peer.name,
     os: "",
-    upstream: {
-      host: peer.host,
-      port: peer.port,
-      hop: true,
-      tls: peer.tls === true,
-      ...(peer.servername === undefined ? {} : { servername: peer.servername }),
-      authority: `${peer.tls === true && peer.servername !== undefined ? peer.servername : peer.host}:${peer.port}`,
-    },
+    upstream: staticUpstream(peer),
   }));
   if (!config.discover) return peers;
   const taken = new Set(peers.map((peer) => peer.id));
@@ -717,30 +679,35 @@ async function discover(config, status) {
   return peers;
 }
 
+function emptyStatus(): TailnetStatus {
+  const self = { id: "", name: "", dnsName: "", os: "", online: true, userId: 0, ips: [] };
+  return { self, peers: [], certDomains: [] };
+}
+
 /**
- * @param {any} ctx - plugin context.
- * @param {KivotosConfig} config - validated config.
+ * Plugin body: the viewport tap, the tailnet listener, and the peer routes.
+ * @param ctx - plugin context.
+ * @param config - validated config.
  */
-export function apply(ctx, config) {
+export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.effect(() => ctx.webServer.tapIndex(coverViewport), "kivotos: viewport-fit=cover");
 
   ctx.effect(() => {
-    const routes = new PeerRoutes(ctx, config);
+    const routes = new PeerRoutes(ctx);
     const disposeList = routes.registerList();
     let stopped = false;
-    /** @type {ReturnType<typeof setTimeout> | undefined} */
-    let timer;
-    /** @type {Promise<() => Promise<void>> | undefined} */
-    let listener;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let listener: Promise<() => Promise<void>> | undefined;
 
-    const refresh = async () => {
+    const refresh = async (): Promise<void> => {
       try {
         const status = await readStatus(config.tailscale);
         if (stopped) return;
         routes.self = { name: status.self.name, os: status.self.os };
         if (config.listen && listener === undefined) {
-          listener = startListener(ctx, config, status);
-          listener.catch((error) => {
+          const starting = startListener(ctx, config, status);
+          listener = starting;
+          starting.catch((error: unknown) => {
             ctx.logger.warn("kivotos: tailnet listener failed to start", error);
             listener = undefined;
           });
@@ -753,7 +720,7 @@ export function apply(ctx, config) {
           routes.reconcile(await discover({ ...config, discover: false }, emptyStatus()));
         }
       } finally {
-        if (!stopped) timer = setTimeout(refresh, config.refreshSeconds * 1000);
+        if (!stopped) timer = setTimeout(() => void refresh(), config.refreshSeconds * 1000);
       }
     };
     void refresh();
@@ -767,10 +734,4 @@ export function apply(ctx, config) {
       await stop?.();
     };
   }, "kivotos: tailnet listener and peer routes");
-}
-
-/** @returns {import("./tailscale.js").TailnetStatus} status with no nodes. */
-function emptyStatus() {
-  const self = { id: "", name: "", dnsName: "", os: "", online: true, userId: 0, ips: [] };
-  return { self, peers: [], certDomains: [] };
 }

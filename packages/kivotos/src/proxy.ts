@@ -4,7 +4,16 @@
  * forwards `/kivotos/peer/<id>/*` to a peer's tailnet listener.
  */
 import http from "node:http";
+import type {
+  ClientRequest,
+  IncomingHttpHeaders,
+  IncomingMessage,
+  OutgoingHttpHeaders,
+  RequestOptions,
+  ServerResponse,
+} from "node:http";
 import https from "node:https";
+import type { Duplex } from "node:stream";
 
 /** Request headers that describe the browser's origin, not the forwarded hop. */
 const ORIGIN_HEADERS = new Set(["origin", "referer", "cookie", "host", "connection"]);
@@ -15,28 +24,46 @@ const ORIGIN_HEADERS = new Set(["origin", "referer", "cookie", "host", "connecti
  */
 export const HOP_HEADER = "x-kivotos-hop";
 
-/**
- * @typedef {object} Upstream
- * @property {string} host - address to connect to.
- * @property {number} port - TCP port.
- * @property {boolean} [tls] - connect with TLS.
- * @property {string} [servername] - TLS SNI and certificate name.
- * @property {string} authority - value sent as the Host header.
- * @property {string} [cookie] - Cookie header sent upstream.
- * @property {boolean} [hop] - mark forwarded requests with {@link HOP_HEADER}.
- */
+/** Where a hop forwards to. */
+export interface Upstream {
+  /** Address to connect to. */
+  host: string;
+  port: number;
+  /** Connect with TLS. */
+  tls?: boolean;
+  /** TLS SNI and certificate name. */
+  servername?: string;
+  /** Value sent as the Host header. */
+  authority: string;
+  /** Cookie header sent upstream. */
+  cookie?: string;
+  /** Mark forwarded requests with {@link HOP_HEADER}. */
+  hop?: boolean;
+}
+
+/** Options for {@link forwardHttp}. */
+export interface ForwardOptions {
+  /** Upstream path including query. */
+  path: string;
+  /** Mount prefix for Location rewriting ("" for none). */
+  prefix: string;
+  /** Rewrites an uncompressed text/html body; such responses are buffered, all others stream. */
+  html?: (html: string) => string;
+}
 
 /**
  * Copy request headers minus origin/cookie/fetch-metadata, then pin the upstream authority.
  * Stripping Origin, Referer and Sec-Fetch-* makes the hop a same-origin request upstream;
  * the hop itself is authenticated by the caller before forwarding.
- * @param {http.IncomingHttpHeaders} headers - incoming headers.
- * @param {Upstream} upstream - target.
- * @returns {http.OutgoingHttpHeaders} forwarded headers.
+ * @param headers - incoming headers.
+ * @param upstream - target.
+ * @returns forwarded headers.
  */
-export function forwardHeaders(headers, upstream) {
-  /** @type {http.OutgoingHttpHeaders} */
-  const out = {};
+export function forwardHeaders(
+  headers: IncomingHttpHeaders,
+  upstream: Upstream,
+): OutgoingHttpHeaders {
+  const out: OutgoingHttpHeaders = {};
   for (const [name, value] of Object.entries(headers)) {
     if (value === undefined || ORIGIN_HEADERS.has(name) || name.startsWith("sec-fetch-")) continue;
     out[name] = value;
@@ -50,21 +77,16 @@ export function forwardHeaders(headers, upstream) {
 /**
  * Rewrite a root-relative redirect into the mount prefix; absolute URLs and
  * path-relative values pass through.
- * @param {string} location - upstream Location header.
- * @param {string} prefix - mount prefix without trailing slash ("" for none).
- * @returns {string} rewritten Location.
+ * @param location - upstream Location header.
+ * @param prefix - mount prefix without trailing slash ("" for none).
+ * @returns rewritten Location.
  */
-export function mountLocation(location, prefix) {
+export function mountLocation(location: string, prefix: string): string {
   if (prefix === "" || !location.startsWith("/") || location.startsWith("//")) return location;
   return `${prefix}${location}`;
 }
 
-/**
- * @param {Upstream} upstream - target.
- * @param {http.RequestOptions} options - request options.
- * @returns {http.ClientRequest} request.
- */
-function request(upstream, options) {
+function request(upstream: Upstream, options: RequestOptions): ClientRequest {
   const base = { ...options, host: upstream.host, port: upstream.port };
   return upstream.tls === true
     ? https.request({ ...base, servername: upstream.servername ?? upstream.host })
@@ -75,16 +97,17 @@ function request(upstream, options) {
  * Forward one HTTP exchange to `upstream`. Responses stream (dsh HMR is an
  * EventSource) except uncompressed HTML handed to `options.html`. Upstream
  * cookies are dropped: the browser must not learn the credential the hop holds.
- * @param {http.IncomingMessage} req - incoming request.
- * @param {http.ServerResponse} res - outgoing response.
- * @param {Upstream} upstream - target.
- * @param {object} options - forwarding options.
- * @param {string} options.path - upstream path including query.
- * @param {string} options.prefix - mount prefix for Location rewriting.
- * @param {(html: string) => string} [options.html] - rewrites an uncompressed text/html
- *   response body; such responses are buffered, every other response streams.
+ * @param req - incoming request.
+ * @param res - outgoing response.
+ * @param upstream - target.
+ * @param options - path, mount prefix, optional HTML rewrite.
  */
-export function forwardHttp(req, res, upstream, options) {
+export function forwardHttp(
+  req: IncomingMessage,
+  res: ServerResponse,
+  upstream: Upstream,
+  options: ForwardOptions,
+): void {
   const headers = forwardHeaders(req.headers, upstream);
   // HTML rewriting needs identity bytes; only navigations can carry the index page.
   if (options.html !== undefined && String(req.headers.accept ?? "").includes("text/html")) {
@@ -100,9 +123,8 @@ export function forwardHttp(req, res, upstream, options) {
     const transform = options.html;
     const type = String(out["content-type"] ?? "");
     if (transform !== undefined && type.startsWith("text/html") && !out["content-encoding"]) {
-      /** @type {Buffer[]} */
-      const chunks = [];
-      ur.on("data", (chunk) => chunks.push(chunk));
+      const chunks: Buffer[] = [];
+      ur.on("data", (chunk: Buffer) => chunks.push(chunk));
       ur.on("end", () => {
         const body = Buffer.from(transform(Buffer.concat(chunks).toString("utf8")), "utf8");
         delete out["transfer-encoding"];
@@ -134,13 +156,19 @@ export function forwardHttp(req, res, upstream, options) {
 
 /**
  * Forward one HTTP upgrade (the dsh gateway WebSocket) and splice the sockets.
- * @param {http.IncomingMessage} req - incoming upgrade request.
- * @param {import("node:stream").Duplex} socket - client socket.
- * @param {Buffer} head - first packet of the upgraded stream.
- * @param {Upstream} upstream - target.
- * @param {string} path - upstream path including query.
+ * @param req - incoming upgrade request.
+ * @param socket - client socket.
+ * @param head - first packet of the upgraded stream.
+ * @param upstream - target.
+ * @param path - upstream path including query.
  */
-export function forwardUpgrade(req, socket, head, upstream, path) {
+export function forwardUpgrade(
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  upstream: Upstream,
+  path: string,
+): void {
   const headers = forwardHeaders(req.headers, upstream);
   headers.connection = "Upgrade";
   const up = request(upstream, { method: req.method, path, headers });
@@ -170,10 +198,10 @@ export function forwardUpgrade(req, socket, head, upstream, path) {
 
 /**
  * Hostname part of a Host header, lowercased, brackets and trailing dot removed.
- * @param {string | undefined} host - Host header.
- * @returns {string} hostname, or "" when absent.
+ * @param host - Host header.
+ * @returns hostname, or "" when absent.
  */
-export function hostnameOf(host) {
+export function hostnameOf(host: string | undefined): string {
   if (host === undefined) return "";
   const bracket = /^\[([^\]]+)\]/.exec(host);
   const name = bracket === null ? host.replace(/:\d+$/, "") : bracket[1];
@@ -182,21 +210,21 @@ export function hostnameOf(host) {
 
 /**
  * Normalize a socket remote address: IPv4-mapped IPv6 to dotted IPv4.
- * @param {string | undefined} address - socket.remoteAddress.
- * @returns {string} address.
+ * @param address - socket.remoteAddress.
+ * @returns address, or "" when absent.
  */
-export function remoteIp(address) {
+export function remoteIp(address: string | undefined): string {
   if (address === undefined) return "";
   return address.startsWith("::ffff:") ? address.slice(7) : address;
 }
 
 /**
  * Write a small JSON response.
- * @param {http.ServerResponse} res - response.
- * @param {number} status - status code.
- * @param {unknown} body - JSON body.
+ * @param res - response.
+ * @param status - status code.
+ * @param body - JSON body.
  */
-export function sendJson(res, status, body) {
+export function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
   res.end(JSON.stringify(body));
 }

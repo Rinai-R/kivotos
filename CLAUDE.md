@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## What this repository is
 
-Kivotos is a plugin for DeepSeek Harness (dsh) 0.2.1-alpha.1. Package `@kivotos/dsh-plugin` in `packages/kivotos/`. Plain ESM JavaScript, no build step, no runtime dependencies.
+Kivotos is a plugin for DeepSeek Harness (dsh) 0.2.1-alpha.1. Package `@kivotos/dsh-plugin` in `packages/kivotos/`. TypeScript sources in `src/`, built with esbuild into `dist/`; no runtime dependencies.
 
 Kivotos has no UI of its own. It adds three things to dsh:
 
@@ -16,33 +16,37 @@ The repository previously hosted a fork of Paseo. That code is gone; do not rein
 
 ## Repository map
 
-- `packages/kivotos/index.js`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.
-- `packages/kivotos/proxy.js`: HTTP and WebSocket forwarding helpers, header filtering, hop marking, `Location` rewriting.
-- `packages/kivotos/tailscale.js`: `tailscale` CLI wrapper (`status --json`, `whois --json`, `cert`).
-- `packages/kivotos/client.js`: client module (machine switcher, drawer toggle, phone stylesheet and backdrop). `client-env.d.ts` holds its ambient types.
+- `packages/kivotos/src/index.ts`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.
+- `packages/kivotos/src/proxy.ts`: HTTP and WebSocket forwarding helpers, header filtering, hop marking, `Location` rewriting.
+- `packages/kivotos/src/tailscale.ts`: `tailscale` CLI wrapper (`status --json`, `whois --json`, `cert`).
+- `packages/kivotos/src/dsh.ts`: the slice of the dsh Host API Kivotos uses (`webServer`, `connection`, `logger`), typed locally.
+- `packages/kivotos/src/client.tsx`: client module (machine switcher, drawer toggle, phone stylesheet and backdrop).
+- `packages/kivotos/scripts/build.mjs`: esbuild build. `dist/index.js` is one ESM file for Node; `dist/client.js` is wrapped in `window.__ModuleLoader__.load` with `react` taken from dsh's module `require`.
 - `packages/kivotos/locale/en.json`, `packages/kivotos/locale/zh.json`: locale dictionaries.
 - `packages/kivotos/icon.svg`, `packages/kivotos/cordis.patch.yml`, `packages/kivotos/package.json`: plugin icon, dsh config patch, plugin manifest.
-- `packages/kivotos/test/fences.test.js`: `node:test` regression tests.
+- `packages/kivotos/test/fences.test.ts`: `node:test` regression tests, run directly on the TypeScript sources (Node type stripping).
 
 ## Commands
 
 Run from the repository root.
 
 ```sh
-npm run typecheck     # tsc --checkJs via tsconfig.json
+npm install           # installs dev dependencies and builds dist/ (prepare)
+npm run build         # esbuild: src/ -> dist/
+npm run typecheck     # tsc --noEmit (packages/kivotos/tsconfig.json)
 npm run lint          # oxlint
 npm run format        # oxfmt (write)
 npm run format:check  # oxfmt --check
-npm run build         # node --check on index.js and client.js
-npm test              # node --test packages/kivotos/test/
+npm test              # node --test on test/*.test.ts
 ```
 
 The lefthook pre-commit hook runs format check, lint, and typecheck. Never skip hooks (`--no-verify` or similar). Fix the failure instead.
 
 ## Conventions
 
-- Plain ESM JavaScript with JSDoc types, checked by `tsc --checkJs`. Do not add TypeScript sources or a build step.
-- `client.js` builds elements with `React.createElement` (obtained from the dsh module `require("react")`). It must not import dsh client packages.
+- TypeScript, strict, `erasableSyntaxOnly` (no enums, namespaces, or parameter properties) so tests run on the sources with Node type stripping. Relative imports use the `.ts` extension.
+- `dist/` is build output and is not committed. dsh loads `dist/index.js` and `dist/client.js` through the package `exports`.
+- `client.tsx` uses the classic JSX transform against `react`, which the build marks external so it resolves to dsh's React. It must not import dsh client packages at run time; the Client and Host APIs Kivotos uses are typed locally (`src/dsh.ts`, the `ClientContext` interface in `client.tsx`).
 - Register every resource inside `ctx.effect` or `ctx.on`, and return its cleanup. Unloading the plugin must leave nothing behind.
 - All visible text goes through `ctx.locale`. Add every new key to both the `en` and `zh` dictionaries.
 - Style only with dsh theme tokens (`--dsw-*`). Literal colors are allowed only in icon artwork.
@@ -50,7 +54,7 @@ The lefthook pre-commit hook runs format check, lint, and typecheck. Never skip 
 
 ## Deliberate exception: version-pinned phone stylesheet
 
-dsh ships no phone layout and no slot owns the frame grid. The phone stylesheet in `client.js` therefore reads dsh 0.2.1-alpha.1 internals, which breaks the dsh plugin rule "do not read another plugin's DOM or stylesheet". This is intentional and pinned to dsh 0.2.1-alpha.1.
+dsh ships no phone layout and no slot owns the frame grid. The phone stylesheet in `src/client.tsx` therefore reads dsh 0.2.1-alpha.1 internals, which breaks the dsh plugin rule "do not read another plugin's DOM or stylesheet". This is intentional and pinned to dsh 0.2.1-alpha.1.
 
 It depends on:
 
@@ -58,13 +62,13 @@ It depends on:
 - The frame, found as `div:has(> [data-shell-overlay])`.
 - The attributes `[data-sidebar-collapsed]`, `[data-conversation-header-leading]`, `[data-conversation-scroll]`.
 
-The index rewrites in `index.js` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.1-alpha.1 `index.html` markup and silently do nothing if it changes.
+The index rewrites in `src/index.ts` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.1-alpha.1 `index.html` markup and silently do nothing if it changes.
 
 Re-verify all of the above on every dsh upgrade. Keep the exception confined to these places; everything else follows the dsh plugin rules.
 
 ## Security invariants
 
-These must never regress. `packages/kivotos/test/fences.test.js` covers the pure parts; run `npm test` after touching `index.js` or `proxy.js`.
+These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure parts; run `npm test` after touching `src/index.ts` or `src/proxy.ts`.
 
 - Listener admission (`Admission.check`), applied to every HTTP request and every WebSocket upgrade, in this order:
   1. `Host` names this node (bind address, Tailscale IPs, MagicDNS name), else `421`.
@@ -83,11 +87,13 @@ These must never regress. `packages/kivotos/test/fences.test.js` covers the pure
 To exercise federation on one machine, run two dsh instances that federate with each other.
 
 1. Give each instance its own `DSH_HOME` directory so profiles, config, and certificates stay separate.
-2. In each instance, add the plugin with an absolute path:
+2. Build once with `npm install` at the repository root, then add the plugin to each instance with an absolute path:
 
    ```sh
    dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
    ```
+
+   After changing `src/`, run `npm run build` and restart the instances.
 
 3. Override the `kivotos` row in `$DSH_HOME/profiles/web/cordis.patch.yml` of each instance. Give each a distinct `port`, set `allowSelf: true` (both instances share this node's Tailscale address), and point `staticPeers` at the other instance. Discovery does not list the node itself, so the static peer is required. An override replaces the complete `config` object of the row; Kivotos fills omitted keys from its defaults. Example for instance A, with B listening on 7381:
 
@@ -110,7 +116,7 @@ Keep `allowSelf: false` everywhere outside the lab.
 
 ## Verification bar for UI changes
 
-A change to `client.js` or to the index rewrites is not done until it has been checked in a running dsh:
+A change to `src/client.tsx` or to the index rewrites is not done until it has been checked in a running dsh:
 
 - Screenshots at 1280px wide and at 390x844.
 - On the phone size, drawer open and drawer closed.

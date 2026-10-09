@@ -38,11 +38,13 @@ Kivotos 是 DeepSeek Harness（dsh）的插件。它让你在任意一个 dsh �
 
 ## 安装
 
-在每台机器上执行：
+在每台机器上执行。`npm install` 会安装构建工具并把插件构建到 `packages/kivotos/dist/`：
 
 ```sh
 git clone git@github.com:Rinai-R/kivotos.git
-dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
+cd kivotos
+npm install
+dsh plugin --profile web add "$PWD/packages/kivotos"
 ```
 
 重启 dsh。在每一台需要访问或被访问的机器上重复以上步骤。
@@ -123,16 +125,18 @@ Kivotos 锁定 dsh `0.2.1-alpha.1`。dsh 本身没有手机布局，也没有插
 
 ## 开发
 
-插件位于 `packages/kivotos/`，是纯 ESM JavaScript，没有构建步骤，也没有运行时依赖。仓库根目录下的脚本：
+插件位于 `packages/kivotos/`：TypeScript 源码在 `src/`，用 esbuild 构建到 `dist/`，dsh 加载的是 `dist/`。没有运行时依赖。仓库根目录下的脚本：
 
 ```sh
-npm run typecheck     # tsc --checkJs
+npm run build         # esbuild：src/ -> dist/（npm install 也会执行）
+npm run typecheck     # tsc --noEmit
 npm run lint          # oxlint
 npm run format        # oxfmt
 npm run format:check  # oxfmt，仅检查
-npm run build         # node --check
-npm test              # node --test
+npm test              # 直接在 TypeScript 源码上运行 node --test
 ```
+
+修改 `src/` 后运行 `npm run build` 并重启 dsh。
 
 lefthook 的 pre-commit 钩子会运行格式检查、lint 和类型检查。
 

@@ -7,8 +7,8 @@ import {
   injectOwnsHost,
   injectStorageNamespace,
   sameSite,
-} from "../index.js";
-import { forwardHeaders, HOP_HEADER, hostnameOf, mountLocation, remoteIp } from "../proxy.js";
+} from "../src/index.ts";
+import { forwardHeaders, HOP_HEADER, hostnameOf, mountLocation, remoteIp } from "../src/proxy.ts";
 
 const AUTHORITY = "100.64.0.1:7380";
 

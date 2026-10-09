@@ -38,9 +38,13 @@ Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에�
 
 ## 설치
 
+각 머신에서 실행합니다. `npm install`이 빌드 도구를 설치하고 플러그인을 `packages/kivotos/dist/`에 빌드합니다.
+
 ```sh
 git clone git@github.com:Rinai-R/kivotos.git
-dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
+cd kivotos
+npm install
+dsh plugin --profile web add "$PWD/packages/kivotos"
 ```
 
 설치 후 dsh를 재시작합니다. Kivotos를 사용할 모든 머신에서 같은 절차를 반복하세요.
@@ -126,16 +130,18 @@ Kivotos는 **dsh 0.2.1-alpha.1에 고정**되어 있습니다. dsh에는 휴대�
 
 ## 개발
 
-순수 ESM JavaScript이며 빌드 단계나 런타임 의존성이 없습니다. 소스는 `packages/kivotos/`에 있습니다.
+소스는 `packages/kivotos/src/`의 TypeScript이며 esbuild로 `dist/`에 빌드하고, dsh는 `dist/`를 불러옵니다. 런타임 의존성은 없습니다.
 
 ```sh
-npm run typecheck      # tsc --checkJs
+npm run build          # esbuild: src/ -> dist/ (npm install 시에도 실행)
+npm run typecheck      # tsc --noEmit
 npm run lint           # oxlint
 npm run format         # oxfmt
 npm run format:check   # oxfmt
-npm run build          # node --check
-npm test               # node --test
+npm test               # TypeScript 소스에서 node --test 실행
 ```
+
+`src/`를 변경한 뒤에는 `npm run build`를 실행하고 dsh를 다시 시작하세요.
 
 lefthook pre-commit 훅이 포맷 검사, lint, 타입 검사를 실행합니다.
 

@@ -38,11 +38,13 @@ Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every
 
 ## Install
 
-On each machine:
+On each machine. `npm install` installs the build tools and builds the plugin into `packages/kivotos/dist/`:
 
 ```sh
 git clone git@github.com:Rinai-R/kivotos.git
-dsh plugin --profile web add /absolute/path/to/kivotos/packages/kivotos
+cd kivotos
+npm install
+dsh plugin --profile web add "$PWD/packages/kivotos"
 ```
 
 Restart dsh. Repeat on every machine you want to reach or reach from.
@@ -123,16 +125,18 @@ Kivotos is pinned to dsh `0.2.1-alpha.1`. dsh ships no phone layout and no slot 
 
 ## Development
 
-The plugin lives in `packages/kivotos/`. It is plain ESM JavaScript with no build step and no runtime dependencies. Scripts at the repository root:
+The plugin lives in `packages/kivotos/`: TypeScript sources in `src/`, built with esbuild into `dist/`, which dsh loads. It has no runtime dependencies. Scripts at the repository root:
 
 ```sh
-npm run typecheck     # tsc --checkJs
+npm run build         # esbuild: src/ -> dist/ (npm install also runs it)
+npm run typecheck     # tsc --noEmit
 npm run lint          # oxlint
 npm run format        # oxfmt
 npm run format:check  # oxfmt, check only
-npm run build         # node --check
-npm test              # node --test
+npm test              # node --test on the TypeScript sources
 ```
+
+After changing `src/`, run `npm run build` and restart dsh.
 
 The lefthook pre-commit hook runs the format check, lint, and typecheck.
 
