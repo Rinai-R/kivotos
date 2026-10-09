@@ -69,7 +69,7 @@ dsh 사이드바 하단(Settings 위)의 머신 전환기에서 다른 머신을
 #### Android 앱
 
 1. 휴대폰에 Tailscale 앱을 설치하고 컴퓨터와 같은 tailnet 계정으로 로그인합니다.
-2. Kivotos APK를 설치합니다. GitHub Actions의 최신 CI 실행에서 `kivotos-android`를 내려받거나 직접 빌드합니다("개발" 참고).
+2. 최신 [GitHub Release](https://github.com/Rinai-R/kivotos/releases)에서 `Kivotos-v*.apk`를 내려받아 설치합니다. 아직 출시되지 않은 빌드는 GitHub Actions의 `kivotos-android`에서 내려받거나 직접 빌드합니다("개발" 참고).
 3. 앱에서 각 컴퓨터를 Tailscale IP로 추가합니다(예: `100.64.0.1`. 포트 `7380`은 자동으로 붙습니다). 앱은 컴퓨터가 응답하는지, 그리고 이 휴대폰을 허용하는지 확인합니다.
 4. **알림**을 켭니다. Android가 권한을 요청하면 허용하고, 앱이 안내하면 Kivotos의 백그라운드 실행을 허용하세요. 그렇지 않으면 시스템이 배터리 절약을 위해 알림을 중지할 수 있습니다.
 5. 머신을 탭하면 해당 머신의 전체 dsh UI가 열립니다.
@@ -183,6 +183,13 @@ npm run apk -w packages/mobile   # expo prebuild, 그다음 gradlew assembleRele
 ```
 
 `packages/mobile/android/`는 `expo prebuild`가 생성하며 커밋되지 않습니다. 릴리스 APK는 디버그 키로 서명되어 바로 설치할 수 있지만 앱 스토어용은 아닙니다.
+
+버전을 출시하려면 루트, 플러그인, mobile의 각 `package.json`에 있는 `version`과 `packages/mobile/app.json`의 `expo.version`을 같은 값으로 바꾸고, 해당 `v<version>` 태그(예: `v0.1.0`)를 푸시합니다. CI 검사와 APK 빌드가 성공하면 GitHub Release에 `Kivotos-v<version>.apk`와 `Kivotos-v<version>.sha256`을 첨부합니다. 하이픈이 포함된 태그는 사전 릴리스로 게시됩니다. 일반 `main` 커밋에서는 임시 Actions artifact만 생성됩니다. 게시된 APK는 여전히 Expo의 디버그 키로 서명되므로 직접 설치용이며 스토어 배포나 정식 프로덕션 서명에는 적합하지 않습니다.
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## 라이선스
 
