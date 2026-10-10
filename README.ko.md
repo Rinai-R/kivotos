@@ -31,19 +31,13 @@ Kivotos는 DeepSeek Harness(dsh)용 오픈 소스 플러그인입니다. 한 머
 
 ### 플러그인
 
-각 머신에 설치한 뒤 dsh를 다시 시작합니다.
+각 머신에 설치합니다. dsh에서 **Plugins → Install a third-party plugin**을 열고 `kivotos`를 입력합니다. 터미널에서도 설치할 수 있습니다.
 
 ```bash
 dsh plugin --profile web add kivotos
 ```
 
-데스크톱 앱은 먼저 종료한 뒤 앱에 포함된 CLI를 사용합니다.
-
-```bash
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add kivotos
-```
-
-다른 머신은 사이드바 하단의 **Machines**에 표시됩니다.
+dsh를 다시 시작하면 다른 머신은 사이드바 하단의 **Machines**에 표시됩니다.
 
 ### 휴대폰
 

@@ -31,19 +31,13 @@ Kivotos 是 DeepSeek Harness（dsh）的开源插件。在任意一台机器上�
 
 ### 插件
 
-在每台机器上安装，然后重启 dsh：
+在每台机器上安装。在 dsh 里打开 **插件 → 安装第三方插件**，填入 `kivotos`。也可以用命令行：
 
 ```bash
 dsh plugin --profile web add kivotos
 ```
 
-桌面版需要先退出 App，再用它自带的 CLI 安装：
-
-```bash
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add kivotos
-```
-
-其它机器会出现在侧边栏底部的 **机器** 里。
+重启 dsh 后，其它机器会出现在侧边栏底部的 **机器** 里。
 
 ### 手机
 

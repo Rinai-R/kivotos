@@ -31,19 +31,13 @@ Kivotos は DeepSeek Harness（dsh）のオープンソースプラグインで�
 
 ### プラグイン
 
-各マシンにインストールして dsh を再起動します。
+各マシンにインストールします。dsh で **Plugins → Install a third-party plugin** を開き、`kivotos` と入力します。ターミナルからも実行できます。
 
 ```bash
 dsh plugin --profile web add kivotos
 ```
 
-デスクトップアプリの場合は、アプリを終了してから同梱の CLI を使います。
-
-```bash
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add kivotos
-```
-
-ほかのマシンはサイドバー下部の **Machines** に表示されます。
+dsh を再起動すると、ほかのマシンはサイドバー下部の **Machines** に表示されます。
 
 ### スマートフォン
 
