@@ -123,7 +123,7 @@ jobs:
       - name: Add README and license to the package
         run: cp README.md LICENSE NOTICE packages/kivotos/
 
-      - name: Publish @kivotos/dsh-plugin
+      - name: Publish kivotos
         working-directory: packages/kivotos
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -135,8 +135,8 @@ jobs:
           fi
           version="${TAG#v}"
           # A rerun after a later job failed must not fail on the version already published.
-          if npm view "@kivotos/dsh-plugin@${version}" version >/dev/null 2>&1; then
-            echo "@kivotos/dsh-plugin@${version} is already on npm; skipping."
+          if npm view "kivotos@${version}" version >/dev/null 2>&1; then
+            echo "kivotos@${version} is already on npm; skipping."
             exit 0
           fi
           # Prereleases go to the "next" dist-tag so they never become "latest".

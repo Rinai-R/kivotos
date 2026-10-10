@@ -1,5 +1,5 @@
 {
-  "name": "@kivotos/dsh-plugin",
+  "name": "kivotos",
   "version": "0.1.2",
   "description": "Open and drive every dsh on your tailnet from any dsh, with a complete phone layout.",
   "keywords": [
@@ -39,7 +39,6 @@
     "./icon": "./icon.svg"
   },
   "publishConfig": {
-    "access": "public",
     "provenance": true
   },
   "scripts": {

@@ -1,4 +1,4 @@
 - insert:
     - id: kivotos
-      name: "@kivotos/dsh-plugin"
+      name: "kivotos"
       config: {}
