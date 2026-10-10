@@ -130,7 +130,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::The NPM_TOKEN repository secret is not set."
+            echo "::error::The NPM_TOKEN secret is not set."
             exit 1
           fi
           version="${TAG#v}"

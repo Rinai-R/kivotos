@@ -182,7 +182,7 @@ npm run apk -w packages/mobile   # expo prebuild，然后 gradlew assembleReleas
 
 `packages/mobile/android/` 由 `expo prebuild` 生成，不提交到仓库。Release APK 使用调试密钥签名，可以直接安装，但不适合上架应用商店。
 
-发布版本时，将根目录、插件和 mobile 的 `package.json` 中的 `version`，以及 `packages/mobile/app.json` 中的 `expo.version` 统一更新为同一版本，并递增 `expo.android.versionCode` 以支持安卓升级，再推送对应的 `v<version>` 标签（例如 `v0.1.1`）。CI 检查通过并构建 APK 后，会先把 `@kivotos/dsh-plugin` 发布到 npm（附带来源证明，使用仓库 secret `NPM_TOKEN`），再将 `Kivotos-v<version>.apk` 和 `Kivotos-v<version>.sha256` 上传到 GitHub Release。带连字符的标签会发布为预发行版，npm 上发布到 `next` 标签；普通 `main` 提交仍只生成临时的 Actions artifact。发布的 APK 仍使用 Expo 的调试密钥签名，仅供直接安装，不是商店分发或正式生产签名。
+发布版本时，将根目录、插件和 mobile 的 `package.json` 中的 `version`，以及 `packages/mobile/app.json` 中的 `expo.version` 统一更新为同一版本，并递增 `expo.android.versionCode` 以支持安卓升级，再推送对应的 `v<version>` 标签（例如 `v0.1.1`）。CI 检查通过并构建 APK 后，会先把 `@kivotos/dsh-plugin` 发布到 npm（附带来源证明），再将 `Kivotos-v<version>.apk` 和 `Kivotos-v<version>.sha256` 上传到 GitHub Release。带连字符的标签会发布为预发行版，npm 上发布到 `next` 标签；普通 `main` 提交仍只生成临时的 Actions artifact。发布的 APK 仍使用 Expo 的调试密钥签名，仅供直接安装，不是商店分发或正式生产签名。
 
 ```sh
 git tag v0.1.1
