@@ -41,6 +41,13 @@ export interface Upstream {
   cookie?: string;
   /** Mark forwarded requests with {@link HOP_HEADER}. */
   hop?: boolean;
+  /**
+   * Supplies the connections instead of dialing `host:port`: a relay peer's
+   * agent, whose connections are secured sessions to `relayNode`.
+   */
+  agent?: http.Agent;
+  /** Node id a relay peer's agent connects to. */
+  relayNode?: string;
 }
 
 /** Options for {@link forwardHttp}. */
@@ -136,7 +143,7 @@ export function mountLocation(location: string, prefix: string): string {
 }
 
 function request(upstream: Upstream, options: RequestOptions): ClientRequest {
-  const base = { ...options, host: upstream.host, port: upstream.port };
+  const base = { ...options, host: upstream.host, port: upstream.port, agent: upstream.agent };
   return upstream.tls === true
     ? https.request({ ...base, servername: upstream.servername ?? upstream.host })
     : http.request(base);

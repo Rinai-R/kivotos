@@ -31,6 +31,7 @@ import {
   type Upstream,
   type UpgradeTrace,
 } from "./proxy.ts";
+import { RelayHost } from "./relay-host.ts";
 import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
 import { TraceLog, tracePath, type TraceLevel } from "./trace.ts";
 
@@ -45,6 +46,12 @@ const PENDING_PATH = "/kivotos/events/pending";
 /** SSE comment interval; keeps NAT and mobile radios from dropping an idle stream. */
 const HEARTBEAT_MS = 25_000;
 const PEERS_PATH = "/kivotos/peers";
+/** Which ways this computer is reachable, for the settings page. */
+const LINKS_PATH = "/kivotos/links";
+/** Create, join or leave a relay network. */
+const RELAY_PATH = "/kivotos/relay";
+/** Largest body accepted on {@link RELAY_PATH}. */
+const RELAY_BODY_MAX_BYTES = 4096;
 const MUX_PATH = "/api/remote.mux";
 const OWNS_HOST =
   "<script>globalThis.__DSH_TRANSPORT__=Object.assign(globalThis.__DSH_TRANSPORT__||{},{ownsHost:true})</script>";
@@ -503,40 +510,54 @@ async function listenerTls(
   return { cert: await readFile(certFile), key: await readFile(keyFile) };
 }
 
+/** A remote caller some link has admitted, as the trace describes it. */
+interface Caller {
+  /** Source address, or "relay" for a relay session. */
+  ip: string;
+  /** Tailnet node name or relay node id ("" when unknown). */
+  node: string;
+  admitMs: number;
+  cached: boolean;
+}
+
 /**
- * Start the tailnet listener.
- * @returns its pairing URL (when reachable over the tailnet) and disposer.
+ * Serves this computer's dsh to a remote caller: Kivotos' own routes first,
+ * everything else forwarded to the loopback dsh. The tailnet listener and the
+ * relay link share it; each admits the caller its own way before calling in.
  */
-async function startListener(
-  ctx: HostContext,
-  config: KivotosConfig,
-  status: TailnetStatus,
-  attention: AttentionTracker,
-  trace: TraceLog,
-  onFailure: () => void,
-): Promise<{ url?: string; dispose: () => Promise<void> }> {
-  const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
-  if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
-  const admission = new Admission(config, status, bindHost);
-  const session = new LoopbackSession(ctx, trace);
-  const tls = await listenerTls(config, status);
-  // Pages served here get the flag that makes the client module report its timings.
-  const rewriteIndex =
-    trace.level === "off"
-      ? injectOwnsHost
-      : (html: string) => injectHead(html, OWNS_HOST + TRACE_FLAG);
+class Frontend {
+  private readonly session: LoopbackSession;
+  private readonly ctx: HostContext;
+  private readonly attention: AttentionTracker;
+  private readonly trace: TraceLog;
+  private readonly self: () => { name: string; os: string };
 
-  const upstream = (cookie: string): Upstream => ({
-    host: "127.0.0.1",
-    port: ctx.webServer.port,
-    authority: session.authority,
-    cookie,
-  });
+  constructor(
+    ctx: HostContext,
+    attention: AttentionTracker,
+    trace: TraceLog,
+    self: () => { name: string; os: string },
+  ) {
+    this.ctx = ctx;
+    this.attention = attention;
+    this.trace = trace;
+    this.self = self;
+    this.session = new LoopbackSession(ctx, trace);
+  }
 
-  const onRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  private upstream(cookie: string): Upstream {
+    return {
+      host: "127.0.0.1",
+      port: this.ctx.webServer.port,
+      authority: this.session.authority,
+      cookie,
+    };
+  }
+
+  async request(req: IncomingMessage, res: ServerResponse, who: Caller): Promise<void> {
+    const { trace, attention, session } = this;
     const id = trace.id();
     const url = req.url ?? "/";
-    const who = await admission.check(req);
     const base = {
       id,
       method: req.method,
@@ -546,16 +567,11 @@ async function startListener(
       admitMs: who.admitMs,
       cached: who.cached,
     };
-    if (who.status !== undefined) {
-      trace.record("http", { ...base, status: who.status, reason: who.reason });
-      res.writeHead(who.status, { "content-type": "text/plain; charset=utf-8" });
-      res.end("kivotos: not admitted");
-      return;
-    }
     const parsed = new URL(url, "http://x");
     if (parsed.pathname === HELLO_PATH) {
       trace.record("http", { ...base, status: 200, local: true });
-      sendJson(res, 200, { kivotos: VERSION, name: status.self.name, os: status.self.os });
+      const self = this.self();
+      sendJson(res, 200, { kivotos: VERSION, name: self.name, os: self.os });
       return;
     }
     if (parsed.pathname === PENDING_PATH) {
@@ -587,29 +603,90 @@ async function startListener(
     res.on("finish", () => {
       if (res.statusCode === 401) session.invalidate();
     });
-    forwardHttp(req, res, upstream(cookie), {
+    forwardHttp(req, res, this.upstream(cookie), {
       path: url,
       prefix: "",
-      html: rewriteIndex,
+      // Pages served here get the flag that makes the client module report its timings.
+      html:
+        trace.level === "off"
+          ? injectOwnsHost
+          : (html: string) => injectHead(html, OWNS_HOST + TRACE_FLAG),
       onDone:
         trace.level === "off"
           ? undefined
           : (stats) => trace.record("http", { ...base, loginMs, ...roundStats(stats) }),
     });
+  }
+
+  async upgrade(req: IncomingMessage, socket: Duplex, head: Buffer, who: Caller): Promise<void> {
+    const url = req.url ?? "/";
+    const base = {
+      id: this.trace.id(),
+      path: tracePath(url),
+      ip: who.ip,
+      node: who.node,
+      admitMs: who.admitMs,
+    };
+    this.trace.record("ws.open", base);
+    const upstream = this.upstream(await this.session.get());
+    forwardUpgrade(req, socket, head, upstream, url, socketTrace(this.trace, base));
+  }
+}
+
+/**
+ * Start the tailnet listener.
+ * @returns its pairing URL (when reachable over the tailnet) and disposer.
+ */
+async function startListener(
+  ctx: HostContext,
+  config: KivotosConfig,
+  status: TailnetStatus,
+  frontend: Frontend,
+  trace: TraceLog,
+  onFailure: () => void,
+): Promise<{ url?: string; dispose: () => Promise<void> }> {
+  const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
+  if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
+  const admission = new Admission(config, status, bindHost);
+  const tls = await listenerTls(config, status);
+
+  const onRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const who = await admission.check(req);
+    if (who.status !== undefined) {
+      trace.record("http", {
+        id: trace.id(),
+        method: req.method,
+        path: tracePath(req.url ?? "/"),
+        ip: who.ip,
+        node: who.node,
+        admitMs: who.admitMs,
+        cached: who.cached,
+        status: who.status,
+        reason: who.reason,
+      });
+      res.writeHead(who.status, { "content-type": "text/plain; charset=utf-8" });
+      res.end("kivotos: not admitted");
+      return;
+    }
+    await frontend.request(req, res, who);
   };
 
   const onUpgrade = async (req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> => {
-    const id = trace.id();
-    const url = req.url ?? "/";
     const who = await admission.check(req);
-    const base = { id, path: tracePath(url), ip: who.ip, node: who.node, admitMs: who.admitMs };
     if (who.status !== undefined) {
-      trace.record("ws", { ...base, status: who.status, reason: who.reason });
+      trace.record("ws", {
+        id: trace.id(),
+        path: tracePath(req.url ?? "/"),
+        ip: who.ip,
+        node: who.node,
+        admitMs: who.admitMs,
+        status: who.status,
+        reason: who.reason,
+      });
       socket.end(`HTTP/1.1 ${who.status} Rejected\r\n\r\n`);
       return;
     }
-    trace.record("ws.open", base);
-    forwardUpgrade(req, socket, head, upstream(await session.get()), url, socketTrace(trace, base));
+    await frontend.upgrade(req, socket, head, who);
   };
 
   trace.record("listener.start", { host: bindHost, port: config.port, tls: tls !== undefined });
@@ -723,8 +800,10 @@ interface Peer {
   name: string;
   /** Operating system ("" when unknown). */
   os: string;
-  /** The peer's tailnet listener. */
+  /** How to reach the peer's Kivotos. */
   upstream: Upstream;
+  /** Which link found the peer; set by {@link PeerRoutes.update}. */
+  via?: string;
 }
 
 /**
@@ -795,6 +874,15 @@ function parseJson(bytes: Buffer): Record<string, unknown> | undefined {
   }
 }
 
+/** Answer a dsh-side request through the connection fence; true when rejected. */
+function rejected(ctx: HostContext, req: IncomingMessage, res: ServerResponse): boolean {
+  const rejection = ctx.connection.requestRejection(req);
+  if (rejection === undefined) return false;
+  res.statusCode = rejection;
+  res.end();
+  return true;
+}
+
 /** Peer registry plus the per-peer webServer routes. */
 class PeerRoutes {
   private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
@@ -807,16 +895,21 @@ class PeerRoutes {
     this.trace = trace;
   }
 
-  /** Answer a dsh-side request through the connection fence; true when rejected. */
-  private rejected(req: IncomingMessage, res: ServerResponse): boolean {
-    const rejection = this.ctx.connection.requestRejection(req);
-    if (rejection === undefined) return false;
-    res.statusCode = rejection;
-    res.end();
-    return true;
+  private readonly sources = new Map<string, Peer[]>();
+
+  /**
+   * Replace the peers one link currently sees and remount the union.
+   * @param via - the link: "tailscale" or "relay".
+   */
+  update(via: string, peers: Peer[]): void {
+    this.sources.set(
+      via,
+      peers.map((peer) => ({ ...peer, via })),
+    );
+    this.reconcile([...this.sources.values()].flat());
   }
 
-  reconcile(peers: Peer[]): void {
+  private reconcile(peers: Peer[]): void {
     const next = new Map(peers.map((peer) => [peer.id, peer]));
     for (const [id, entry] of this.mounted) {
       const peer = next.get(id);
@@ -839,7 +932,7 @@ class PeerRoutes {
       kind: "prefix",
       path: prefix,
       handler: (req, res) => {
-        if (this.rejected(req, res)) return;
+        if (rejected(this.ctx, req, res)) return;
         const url = new URL(req.url ?? "/", "http://x");
         if (url.pathname === prefix) {
           res.writeHead(308, { location: `${prefix}/${url.search}` });
@@ -907,11 +1000,12 @@ class PeerRoutes {
       kind: "exact",
       path: PEERS_PATH,
       handler: (req, res) => {
-        if (this.rejected(req, res)) return;
+        if (rejected(this.ctx, req, res)) return;
         const peers = [...this.mounted.values()].map(({ peer }) => ({
           id: peer.id,
           name: peer.name,
           os: peer.os,
+          via: peer.via,
         }));
         sendJson(res, 200, { self: this.self, peers });
       },
@@ -925,7 +1019,14 @@ class PeerRoutes {
 }
 
 function sameUpstream(a: Upstream, b: Upstream): boolean {
-  return a.host === b.host && a.port === b.port && a.tls === b.tls && a.authority === b.authority;
+  return (
+    a.host === b.host &&
+    a.port === b.port &&
+    a.tls === b.tls &&
+    a.authority === b.authority &&
+    a.relayNode === b.relayNode &&
+    a.agent === b.agent
+  );
 }
 
 function staticUpstream(peer: StaticPeer): Upstream {
@@ -984,7 +1085,60 @@ function emptyStatus(): TailnetStatus {
 }
 
 /**
- * Plugin body: the viewport tap, the tailnet listener, and the peer routes.
+ * Register the settings page's routes for the links.
+ * @returns their disposer.
+ */
+function registerLinkRoutes(ctx: HostContext, routes: PeerRoutes, relay: RelayHost): () => void {
+  const links = (): unknown => ({
+    tailscale: { url: routes.self.url ?? null, name: routes.self.name },
+    relay: relay.view(),
+  });
+  const disposeLinks = ctx.webServer.register({
+    kind: "exact",
+    path: LINKS_PATH,
+    handler: (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      sendJson(res, 200, links());
+    },
+  });
+  const disposeRelay = ctx.webServer.register({
+    kind: "exact",
+    path: RELAY_PATH,
+    handler: async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== "POST") {
+        res.writeHead(405, { allow: "POST" });
+        res.end();
+        return;
+      }
+      const body = await readJsonBody(req, RELAY_BODY_MAX_BYTES);
+      const field = (key: string): string => {
+        const value: unknown =
+          typeof body === "object" && body !== null ? Reflect.get(body, key) : undefined;
+        return typeof value === "string" ? value : "";
+      };
+      try {
+        const action = field("action");
+        if (action === "create") await relay.create(field("relay"));
+        else if (action === "join") await relay.join(field("invite"));
+        else if (action === "leave") await relay.leave();
+        else throw new Error("unknown action");
+        sendJson(res, 200, links());
+      } catch (error) {
+        sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+      }
+    },
+  });
+  return () => {
+    disposeRelay();
+    disposeLinks();
+  };
+}
+
+/**
+ * Plugin body: the viewport tap, the links (tailnet listener, relay), and the
+ * peer routes. The links are independent: a computer can be in a tailnet and
+ * in a relay network at once, and is reachable through either.
  * @param ctx - plugin context.
  * @param config - validated config.
  */
@@ -1007,9 +1161,37 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.on("session/event", (session, event) => attention.observe(session, event));
   ctx.on("session/disposed", (session) => attention.forget(session.id));
 
+  // Constructing these registers nothing; the effects below do.
+  const routes = new PeerRoutes(ctx, trace);
+  const frontend = new Frontend(ctx, attention, trace, () => routes.self);
+  const relay = new RelayHost({
+    dir: path.join(dshHome(), "kivotos"),
+    name: () => routes.self.name,
+    refreshSeconds: config.refreshSeconds,
+    serve: frontend,
+    publish: (peers) => routes.update("relay", peers),
+    warn: (message, error) => ctx.logger.warn(message, error),
+    trace,
+  });
+
   ctx.effect(() => {
-    const routes = new PeerRoutes(ctx, trace);
     const disposeList = routes.registerList();
+    const disposeLinks = registerLinkRoutes(ctx, routes, relay);
+    return () => {
+      disposeLinks();
+      disposeList();
+      routes.dispose();
+    };
+  }, "kivotos: peer and link routes");
+
+  ctx.effect(() => {
+    relay
+      .start()
+      .catch((error: unknown) => ctx.logger.warn("kivotos: relay link failed to start", error));
+    return () => relay.dispose();
+  }, "kivotos: relay link");
+
+  ctx.effect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let listener: Promise<{ url?: string; dispose: () => Promise<void> }> | undefined;
@@ -1020,7 +1202,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
         if (stopped) return;
         routes.self = { ...routes.self, name: status.self.name, os: status.self.os };
         if (config.listen && listener === undefined) {
-          const starting = startListener(ctx, config, status, attention, trace, () => {
+          const starting = startListener(ctx, config, status, frontend, trace, () => {
             routes.self.url = undefined;
           });
           listener = starting;
@@ -1035,11 +1217,12 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
           })();
         }
         const peers = await discover(config, status, trace);
-        if (!stopped) routes.reconcile(peers);
+        if (!stopped) routes.update("tailscale", peers);
       } catch (error) {
         ctx.logger.warn("kivotos: tailnet refresh failed", error);
         if (!stopped && config.staticPeers.length > 0) {
-          routes.reconcile(await discover({ ...config, discover: false }, emptyStatus(), trace));
+          const peers = await discover({ ...config, discover: false }, emptyStatus(), trace);
+          routes.update("tailscale", peers);
         }
       } finally {
         if (!stopped) timer = setTimeout(() => void refresh(), config.refreshSeconds * 1000);
@@ -1050,10 +1233,8 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     return async () => {
       stopped = true;
       clearTimeout(timer);
-      disposeList();
-      routes.dispose();
       const started = await listener?.catch(() => undefined);
       await started?.dispose();
     };
-  }, "kivotos: tailnet listener and peer routes");
+  }, "kivotos: tailnet listener");
 }
