@@ -136,6 +136,14 @@ const CSS = `
   [data-conversation-scroll]{overscroll-behavior:contain}
   button,[role="button"],[role="treeitem"]{touch-action:manipulation}
   input,textarea,select,[contenteditable="true"]{font-size:max(16px,1em)}
+  [data-shortcut-modal="settings"]{flex-direction:column;width:100vw;max-width:100vw;height:100dvh;box-sizing:border-box;border-radius:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+  [data-shortcut-modal="settings"] > nav{width:auto;gap:10px;padding:14px 12px 8px}
+  [data-shortcut-modal="settings"] > nav > [class*="_navList"]{flex-direction:row;overflow:auto hidden;scrollbar-width:none}
+  [data-shortcut-modal="settings"] > nav [class*="_navCell"],[data-shortcut-modal="settings"] > nav [class*="_navLabel"]{flex:none}
+  [data-shortcut-modal="settings"] > [class*="_content"]{min-height:0}
+  [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_header"]{position:absolute;top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);height:auto;padding:12px 12px 0 0}
+  [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_options"]{padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  [data-shortcut-modal="settings"] [class*="_themeCube"]{flex:1 1 0;min-width:0;padding:14px 8px}
 }
 @media ${PHONE} and (prefers-reduced-motion:reduce){
   div:has(> [data-shell-overlay]) > [class*="_sidebarCol"]{transition:none}

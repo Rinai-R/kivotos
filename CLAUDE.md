@@ -84,6 +84,7 @@ It depends on:
 - CSS-module class suffixes `_sidebarCol`, `_centerCol`, `_rightbarCol`, `_handle`, `_root`, `_header`, `_composerSeat` (matched with `[class*="..."]`).
 - The frame, found as `div:has(> [data-shell-overlay])`.
 - The attributes `[data-sidebar-collapsed]`, `[data-conversation-header-leading]`, `[data-conversation-scroll]`.
+- The Settings panel, found as `[data-shortcut-modal="settings"]`, its direct `nav` child, and the class suffixes `_navList`, `_navCell`, `_navLabel`, `_content`, `_header`, `_options`, `_themeCube`. On phones the panel fills the screen and its section rail becomes a horizontally scrolling tab row; the markup stays dsh's.
 
 The index rewrites in `src/index.ts` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.0-rc.2 `index.html` markup and silently do nothing if it changes.
 
