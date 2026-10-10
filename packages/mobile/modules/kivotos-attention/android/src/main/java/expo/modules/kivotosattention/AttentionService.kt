@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Foreground service holding one Server-Sent Events connection per machine to
- * its Kivotos tailnet listener (`/kivotos/events`). Each frame becomes a
+ * its Kivotos (`/kivotos/events`), over the tailnet or through a relay. Each frame becomes a
  * system notification unless the user is looking at that session.
  */
 class AttentionService : Service() {
@@ -101,8 +101,10 @@ class AttentionService : Service() {
   private fun stream(machine: Machine) {
     val (epoch, after) = AttentionState.cursor(this, machine.id)
     val query = "after=$after&epoch=" + java.net.URLEncoder.encode(epoch, "UTF-8")
-    val url = URL(machine.url.trimEnd('/') + "/kivotos/events?" + query)
-    val connection = url.openConnection() as HttpURLConnection
+    // A relay machine is reached through its local door, which wants the door's cookie.
+    val base = if (machine.viaRelay) RelayProxy.open(machine) else machine.url.trimEnd('/')
+    val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection
+    if (machine.viaRelay) connection.setRequestProperty("Cookie", RelayProxy.cookie)
     connection.connectTimeout = 10_000
     // The listener sends a comment every 25 s; silence beyond this means a dead link.
     connection.readTimeout = 70_000

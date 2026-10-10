@@ -16,14 +16,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import { CloseGlyph, KeyboardGlyph } from "./icons";
-import { hello } from "./machines";
-import { parsePairingUrl } from "./pairing";
+import { resolveMachines } from "./machines";
 import { errorKey, t, type Key } from "./strings";
 import { palette, radius } from "./theme";
 
 interface Props {
   machines: Machine[];
-  onAdd: (machine: Machine) => void;
+  onAdd: (machines: Machine[]) => void;
   onClose: () => void;
   /** Leave the scanner for manual address entry. */
   onManual: () => void;
@@ -77,8 +76,8 @@ function useCameraAccess() {
   return { access, canAsk: permission?.canAskAgain !== false, ask, openSettings };
 }
 
-/** One scanned code at a time: parse, check the machine answers, then add it. */
-function usePairing(machines: Machine[], onAdd: (machine: Machine) => void, onDone: () => void) {
+/** One scanned code at a time: resolve it to machines, then add them. */
+function usePairing(machines: Machine[], onAdd: (machines: Machine[]) => void, onDone: () => void) {
   const [error, setError] = useState<Key | null>(null);
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -98,23 +97,12 @@ function usePairing(machines: Machine[], onAdd: (machine: Machine) => void, onDo
       // The camera reports the same code many times a second: handle one.
       if (locked.current || type !== "qr") return;
       locked.current = true;
-      const url = parsePairingUrl(data);
-      const known = (): boolean =>
-        machinesRef.current.some((machine) => machine.url === url || machine.id === url);
-      if (url === null || known()) {
-        setError(url === null ? "scanInvalid" : "duplicate");
-        return;
-      }
       setBusy(true);
       void (async () => {
         try {
-          const who = await hello(url);
+          const added = await resolveMachines(data, machinesRef.current, false);
           if (!active.current) return;
-          if (known()) {
-            setError("duplicate");
-            return;
-          }
-          onAdd({ id: url, name: who.name, url });
+          onAdd(added);
           onDone();
         } catch (failure) {
           if (active.current) setError(errorKey(failure));

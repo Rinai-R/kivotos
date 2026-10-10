@@ -19,7 +19,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
-import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
+import { relayOpen, type Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import { BRIDGE, openSessionScript, parseBridgeMessage } from "./bridge";
 import { KivotosMark } from "./icons";
 import { t } from "./strings";
@@ -77,7 +77,11 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
   const [failed, setFailed] = useState(false);
   // The splash covers only the first load; dsh's own UI handles later navigation.
   const [loaded, setLoaded] = useState(false);
-  const [source] = useState(() => ({ uri: `${props.machine.url}/` }));
+  // A relay machine loads through its local door, which the native side opens here.
+  const [source] = useState(() => {
+    const { machine } = props;
+    return { uri: `${machine.relay === undefined ? machine.url : relayOpen(machine)}/` };
+  });
   const { onBack, onSession } = props;
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset(insets.bottom);

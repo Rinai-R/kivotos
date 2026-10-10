@@ -9,12 +9,22 @@ import android.provider.Settings
 import androidx.core.os.bundleOf
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.exception.CodedException
 import org.json.JSONArray
+import org.json.JSONObject
 
 /** JS face of the attention service: machines, on-screen session, notification taps. */
 class KivotosAttentionModule : Module() {
   private val context: Context
     get() = requireNotNull(appContext.reactContext)
+
+  private fun relayPeers(network: Network): List<Map<String, String>> = try {
+    RelayClient.peers(network).map { mapOf("node" to it.node, "name" to it.name) }
+  } catch (refused: RelayRefused) {
+    throw CodedException(if (refused.code == "denied") "denied" else "unreachable", refused.message, refused)
+  } catch (failure: Exception) {
+    throw CodedException("unreachable", failure.message, failure)
+  }
 
   override fun definition() = ModuleDefinition {
     Name("KivotosAttention")
@@ -47,11 +57,12 @@ class KivotosAttentionModule : Module() {
       AttentionState.onFrame = null
     }
 
-    /** Machines to follow, as a JSON array of {id, name, url}; restarts the streams. */
+    /** Machines to follow, as a JSON array of {id, name, url, relay?}; restarts the streams. */
     Function("setMachines") { json: String ->
       val array = JSONArray(json)
       val machines = List(array.length()) { Machine.fromJson(array.getJSONObject(it)) }
       AttentionState.setMachines(context, machines)
+      RelayProxy.retain(machines.filter { it.viaRelay }.map { it.id }.toSet())
       if (AttentionState.enabled(context)) {
         if (machines.isEmpty()) AttentionService.stop(context) else AttentionService.start(context)
       }
@@ -73,6 +84,30 @@ class KivotosAttentionModule : Module() {
         AttentionState.onScreen = machineId to sessionId
         Notifier.cancelSession(context, machineId, sessionId)
       }
+    }
+
+    /**
+     * Read an invite link and ask its relay which computers are online.
+     * Rejects with "invite" for a malformed link, "denied" when the relay does
+     * not know the network, and "unreachable" otherwise.
+     */
+    AsyncFunction("relayJoin") { invite: String ->
+      val network = try {
+        Network.parseInvite(invite)
+      } catch (_: IllegalArgumentException) {
+        throw CodedException("invite", "not an invite link", null)
+      }
+      mapOf("endpoint" to network.endpoint, "key" to network.key, "peers" to relayPeers(network))
+    }
+
+    /** The computers of a joined network that are online now. */
+    AsyncFunction("relayPeers") { endpoint: String, key: String ->
+      relayPeers(Network.of(endpoint, key))
+    }
+
+    /** Open the local door to a relay machine. @return the base URL to load. */
+    Function("relayOpen") { json: String ->
+      RelayProxy.open(Machine.fromJson(JSONObject(json)))
     }
 
     /** A notification tap that launched the app before JS was listening, consumed once. */

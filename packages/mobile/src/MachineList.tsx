@@ -21,7 +21,7 @@ import {
   MonitorGlyph,
   QrGlyph,
 } from "./icons";
-import { hello, normalizeUrl } from "./machines";
+import { resolveMachines } from "./machines";
 import { PairScanner } from "./PairScanner";
 import { errorKey, t, type Key } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
@@ -30,7 +30,7 @@ interface Props {
   machines: Machine[];
   notifications: "on" | "off" | "denied";
   batteryRestricted: boolean;
-  onAdd: (machine: Machine) => void;
+  onAdd: (machines: Machine[]) => void;
   onRemove: (id: string) => void;
   onOpen: (machine: Machine) => void;
   onToggleNotifications: () => void;
@@ -56,7 +56,10 @@ function MachineRow({ machine, last, onOpen, onRemove }: RowProps) {
     [styles],
   );
   // Show the host part only: the scheme and default port are noise on a phone.
-  const address = machine.url.replace(/^https?:\/\//, "").replace(/:7380$/, "");
+  const address =
+    machine.relay === undefined
+      ? machine.url.replace(/^https?:\/\//, "").replace(/:7380$/, "")
+      : t("viaRelay");
   return (
     <Pressable
       onPress={open}
@@ -126,20 +129,10 @@ export function MachineList(props: Props) {
   );
 
   const add = useCallback(async () => {
-    const url = normalizeUrl(input);
-    if (url === null) {
-      setError("errorInvalid");
-      return;
-    }
-    if (machines.some((machine) => machine.url === url)) {
-      setError("duplicate");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      const who = await hello(url);
-      onAdd({ id: url, name: who.name, url });
+      onAdd(await resolveMachines(input, machines, true));
       if (mounted.current) {
         setInput("");
         setManual(false);
@@ -168,10 +161,20 @@ export function MachineList(props: Props) {
 
   const confirmRemove = useCallback(
     (machine: Machine) => {
-      Alert.alert(t("removeConfirm", { name: machine.name }), machine.url, [
-        { text: t("cancel"), style: "cancel" },
-        { text: t("remove"), style: "destructive", onPress: () => onRemove(machine.id) },
-      ]);
+      // A relay machine is one of a network's computers: they come and go together.
+      const relay = machine.relay !== undefined;
+      Alert.alert(
+        relay ? t("leaveConfirm") : t("removeConfirm", { name: machine.name }),
+        relay ? t("leaveDetail") : machine.url,
+        [
+          { text: t("cancel"), style: "cancel" },
+          {
+            text: relay ? t("leave") : t("remove"),
+            style: "destructive",
+            onPress: () => onRemove(machine.id),
+          },
+        ],
+      );
     },
     [onRemove],
   );

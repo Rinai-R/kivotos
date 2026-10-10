@@ -7,7 +7,7 @@ import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionMo
 import { AttentionBanner } from "./src/AttentionBanner";
 import { MachineList } from "./src/MachineList";
 import { MachineView, type MachineViewHandle } from "./src/MachineView";
-import { loadMachines, saveMachines } from "./src/machines";
+import { loadMachines, refreshRelayMachines, sameNetwork, saveMachines } from "./src/machines";
 import { useStyles, type Palette } from "./src/theme";
 
 type NotificationState = "on" | "off" | "denied";
@@ -65,6 +65,17 @@ export default function App() {
         machinesRef.current = stored;
         openSession(pending.machineId, pending.sessionId);
       }
+      // Computers that joined a relay network since the last launch.
+      const refreshed = await refreshRelayMachines(stored);
+      if (refreshed !== stored) {
+        const added = refreshed.filter((machine) => stored.every((old) => old.id !== machine.id));
+        const renamed = new Map(refreshed.map((machine) => [machine.id, machine]));
+        // Merge into the current list: the user may have changed it meanwhile.
+        persist([
+          ...machinesRef.current.map((machine) => renamed.get(machine.id) ?? machine),
+          ...added.filter((machine) => machinesRef.current.every((now) => now.id !== machine.id)),
+        ]);
+      }
     };
     void restore();
     setNotifications(Attention.isEnabled() ? "on" : "off");
@@ -82,7 +93,7 @@ export default function App() {
       offOpen();
       offAttention();
     };
-  }, [openSession]);
+  }, [openSession, persist]);
 
   const toggleNotifications = useCallback(async () => {
     if (notifications === "on") {
@@ -106,12 +117,21 @@ export default function App() {
     setBanner((shown) => (shown !== null && shown.sessionId === sessionId ? null : shown));
   }, []);
 
-  const addMachine = useCallback(
-    (machine: Machine) => persist([...machinesRef.current, machine]),
+  const addMachines = useCallback(
+    (added: Machine[]) => persist([...machinesRef.current, ...added]),
     [persist],
   );
+  /** Remove a machine; a relay machine takes its whole network with it. */
   const removeMachine = useCallback(
-    (id: string) => persist(machinesRef.current.filter((machine) => machine.id !== id)),
+    (id: string) => {
+      const removed = machinesRef.current.find((machine) => machine.id === id);
+      if (removed === undefined) return;
+      persist(
+        machinesRef.current.filter(
+          (machine) => machine.id !== id && !sameNetwork(removed, machine),
+        ),
+      );
+    },
     [persist],
   );
   const openMachine = useCallback((machine: Machine) => {
@@ -147,7 +167,7 @@ export default function App() {
             machines={machines}
             notifications={notifications}
             batteryRestricted={batteryRestricted}
-            onAdd={addMachine}
+            onAdd={addMachines}
             onRemove={removeMachine}
             onOpen={openMachine}
             onToggleNotifications={onToggleNotifications}

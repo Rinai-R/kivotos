@@ -31,11 +31,38 @@ data class AttentionFrame(
   }
 }
 
-/** A machine whose events the service follows. */
-data class Machine(val id: String, val name: String, val url: String) {
-  fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name).put("url", url)
+/**
+ * A machine whose events the service follows. It is reached either directly
+ * at [url] (its tailnet listener) or, when [relay] is set, through a relay as
+ * node [node] of the network with federation key [key].
+ */
+data class Machine(
+  val id: String,
+  val name: String,
+  val url: String,
+  val relay: String = "",
+  val key: String = "",
+  val node: String = "",
+) {
+  val viaRelay: Boolean get() = relay.isNotEmpty()
+
+  fun toJson(): JSONObject {
+    val json = JSONObject().put("id", id).put("name", name).put("url", url)
+    if (viaRelay) json.put("relay", JSONObject().put("endpoint", relay).put("key", key).put("node", node))
+    return json
+  }
 
   companion object {
-    fun fromJson(json: JSONObject) = Machine(json.getString("id"), json.getString("name"), json.getString("url"))
+    fun fromJson(json: JSONObject): Machine {
+      val relay = json.optJSONObject("relay")
+      return Machine(
+        id = json.getString("id"),
+        name = json.getString("name"),
+        url = json.optString("url"),
+        relay = relay?.optString("endpoint").orEmpty(),
+        key = relay?.optString("key").orEmpty(),
+        node = relay?.optString("node").orEmpty(),
+      )
+    }
   }
 }
