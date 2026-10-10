@@ -4,27 +4,34 @@
  * - `sidebar.footer.action`: machine switcher. It lists the serving host and
  *   the peers it mounts under `/kivotos/peer/<id>/`, and navigates between them.
  * - `conversation.header.leading`: drawer toggle, shown only on phones.
- * - `shell.overlay`: drawer backdrop plus the phone layout stylesheet. The
+ * - `shell.overlay`: drawer backdrop plus the plugin's stylesheet. The
  *   stylesheet renders as a React element, so unmounting the plugin removes it.
+ * - `settings.section`: "Remote access", a tab per way to reach this machine
+ *   (settings.tsx).
  *
  * Built by scripts/build.mjs into the `window.__ModuleLoader__.load` form dsh
  * expects, with `react` taken from dsh's module require.
  */
 // The classic JSX transform compiles to React.createElement; the bundle takes
 // react from dsh's module require, so this is the instance dsh renders with.
-import QrCode from "qrcode-generator";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-
-/** Locale lookup bound to the plugin's namespace. */
-type Translate = (key: string, params?: Record<string, unknown>) => string;
+import {
+  LinksSection,
+  QrImage,
+  SETTINGS_CSS,
+  SETTINGS_EN,
+  SETTINGS_ZH,
+  type Translate,
+} from "./settings.tsx";
 
 /** The slice of the dsh 0.2.0-rc.2 Client context Kivotos uses. */
 interface ClientContext {
   effect(factory: () => () => void, label?: string): void;
   locale: {
     register(ns: string, dictionaries: Record<string, Record<string, string>>): () => void;
+    bind(ns: string): Translate;
   };
   layout: { toggleSidebar(): void };
   slots: {
@@ -35,6 +42,8 @@ interface ClientContext {
         id?: string;
         order?: number;
         locale?: string;
+        /** Navigation label of a `settings.section`. */
+        label?: () => string;
         /** Extra props merged into every render of the component. */
         inject?: () => object;
       },
@@ -60,7 +69,8 @@ const ZH = {
   "machines.empty": "未发现其它机器",
   "machines.failed": "无法读取机器列表",
   "machines.open": "打开 {name}",
-  "machines.via": "经由 {name}",
+  "machines.tailscale": "Tailscale",
+  "machines.relay": "中继",
   "pair.action": "配对手机",
   "pair.unavailable": "此机器的远程连接尚未就绪",
   "pair.title": "配对手机",
@@ -78,7 +88,8 @@ const EN: Record<keyof typeof ZH, string> = {
   "machines.empty": "No other machines found",
   "machines.failed": "Could not load machines",
   "machines.open": "Open {name}",
-  "machines.via": "via {name}",
+  "machines.tailscale": "Tailscale",
+  "machines.relay": "Relay",
   "pair.action": "Pair phone",
   "pair.unavailable": "This machine's remote listener is not ready",
   "pair.title": "Pair phone",
@@ -293,6 +304,8 @@ interface Machine {
   id: string;
   name: string;
   os: string;
+  /** The link the serving host reaches it through. */
+  via?: "tailscale" | "relay";
 }
 
 interface Machines {
@@ -382,20 +395,7 @@ function PairDialog({
     return () => node?.close();
   }, []);
   const dismiss = useCallback(() => dialog.current?.close(), []);
-
-  const qr = useMemo(() => {
-    const code = QrCode(0, "M");
-    code.addData(`kivotos://pair?url=${encodeURIComponent(url)}`);
-    code.make();
-    const count = code.getModuleCount();
-    const dark: string[] = [];
-    for (let row = 0; row < count; row++) {
-      for (let col = 0; col < count; col++) {
-        if (code.isDark(row, col)) dark.push(`M${col + 4} ${row + 4}h1v1h-1z`);
-      }
-    }
-    return { size: count + 8, path: dark.join("") };
-  }, [url]);
+  const data = useMemo(() => `kivotos://pair?url=${encodeURIComponent(url)}`, [url]);
 
   return (
     <dialog
@@ -411,16 +411,7 @@ function PairDialog({
       <p id="kivotos-pair-instructions" className="kivotos-pair-instructions">
         {t("pair.instructions")}
       </p>
-      <svg
-        className="kivotos-pair-qr"
-        viewBox={`0 0 ${qr.size} ${qr.size}`}
-        role="img"
-        aria-label={t("pair.qr")}
-        shapeRendering="crispEdges"
-      >
-        <rect width={qr.size} height={qr.size} fill="#fff" />
-        <path d={qr.path} fill="#000" />
-      </svg>
+      <QrImage data={data} label={t("pair.qr")} className="kivotos-pair-qr" />
       <p className="kivotos-pair-address">
         {t("pair.address")}
         <code className="kivotos-pair-url">{url}</code>
@@ -544,7 +535,11 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
               key={row.id}
               id={row.id}
               name={row.name}
-              meta={row.id === peer ? t("machines.current") : t("machines.via", { name: selfName })}
+              meta={
+                row.id === peer
+                  ? t("machines.current")
+                  : t(row.via === "relay" ? "machines.relay" : "machines.tailscale")
+              }
               current={row.id === peer}
               label={t("machines.open", { name: row.name })}
             />
@@ -591,7 +586,7 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   useCloseDrawerOnSelect(phone && !collapsed, toggleSidebar);
   return (
     <>
-      <style>{CSS}</style>
+      <style>{CSS + SETTINGS_CSS}</style>
       {phone && !collapsed ? (
         <button
           type="button"
@@ -714,7 +709,15 @@ function reportLoadTiming(): () => void {
  * @param ctx - Client plugin context.
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh: ZH, en: EN }), "kivotos: dictionaries");
+  ctx.effect(
+    () =>
+      ctx.locale.register(NS, {
+        zh: { ...ZH, ...SETTINGS_ZH },
+        en: { ...EN, ...SETTINGS_EN },
+      }),
+    "kivotos: dictionaries",
+  );
+  const t = ctx.locale.bind(NS);
   // Set by the tailnet listener on pages it serves (index.ts TRACE_FLAG).
   if (Reflect.get(globalThis, "__KIVOTOS_TRACE__") === true) {
     ctx.effect(reportLoadTiming, "kivotos: load timing report");
@@ -727,6 +730,18 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register(
       { name: "sidebar.footer.action", id: "kivotos-machines", order: 10, locale: NS },
       MachineSwitcher,
+    ),
+  );
+  ctx.slots.inject("settings.section", () =>
+    ctx.slots.register(
+      {
+        name: "settings.section",
+        id: "kivotos",
+        order: 50,
+        label: () => t("settings.nav"),
+        locale: NS,
+      },
+      LinksSection,
     ),
   );
   ctx.slots.inject("conversation.header.leading", () =>
