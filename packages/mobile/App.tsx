@@ -1,7 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PermissionsAndroid, Platform, useColorScheme } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { PermissionsAndroid, Platform, useColorScheme, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Attention from "./modules/kivotos-attention/src/KivotosAttentionModule";
 import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionModule";
 import { AttentionBanner } from "./src/AttentionBanner";
@@ -140,7 +140,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.root} edges={EDGES}>
+      <View style={styles.root}>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
         {current === null ? (
           <MachineList
@@ -166,12 +166,10 @@ export default function App() {
         {banner === null ? null : (
           <AttentionBanner attention={banner} onOpen={openBanner} onDismiss={dismissBanner} />
         )}
-      </SafeAreaView>
+      </View>
     </SafeAreaProvider>
   );
 }
-
-const EDGES = ["top", "bottom"] as const;
 
 function createStyles(c: Palette) {
   return { root: { flex: 1, backgroundColor: c.bg } } as const;

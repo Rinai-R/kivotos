@@ -70,7 +70,7 @@ dsh のサイドバー下部(Settings の上)にあるマシン切り替えか�
 
 1. スマートフォンに Tailscale アプリをインストールし、コンピューターと同じ tailnet アカウントでサインインします。
 2. 最新の [GitHub Release](https://github.com/Rinai-R/kivotos/releases) から `Kivotos-v*.apk` をダウンロードしてインストールします。未公開のビルドは GitHub Actions の `kivotos-android` からダウンロードするか、自分でビルドします（「開発」を参照）。
-3. アプリで各コンピューターを Tailscale IP で追加します(例: `100.64.0.1`。ポート `7380` は自動で補われます)。アプリは、コンピューターが応答することと、このスマートフォンを許可することを確認します。
+3. コンピューターで Kivotos を導入した dsh を起動したままにします。サイドバーのマシン切替から「スマートフォンをペアリング」を選んで QR コードを表示し、スマートフォンのアプリで「コードをスキャン」を選んで読み取ります。アプリはコンピューターへの接続とアクセス許可を確認します。各コンピューターで一度ずつ行います。読み取れない場合は、スマートフォン自身ではなく**コンピューターの** Tailscale IP とポートを手入力できます。
 4. **通知**をオンにします。Android が権限を要求するので許可し、アプリが促したときは Kivotos のバックグラウンド実行を許可してください。そうしないと、システムがバッテリー節約のために通知を停止することがあります。
 5. マシンをタップすると、その完全な dsh UI が開きます。
 
@@ -83,6 +83,8 @@ dsh のサイドバー下部(Settings の上)にあるマシン切り替えか�
 アプリで現在表示しているセッションについては通知されません。セッションを開くとその通知は消え、承認や質問がどこかで回答されると、その通知は取り下げられます。通知をタップすると、そのマシンのそのセッションでアプリが開きます。アプリが別の画面を開いている間は、同じイベントがアプリ内バナーとしても表示されます。
 
 アプリは Android 専用で、Expo(React Native)でビルドされています。dsh の画面は WebView 内の dsh 自身の UI です。通知は各コンピューター上の Kivotos から届くもので、プッシュサービスによるものではないため、Google のサービスは必要ありません。
+
+QR コードに含まれるのはコンピューターの tailnet 接続先のみで、ログイントークンは含まれません。Android 版 Tailscale アプリは Kivotos にデバイス一覧を公開していません。一度読み取った接続先は Kivotos が保存します。
 
 #### ブラウザ
 
@@ -184,11 +186,11 @@ npm run apk -w packages/mobile   # expo prebuild、その後 gradlew assembleRel
 
 `packages/mobile/android/` は `expo prebuild` が生成するもので、コミットされません。リリース APK はデバッグキーで署名されているため、そのままインストールできますが、アプリストア向けのものではありません。
 
-バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、対応する `v<version>` タグ（例: `v0.1.0`）を push します。CI のチェックと APK ビルドが成功すると、GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになります。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
+バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、Android のアップグレード用に `expo.android.versionCode` を増やしてから、対応する `v<version>` タグ（例: `v0.1.1`）を push します。CI のチェックと APK ビルドが成功すると、GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになります。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 ## ライセンス

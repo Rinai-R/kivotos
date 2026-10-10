@@ -68,7 +68,7 @@ dsh --profile web --dump-config
 
 1. 在手机上安装 Tailscale 应用，并登录与电脑相同的 tailnet 账号。
 2. 从最新的 [GitHub Release](https://github.com/Rinai-R/kivotos/releases) 下载 `Kivotos-v*.apk` 并安装。尚未发布的构建可从 GitHub Actions 下载 `kivotos-android`，或自行构建（见“开发”）。
-3. 在 App 中按 Tailscale IP 添加每台电脑（例如 `100.64.0.1`，端口 `7380` 会自动补上）。App 会确认电脑有响应并且允许这台手机访问。
+3. 在电脑上保持装有 Kivotos 的 dsh 运行。在其侧边栏的机器切换器中点击“配对手机”，显示二维码；在手机 App 中点击“扫码配对”并扫描。App 会确认电脑有响应且允许手机访问。每台电脑扫码一次即可。无法扫码时可手动输入**电脑的** Tailscale IP 和监听端口，不要输入手机自己的 IP。
 4. 打开 **通知**。安卓会请求通知权限；App 提示时请允许 Kivotos 在后台运行，否则系统可能为省电停止通知。
 5. 点某台机器即可打开它的完整 dsh 界面。
 
@@ -81,6 +81,8 @@ dsh --profile web --dump-config
 你在 App 里正在看的会话不会弹通知；打开某个会话会清除它的通知；审批或提问在任何地方处理后，对应通知会自动撤回。点通知会在对应机器上打开该会话。App 停留在其他页面时，同样的事件还会以 App 内横幅出现。
 
 App 只支持安卓，用 Expo（React Native）构建；dsh 页面是 WebView 中 dsh 自己的界面。通知来自每台电脑上的 Kivotos，而不是推送服务，因此不需要谷歌服务。
+
+二维码只包含电脑的 tailnet 监听地址，不包含登录令牌。安卓上的 Tailscale App 不向 Kivotos 开放设备列表；首次扫码配对后，Kivotos 会记住这台电脑。
 
 ### 浏览器
 
@@ -174,11 +176,11 @@ npm run apk -w packages/mobile   # expo prebuild，然后 gradlew assembleReleas
 
 `packages/mobile/android/` 由 `expo prebuild` 生成，不提交到仓库。Release APK 使用调试密钥签名，可以直接安装，但不适合上架应用商店。
 
-发布版本时，将根目录、插件和 mobile 的 `package.json` 中的 `version`，以及 `packages/mobile/app.json` 中的 `expo.version` 统一更新为同一版本，再推送对应的 `v<version>` 标签（例如 `v0.1.0`）。CI 检查通过并构建 APK 后，会将 `Kivotos-v<version>.apk` 和 `Kivotos-v<version>.sha256` 上传到 GitHub Release。带连字符的标签会发布为预发行版；普通 `main` 提交仍只生成临时的 Actions artifact。发布的 APK 仍使用 Expo 的调试密钥签名，仅供直接安装，不是商店分发或正式生产签名。
+发布版本时，将根目录、插件和 mobile 的 `package.json` 中的 `version`，以及 `packages/mobile/app.json` 中的 `expo.version` 统一更新为同一版本，并递增 `expo.android.versionCode` 以支持安卓升级，再推送对应的 `v<version>` 标签（例如 `v0.1.1`）。CI 检查通过并构建 APK 后，会将 `Kivotos-v<version>.apk` 和 `Kivotos-v<version>.sha256` 上传到 GitHub Release。带连字符的标签会发布为预发行版；普通 `main` 提交仍只生成临时的 Actions artifact。发布的 APK 仍使用 Expo 的调试密钥签名，仅供直接安装，不是商店分发或正式生产签名。
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 ## 许可证

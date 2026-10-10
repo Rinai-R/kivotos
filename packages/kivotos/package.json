@@ -1,6 +1,6 @@
 {
   "name": "@kivotos/dsh-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Open and drive every dsh on your tailnet from any dsh, with a complete phone layout.",
   "license": "Apache-2.0",
@@ -22,6 +22,9 @@
     "prepare": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

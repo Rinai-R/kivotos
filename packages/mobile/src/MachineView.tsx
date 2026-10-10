@@ -1,11 +1,15 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { BackHandler, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import { BRIDGE, openSessionScript, parseBridgeMessage } from "./bridge";
+import { KivotosMark } from "./icons";
 import { t } from "./strings";
-import { useStyles, type Palette } from "./theme";
+import { radius, useColors, useStyles, type Palette } from "./theme";
+
+const EDGES = ["top", "bottom"] as const;
 
 /** Imperative handle: open a Session inside the loaded dsh page. */
 export interface MachineViewHandle {
@@ -24,10 +28,13 @@ interface Props {
 /** One machine's complete dsh UI. */
 export const MachineView = forwardRef<MachineViewHandle, Props>(function MachineView(props, ref) {
   const styles = useStyles(createStyles);
+  const colors = useColors();
   const web = useRef<WebView>(null);
   const canGoBack = useRef(false);
   const pending = useRef(props.initialSession);
   const [failed, setFailed] = useState(false);
+  // The splash covers only the first load; dsh's own UI handles later navigation.
+  const [loaded, setLoaded] = useState(false);
   const [source] = useState(() => ({ uri: `${props.machine.url}/` }));
   const { onBack, onSession } = props;
 
@@ -67,15 +74,19 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
     canGoBack.current = state.canGoBack;
   }, []);
   const onLoadStart = useCallback(() => setFailed(false), []);
+  const onLoadEnd = useCallback(() => setLoaded(true), []);
   const onError = useCallback(() => setFailed(true), []);
   const onHttpError = useCallback(
     (event: WebViewHttpErrorEvent) => setFailed(event.nativeEvent.statusCode >= 500),
     [],
   );
-  const retry = useCallback(() => web.current?.reload(), []);
+  const retry = useCallback(() => {
+    setFailed(false);
+    web.current?.reload();
+  }, []);
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={EDGES}>
       <WebView
         ref={web}
         source={source}
@@ -83,6 +94,7 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
         onMessage={onMessage}
         onNavigationStateChange={onNavigation}
         onLoadStart={onLoadStart}
+        onLoadEnd={onLoadEnd}
         onError={onError}
         onHttpError={onHttpError}
         domStorageEnabled
@@ -92,45 +104,77 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
         pullToRefreshEnabled
         style={styles.web}
       />
-      {failed ? (
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>{t("offline")}</Text>
-          <Pressable onPress={retry} style={styles.retry}>
-            <Text style={styles.retryText}>↻</Text>
-          </Pressable>
+      {!loaded && !failed ? (
+        <View style={styles.cover}>
+          <KivotosMark size={56} />
+          <ActivityIndicator color={colors.textTertiary} />
+          <Text style={styles.coverText}>{t("loading", { name: props.machine.name })}</Text>
         </View>
       ) : null}
-    </View>
+      {failed ? (
+        <View style={styles.cover}>
+          <View style={styles.card}>
+            <KivotosMark size={40} />
+            <Text style={styles.cardTitle}>{t("offline", { name: props.machine.name })}</Text>
+            <Text style={styles.cardText}>{t("offlineDetail")}</Text>
+            <View style={styles.cardActions}>
+              <Pressable onPress={onBack} style={styles.secondary} accessibilityRole="button">
+                <Text style={styles.secondaryText}>{t("back")}</Text>
+              </Pressable>
+              <Pressable onPress={retry} style={styles.primary} accessibilityRole="button">
+                <Text style={styles.primaryText}>{t("retry")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
+    </SafeAreaView>
   );
 });
 
 function createStyles(c: Palette) {
+  const button = {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  } as const;
   return {
     root: { flex: 1, backgroundColor: c.bg },
     web: { flex: 1, backgroundColor: "transparent" },
-    banner: {
-      position: "absolute",
-      left: 16,
-      right: 16,
-      top: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      padding: 12,
-      borderRadius: 12,
-      borderWidth: 0.5,
-      backgroundColor: c.card,
-      borderColor: c.border,
-    },
-    bannerText: { flex: 1, fontSize: 14, color: c.text },
-    retry: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+    cover: {
+      ...StyleSheet.absoluteFill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: c.accent,
+      gap: 16,
+      padding: 24,
+      backgroundColor: c.bg,
     },
-    retryText: { color: "#FFFFFF", fontSize: 18 },
+    coverText: { fontSize: 14, color: c.textTertiary },
+    card: {
+      alignSelf: "stretch",
+      maxWidth: 420,
+      alignItems: "center",
+      gap: 10,
+      padding: 24,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    cardTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      marginTop: 6,
+      textAlign: "center",
+      color: c.text,
+    },
+    cardText: { fontSize: 14, lineHeight: 20, textAlign: "center", color: c.textSecondary },
+    cardActions: { flexDirection: "row", alignSelf: "stretch", gap: 10, marginTop: 10 },
+    secondary: { ...button, backgroundColor: c.pressed },
+    secondaryText: { fontSize: 15, fontWeight: "500", color: c.text },
+    primary: { ...button, backgroundColor: c.primary },
+    primaryText: { fontSize: 15, fontWeight: "600", color: c.onPrimary },
   } as const;
 }

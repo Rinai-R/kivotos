@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Attention } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import { zh } from "./machines";
-import { useStyles, type Palette } from "./theme";
+import { CloseGlyph } from "./icons";
+import { radius, useColors, useStyles, type Palette } from "./theme";
 
 const HEADLINE: Record<string, [string, string]> = {
   approval: ["Approval needed", "需要审批"],
@@ -25,6 +26,7 @@ interface Props {
 /** In-app pop-up for a session that is not on screen. */
 export function AttentionBanner({ attention, onOpen, onDismiss }: Props) {
   const styles = useStyles(createStyles);
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const slide = useRef(new Animated.Value(-120)).current;
   const waiting = attention.kind === "approval" || attention.kind === "question";
@@ -61,7 +63,7 @@ export function AttentionBanner({ attention, onOpen, onDismiss }: Props) {
           </Text>
         </View>
         <Pressable onPress={dismiss} hitSlop={HIT_SLOP} style={styles.close}>
-          <Text style={styles.closeText}>✕</Text>
+          <CloseGlyph size={16} color={colors.textTertiary} />
         </Pressable>
       </Pressable>
     </Animated.View>
@@ -75,24 +77,24 @@ function createStyles(c: Palette) {
     card: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      padding: 12,
-      borderRadius: 14,
-      borderWidth: 0.5,
-      backgroundColor: c.card,
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      backgroundColor: c.bg,
       borderColor: c.border,
       elevation: 8,
       shadowColor: "#000",
-      shadowOpacity: 0.2,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 6 },
     },
-    dot: { ...dot, backgroundColor: c.accent },
+    dot: { ...dot, backgroundColor: c.link },
     dotFailed: { ...dot, backgroundColor: c.danger },
     body: { flex: 1 },
     headline: { fontSize: 15, fontWeight: "600", color: c.text },
-    detail: { fontSize: 13, marginTop: 2, color: c.muted },
+    detail: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.textSecondary },
     close: { padding: 4 },
-    closeText: { fontSize: 16, color: c.muted },
   } as const;
 }

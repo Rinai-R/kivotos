@@ -33,7 +33,7 @@ import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } fr
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const PEER_PREFIX = "/kivotos/peer";
 const HELLO_PATH = "/kivotos/hello";
 const EVENTS_PATH = "/kivotos/events";
@@ -370,14 +370,15 @@ async function listenerTls(
 
 /**
  * Start the tailnet listener.
- * @returns its disposer.
+ * @returns its pairing URL (when reachable over the tailnet) and disposer.
  */
 async function startListener(
   ctx: HostContext,
   config: KivotosConfig,
   status: TailnetStatus,
   attention: AttentionTracker,
-): Promise<() => Promise<void>> {
+  onFailure: () => void,
+): Promise<{ url?: string; dispose: () => Promise<void> }> {
   const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
   if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
   const admission = new Admission(config, status, bindHost);
@@ -459,16 +460,40 @@ async function startListener(
     listening.resolve();
   });
   await listening.promise;
-  server.on("error", (error) => ctx.logger.warn("kivotos: listener error", error));
+  server.on("error", (error) => {
+    ctx.logger.warn("kivotos: listener error", error);
+    onFailure();
+  });
+  const address = server.address();
+  const bound = address !== null && typeof address !== "string" ? address.address : "";
+  const tailnetIp = bound === "0.0.0.0" ? status.self.ips.find((ip) => !ip.includes(":")) : bound;
+  const octets = tailnetIp?.split(".").map(Number);
+  const reachable =
+    tailnetIp !== undefined &&
+    status.self.ips.includes(tailnetIp) &&
+    octets?.length === 4 &&
+    octets[0] === 100 &&
+    octets[1] >= 64 &&
+    octets[1] <= 127 &&
+    octets.slice(2).every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+  let url: string | undefined;
+  if (reachable) {
+    if (tls === undefined) url = `http://${tailnetIp}:${config.port}`;
+    else if (status.self.dnsName.endsWith(".ts.net"))
+      url = `https://${status.self.dnsName}:${config.port}`;
+  }
   ctx.logger.info(
     `kivotos: listening on ${tls === undefined ? "http" : "https"}://${bindHost}:${config.port}`,
   );
-  return () => {
-    const closed = Promise.withResolvers<void>();
-    server.close(() => closed.resolve());
-    server.closeAllConnections();
-    for (const socket of sockets) socket.destroy();
-    return closed.promise;
+  return {
+    url,
+    dispose: () => {
+      const closed = Promise.withResolvers<void>();
+      server.close(() => closed.resolve());
+      server.closeAllConnections();
+      for (const socket of sockets) socket.destroy();
+      return closed.promise;
+    },
   };
 }
 
@@ -586,7 +611,7 @@ function parseJson(bytes: Buffer): Record<string, unknown> | undefined {
 class PeerRoutes {
   private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
   private readonly ctx: HostContext;
-  self: { name: string; os: string } = { name: os.hostname(), os: process.platform };
+  self: { name: string; os: string; url?: string } = { name: os.hostname(), os: process.platform };
 
   constructor(ctx: HostContext) {
     this.ctx = ctx;
@@ -754,20 +779,27 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     const disposeList = routes.registerList();
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let listener: Promise<() => Promise<void>> | undefined;
+    let listener: Promise<{ url?: string; dispose: () => Promise<void> }> | undefined;
 
     const refresh = async (): Promise<void> => {
       try {
         const status = await readStatus(config.tailscale);
         if (stopped) return;
-        routes.self = { name: status.self.name, os: status.self.os };
+        routes.self = { ...routes.self, name: status.self.name, os: status.self.os };
         if (config.listen && listener === undefined) {
-          const starting = startListener(ctx, config, status, attention);
-          listener = starting;
-          starting.catch((error: unknown) => {
-            ctx.logger.warn("kivotos: tailnet listener failed to start", error);
-            listener = undefined;
+          const starting = startListener(ctx, config, status, attention, () => {
+            routes.self.url = undefined;
           });
+          listener = starting;
+          void (async () => {
+            try {
+              const { url } = await starting;
+              if (!stopped) routes.self.url = url;
+            } catch (error) {
+              ctx.logger.warn("kivotos: tailnet listener failed to start", error);
+              listener = undefined;
+            }
+          })();
         }
         const peers = await discover(config, status);
         if (!stopped) routes.reconcile(peers);
@@ -787,8 +819,8 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
       clearTimeout(timer);
       disposeList();
       routes.dispose();
-      const stop = await listener?.catch(() => undefined);
-      await stop?.();
+      const started = await listener?.catch(() => undefined);
+      await started?.dispose();
     };
   }, "kivotos: tailnet listener and peer routes");
 }
