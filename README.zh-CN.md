@@ -127,11 +127,28 @@ App 和手机布局已在安卓 15 模拟器上、以及浏览器中以 390x844 
     allowSelf: false # 允许来自本节点自身地址的请求（仅用于实验环境）
     tailscale: tailscale # CLI 路径
     staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
+    trace: requests # off | requests | frames
 ```
 
 匹配的覆盖项会替换该行的整个 `config` 对象；未写出的键使用上面的默认值。
 
 `tls: auto` 会在 tailnet 启用了 HTTPS 证书时使用 HTTPS，并通过 `tailscale cert` 将证书签发到 `$DSH_HOME/kivotos/tls/`。`on` 表示必须使用 HTTPS，`off` 表示从不使用。Kivotos 从不运行 `tailscale serve`，也从不修改 Tailscale 配置。
+
+## 追踪日志
+
+Kivotos 会记录它如何为手机和其他机器提供服务，每行一个 JSON 对象，写入 `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`（默认是 `~/.dsh/kivotos/logs/`）。超过 7 天的文件会被删除，每天的文件上限为 50 MB。记录的路径不含查询参数。
+
+| `event`                            | 记录内容                                                                                                                                                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http`                             | 每个发到 tailnet 监听端口的请求：客户端 IP 和节点、准入耗时（`admitMs`；`cached` 表示是否跳过了 `tailscale whois`）、状态码、首字节时间（`ttfbMs`）、总耗时（`totalMs`）、上下行字节数、`content-encoding`、`cache-control` |
+| `ws.open`、`ws`                    | 每条 WebSocket（dsh 的 `remote.mux`）：握手耗时、持续时长、上下行字节数                                                                                                                                                     |
+| `ws.frame`                         | 仅在 `trace: frames` 时记录：每个 WebSocket 帧的方向、大小，以及距连接建立的毫秒数                                                                                                                                          |
+| `client`                           | 手机页面自己上报：导航各阶段，以及手机端看到的每个资源的耗时、首字节时间和大小，还有 dsh 界面框架首次渲染的时间（`shellReadyMs`）                                                                                           |
+| `sse.open`、`sse.close`            | 安卓 App 的通知事件流                                                                                                                                                                                                       |
+| `peer.http`、`peer.ws`             | 本机转发给其他机器的请求                                                                                                                                                                                                    |
+| `login`、`probe`、`listener.start` | 本地登录、对等节点探测、监听启动                                                                                                                                                                                            |
+
+排查会话加载慢时用 `trace: frames`：它能看出 dsh 界面通过 WebSocket 发出的每个请求，以及回应何时发回。在配置行里打开它，重启 dsh，复现一次，再查看当天的文件。
 
 ## 安全
 

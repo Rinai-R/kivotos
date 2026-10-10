@@ -114,10 +114,12 @@ test("Config fills defaults and reports invalid rows", () => {
   assert.equal(ok.value.allowSelf, false);
   assert.equal(ok.value.discover, true);
   assert.deepEqual(ok.value.staticPeers, []);
+  assert.equal(ok.value.trace, "requests");
 
   const bad = Config["~standard"].validate({
     port: 70000,
     tls: "maybe",
+    trace: "verbose",
     staticPeers: [{ id: "a/b", host: "", port: 1.5 }],
   });
   assert.ok("issues" in bad);
@@ -127,5 +129,6 @@ test("Config fills defaults and reports invalid rows", () => {
     "staticPeers.0",
     "staticPeers.0",
     "tls",
+    "trace",
   ]);
 });

@@ -16,6 +16,7 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
 import type { HostContext } from "./dsh.ts";
@@ -26,9 +27,12 @@ import {
   hostnameOf,
   remoteIp,
   sendJson,
+  type HttpStats,
   type Upstream,
+  type UpgradeTrace,
 } from "./proxy.ts";
 import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
+import { TraceLog, tracePath, type TraceLevel } from "./trace.ts";
 
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
@@ -53,6 +57,12 @@ const MANIFEST_TO =
 const PEER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
 const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
+/** Where the phone page posts its own load timings (see client.tsx). */
+const TRACE_CLIENT_PATH = "/kivotos/trace/client";
+/** Largest client timing report accepted. */
+const TRACE_CLIENT_MAX_BYTES = 256 * 1024;
+/** Tells the client module, on pages the tailnet listener served, to report its load timings. */
+const TRACE_FLAG = "<script>globalThis.__KIVOTOS_TRACE__=true</script>";
 
 /** A peer configured without discovery. */
 export interface StaticPeer {
@@ -86,6 +96,8 @@ export interface KivotosConfig {
   tailscale: string;
   /** Peer discovery interval. */
   refreshSeconds: number;
+  /** Trace log: off, every HTTP exchange and WebSocket, or also every WebSocket frame. */
+  trace: TraceLevel;
 }
 
 interface ConfigIssue {
@@ -103,6 +115,7 @@ const DEFAULTS: KivotosConfig = {
   allowSelf: false,
   tailscale: "tailscale",
   refreshSeconds: 30,
+  trace: "requests",
 };
 
 function staticPeersOf(
@@ -168,13 +181,29 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
       out[key] = given;
     else issue(`must be an integer in ${min}..${max}`, key);
   }
-  if (input.tls !== undefined) {
-    if (input.tls === "auto" || input.tls === "on" || input.tls === "off") out.tls = input.tls;
-    else issue('must be "auto", "on" or "off"', "tls");
-  }
+  out.tls = choiceOf(input, "tls", ["auto", "on", "off"], out.tls, issue);
+  out.trace = choiceOf(input, "trace", ["off", "requests", "frames"], out.trace, issue);
   out.staticPeers = staticPeersOf(input, issue);
   if (issues.length > 0) return { issues };
   return { value: out };
+}
+
+/**
+ * One string option with a fixed set of values.
+ * @returns the given value, or `fallback` when absent or invalid (invalid also files an issue).
+ */
+function choiceOf<T extends string>(
+  input: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+  issue: (message: string, key: string) => void,
+): T {
+  const given = input[key];
+  if (given === undefined) return fallback;
+  if (allowed.includes(given as T)) return given as T;
+  issue(`must be ${allowed.map((value) => `"${value}"`).join(", ")}`, key);
+  return fallback;
 }
 
 export const Config = { "~standard": { version: 1, vendor: "kivotos", validate } } as const;
@@ -264,11 +293,13 @@ function dshHome(): string {
  */
 class LoopbackSession {
   private readonly ctx: HostContext;
+  private readonly trace: TraceLog;
   private cookie: Promise<string> | undefined;
   private issuedAt = 0;
 
-  constructor(ctx: HostContext) {
+  constructor(ctx: HostContext, trace: TraceLog) {
     this.ctx = ctx;
+    this.trace = trace;
   }
 
   /** Loopback authority of the dsh webServer. */
@@ -298,14 +329,35 @@ class LoopbackSession {
   }
 
   private async login(): Promise<string> {
+    const start = performance.now();
     const url = this.ctx.connection.authenticatedUrl(`http://${this.authority}/`);
     const res = await fetch(url, { redirect: "manual" });
     const cookie = res.headers.get("set-cookie")?.split(";")[0];
-    if (cookie === undefined || cookie === "") {
-      throw new Error(`kivotos: loopback login returned ${res.status} without a cookie`);
-    }
+    const ok = cookie !== undefined && cookie !== "";
+    this.trace.record("login", { status: res.status, ok, ms: ms(performance.now() - start) });
+    if (!ok) throw new Error(`kivotos: loopback login returned ${res.status} without a cookie`);
     return cookie;
   }
+}
+
+/** Who a request comes from, and how long admitting it took. */
+interface Verdict {
+  /** Rejection status; undefined when admitted. */
+  status?: number;
+  /** Why it was rejected. */
+  reason?: string;
+  ip: string;
+  /** Tailnet node name ("" when unknown). */
+  node: string;
+  /** Admission time; mostly `tailscale whois` on a cache miss. */
+  admitMs: number;
+  /** The whois answer came from the cache. */
+  cached: boolean;
+}
+
+interface Identity {
+  ok: boolean;
+  node: string;
 }
 
 /** The listener's admission: expected authority, same-site, own tailnet user. */
@@ -313,7 +365,11 @@ class Admission {
   private readonly config: KivotosConfig;
   private readonly status: TailnetStatus;
   private readonly hosts: Set<string>;
-  private readonly cache = new Map<string, { at: number; ok: boolean }>();
+  /**
+   * Pending or settled whois per address. A page load fires dozens of
+   * requests at once; they share one lookup instead of one process each.
+   */
+  private readonly cache = new Map<string, { at: number; who: Promise<Identity> }>();
 
   constructor(config: KivotosConfig, status: TailnetStatus, bindHost: string) {
     this.config = config;
@@ -321,29 +377,108 @@ class Admission {
     this.hosts = new Set([bindHost, ...status.self.ips, status.self.dnsName].filter(Boolean));
   }
 
-  /** @returns rejection status, or undefined when admitted. */
-  async check(req: IncomingMessage): Promise<number | undefined> {
+  async check(req: IncomingMessage): Promise<Verdict> {
+    const start = performance.now();
+    const ip = remoteIp(req.socket.remoteAddress);
+    const verdict = (status: number, reason: string, node = ""): Verdict => ({
+      status,
+      reason,
+      ip,
+      node,
+      admitMs: ms(performance.now() - start),
+      cached: false,
+    });
     // DNS rebinding: a browser reaching this listener under any other name is
     // not talking to this node on purpose.
-    if (!this.hosts.has(hostnameOf(req.headers.host))) return 421;
+    if (!this.hosts.has(hostnameOf(req.headers.host))) return verdict(421, "host");
     // Cross-site requests: forwarding strips Origin and Fetch-Metadata, so the
     // loopback dsh cannot apply its own fence to this hop. Without this check
     // any web page open in a tailnet browser could drive dsh, because a
     // WebSocket handshake is not subject to CORS.
-    if (!sameSite(req.headers)) return 403;
-    const ip = remoteIp(req.socket.remoteAddress);
-    if (!this.config.allowSelf && this.status.self.ips.includes(ip)) return 403;
-    return (await this.identify(ip)) ? undefined : 403;
+    if (!sameSite(req.headers)) return verdict(403, "cross-site");
+    if (!this.config.allowSelf && this.status.self.ips.includes(ip)) return verdict(403, "self");
+    const { who, cached } = this.identify(ip);
+    const identity = await who;
+    if (!identity.ok) return { ...verdict(403, "user", identity.node), cached };
+    return { ip, node: identity.node, admitMs: ms(performance.now() - start), cached };
   }
 
-  private async identify(ip: string): Promise<boolean> {
+  private identify(ip: string): { who: Promise<Identity>; cached: boolean } {
     const now = Date.now();
     const hit = this.cache.get(ip);
-    if (hit !== undefined && now - hit.at < 60_000) return hit.ok;
-    const who = await whois(this.config.tailscale, ip);
-    const ok = who !== undefined && who.userId === this.status.self.userId;
-    this.cache.set(ip, { at: now, ok });
-    return ok;
+    if (hit !== undefined && now - hit.at < 60_000) return { who: hit.who, cached: true };
+    const who = whois(this.config.tailscale, ip).then(
+      (found): Identity => ({
+        ok: found !== undefined && found.userId === this.status.self.userId,
+        node: found?.node ?? "",
+      }),
+    );
+    this.cache.set(ip, { at: now, who });
+    return { who, cached: false };
+  }
+}
+
+/** Milliseconds rounded for the trace. */
+function ms(value: number): number {
+  return Math.round(value);
+}
+
+/** HTTP stats with times rounded, ready for a trace record. */
+function roundStats(stats: HttpStats): Record<string, unknown> {
+  return { ...stats, ttfbMs: ms(stats.ttfbMs), totalMs: ms(stats.totalMs) };
+}
+
+/**
+ * Trace observer for one forwarded WebSocket: a `ws` record on close and,
+ * at the `frames` level, a `ws.frame` record per frame header.
+ * @param trace - log.
+ * @param base - fields shared by every record of this socket (id, path, peer...).
+ * @returns observer, or undefined when tracing is off.
+ */
+function socketTrace(trace: TraceLog, base: Record<string, unknown>): UpgradeTrace | undefined {
+  if (trace.level === "off") return undefined;
+  const id = base.id;
+  const opened = performance.now();
+  return {
+    frame: trace.frames
+      ? (dir, frame) =>
+          trace.record("ws.frame", {
+            id,
+            dir,
+            op: frame.opcode,
+            fin: frame.fin,
+            len: frame.length,
+            atMs: ms(performance.now() - opened),
+          })
+      : undefined,
+    close: (stats) =>
+      trace.record("ws", {
+        ...base,
+        ...stats,
+        handshakeMs: ms(stats.handshakeMs),
+        durationMs: ms(stats.durationMs),
+      }),
+  };
+}
+
+/**
+ * Read a small JSON request body.
+ * @param req - request.
+ * @param limit - largest body accepted.
+ * @returns parsed JSON, or undefined when too large or not JSON.
+ */
+async function readJsonBody(req: IncomingMessage, limit: number): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req as AsyncIterable<Buffer>) {
+    size += chunk.length;
+    if (size > limit) return undefined;
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    return undefined;
   }
 }
 
@@ -377,13 +512,19 @@ async function startListener(
   config: KivotosConfig,
   status: TailnetStatus,
   attention: AttentionTracker,
+  trace: TraceLog,
   onFailure: () => void,
 ): Promise<{ url?: string; dispose: () => Promise<void> }> {
   const bindHost = config.listenHost || status.self.ips.find((ip) => !ip.includes(":"));
   if (bindHost === undefined) throw new Error("kivotos: this node has no Tailscale IPv4 address");
   const admission = new Admission(config, status, bindHost);
-  const session = new LoopbackSession(ctx);
+  const session = new LoopbackSession(ctx, trace);
   const tls = await listenerTls(config, status);
+  // Pages served here get the flag that makes the client module report its timings.
+  const rewriteIndex =
+    trace.level === "off"
+      ? injectOwnsHost
+      : (html: string) => injectHead(html, OWNS_HOST + TRACE_FLAG);
 
   const upstream = (cookie: string): Upstream => ({
     host: "127.0.0.1",
@@ -393,19 +534,32 @@ async function startListener(
   });
 
   const onRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const rejection = await admission.check(req);
-    if (rejection !== undefined) {
-      res.writeHead(rejection, { "content-type": "text/plain; charset=utf-8" });
+    const id = trace.id();
+    const url = req.url ?? "/";
+    const who = await admission.check(req);
+    const base = {
+      id,
+      method: req.method,
+      path: tracePath(url),
+      ip: who.ip,
+      node: who.node,
+      admitMs: who.admitMs,
+      cached: who.cached,
+    };
+    if (who.status !== undefined) {
+      trace.record("http", { ...base, status: who.status, reason: who.reason });
+      res.writeHead(who.status, { "content-type": "text/plain; charset=utf-8" });
       res.end("kivotos: not admitted");
       return;
     }
-    const url = req.url ?? "/";
     const parsed = new URL(url, "http://x");
     if (parsed.pathname === HELLO_PATH) {
+      trace.record("http", { ...base, status: 200, local: true });
       sendJson(res, 200, { kivotos: VERSION, name: status.self.name, os: status.self.os });
       return;
     }
     if (parsed.pathname === PENDING_PATH) {
+      trace.record("http", { ...base, status: 200, local: true });
       sendJson(res, 200, { frames: attention.pending() });
       return;
     }
@@ -413,25 +567,52 @@ async function startListener(
       // A cursor from another Host process says nothing about this one: replay all.
       const sameEpoch = parsed.searchParams.get("epoch") === attention.epoch;
       const after = sameEpoch ? Number(parsed.searchParams.get("after") ?? "0") : 0;
-      streamAttention(req, res, attention, after);
+      trace.record("sse.open", base);
+      const opened = performance.now();
+      streamAttention(req, res, attention, after, (frames) =>
+        trace.record("sse.close", { id, frames, durationMs: ms(performance.now() - opened) }),
+      );
       return;
     }
+    if (parsed.pathname === TRACE_CLIENT_PATH && req.method === "POST") {
+      const report = await readJsonBody(req, TRACE_CLIENT_MAX_BYTES);
+      if (report !== undefined) trace.record("client", { ...base, report });
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    const loginStart = performance.now();
     const cookie = await session.get();
+    const loginMs = ms(performance.now() - loginStart);
     res.on("finish", () => {
       if (res.statusCode === 401) session.invalidate();
     });
-    forwardHttp(req, res, upstream(cookie), { path: url, prefix: "", html: injectOwnsHost });
+    forwardHttp(req, res, upstream(cookie), {
+      path: url,
+      prefix: "",
+      html: rewriteIndex,
+      onDone:
+        trace.level === "off"
+          ? undefined
+          : (stats) => trace.record("http", { ...base, loginMs, ...roundStats(stats) }),
+    });
   };
 
   const onUpgrade = async (req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> => {
-    const rejection = await admission.check(req);
-    if (rejection !== undefined) {
-      socket.end(`HTTP/1.1 ${rejection} Rejected\r\n\r\n`);
+    const id = trace.id();
+    const url = req.url ?? "/";
+    const who = await admission.check(req);
+    const base = { id, path: tracePath(url), ip: who.ip, node: who.node, admitMs: who.admitMs };
+    if (who.status !== undefined) {
+      trace.record("ws", { ...base, status: who.status, reason: who.reason });
+      socket.end(`HTTP/1.1 ${who.status} Rejected\r\n\r\n`);
       return;
     }
-    forwardUpgrade(req, socket, head, upstream(await session.get()), req.url ?? "/");
+    trace.record("ws.open", base);
+    forwardUpgrade(req, socket, head, upstream(await session.get()), url, socketTrace(trace, base));
   };
 
+  trace.record("listener.start", { host: bindHost, port: config.port, tls: tls !== undefined });
   const server = tls === undefined ? http.createServer() : https.createServer(tls);
   const sockets = new Set<Duplex>();
   const fail = (error: unknown): void => {
@@ -507,6 +688,7 @@ function streamAttention(
   res: ServerResponse,
   attention: AttentionTracker,
   afterId: number,
+  onClose: (framesSent: number) => void,
 ): void {
   res.writeHead(200, {
     "content-type": "text/event-stream; charset=utf-8",
@@ -514,15 +696,21 @@ function streamAttention(
     connection: "keep-alive",
     "x-accel-buffering": "no",
   });
+  let sent = 0;
   const send = (frame: AttentionFrame): void => {
+    sent += 1;
     res.write(`id: ${frame.id}\nevent: attention\ndata: ${JSON.stringify(frame)}\n\n`);
   };
   for (const frame of attention.since(Number.isFinite(afterId) ? afterId : 0)) send(frame);
   const unsubscribe = attention.subscribe(send);
   const heartbeat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
+  let stopped = false;
   const stop = (): void => {
+    if (stopped) return;
+    stopped = true;
     clearInterval(heartbeat);
     unsubscribe();
+    onClose(sent);
   };
   req.on("close", stop);
   res.on("close", stop);
@@ -611,10 +799,12 @@ function parseJson(bytes: Buffer): Record<string, unknown> | undefined {
 class PeerRoutes {
   private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
   private readonly ctx: HostContext;
+  private readonly trace: TraceLog;
   self: { name: string; os: string; url?: string } = { name: os.hostname(), os: process.platform };
 
-  constructor(ctx: HostContext) {
+  constructor(ctx: HostContext, trace: TraceLog) {
     this.ctx = ctx;
+    this.trace = trace;
   }
 
   /** Answer a dsh-side request through the connection fence; true when rejected. */
@@ -662,10 +852,20 @@ class PeerRoutes {
           return;
         }
         const rest = `${url.pathname.slice(prefix.length)}${url.search}`;
+        const base = {
+          id: this.trace.id(),
+          peer: peer.id,
+          method: req.method,
+          path: tracePath(rest),
+        };
         forwardHttp(req, res, entry.peer.upstream, {
           path: rest,
           prefix,
           html: (body) => credentialedManifest(injectStorageNamespace(body, peer.id)),
+          onDone:
+            this.trace.level === "off"
+              ? undefined
+              : (stats) => this.trace.record("peer.http", { ...base, ...roundStats(stats) }),
         });
       },
     });
@@ -682,7 +882,16 @@ class PeerRoutes {
           return;
         }
         const search = new URL(req.url ?? "/", "http://x").search;
-        forwardUpgrade(req, socket, head, entry.peer.upstream, `${MUX_PATH}${search}`);
+        const base = { id: this.trace.id(), peer: peer.id, path: MUX_PATH };
+        this.trace.record("peer.ws.open", base);
+        forwardUpgrade(
+          req,
+          socket,
+          head,
+          entry.peer.upstream,
+          `${MUX_PATH}${search}`,
+          socketTrace(this.trace, base),
+        );
       },
     });
     entry.dispose = () => {
@@ -732,7 +941,11 @@ function staticUpstream(peer: StaticPeer): Upstream {
 }
 
 /** @returns reachable peers, static first. */
-async function discover(config: KivotosConfig, status: TailnetStatus): Promise<Peer[]> {
+async function discover(
+  config: KivotosConfig,
+  status: TailnetStatus,
+  trace: TraceLog,
+): Promise<Peer[]> {
   const peers: Peer[] = config.staticPeers.map((peer) => ({
     id: peer.id,
     name: peer.name,
@@ -744,7 +957,19 @@ async function discover(config: KivotosConfig, status: TailnetStatus): Promise<P
   const candidates = status.peers.filter(
     (node) => node.online && node.userId === status.self.userId,
   );
-  const found = await Promise.all(candidates.map((node) => probe(node, config.port)));
+  const found = await Promise.all(
+    candidates.map(async (node) => {
+      const start = performance.now();
+      const peer = await probe(node, config.port);
+      trace.record("probe", {
+        node: node.name,
+        ok: peer !== undefined,
+        tls: peer?.upstream.tls === true,
+        ms: ms(performance.now() - start),
+      });
+      return peer;
+    }),
+  );
   for (const peer of found) {
     if (peer === undefined || taken.has(peer.id)) continue;
     taken.add(peer.id);
@@ -766,6 +991,14 @@ function emptyStatus(): TailnetStatus {
 export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.effect(() => ctx.webServer.tapIndex(coverViewport), "kivotos: viewport-fit=cover");
 
+  const trace = new TraceLog(path.join(dshHome(), "kivotos", "logs"), config.trace);
+  ctx.effect(() => {
+    trace
+      .open()
+      .catch((error: unknown) => ctx.logger.warn("kivotos: trace log unavailable", error));
+    return () => trace.close();
+  }, "kivotos: trace log");
+
   // Every Session's appends, browser-opened or not: the source of the phone's notifications.
   // ctx.on owns its listener's lifetime: it is removed when the plugin unloads.
   const attention = new AttentionTracker((session) =>
@@ -775,7 +1008,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.on("session/disposed", (session) => attention.forget(session.id));
 
   ctx.effect(() => {
-    const routes = new PeerRoutes(ctx);
+    const routes = new PeerRoutes(ctx, trace);
     const disposeList = routes.registerList();
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -787,7 +1020,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
         if (stopped) return;
         routes.self = { ...routes.self, name: status.self.name, os: status.self.os };
         if (config.listen && listener === undefined) {
-          const starting = startListener(ctx, config, status, attention, () => {
+          const starting = startListener(ctx, config, status, attention, trace, () => {
             routes.self.url = undefined;
           });
           listener = starting;
@@ -801,12 +1034,12 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
             }
           })();
         }
-        const peers = await discover(config, status);
+        const peers = await discover(config, status, trace);
         if (!stopped) routes.reconcile(peers);
       } catch (error) {
         ctx.logger.warn("kivotos: tailnet refresh failed", error);
         if (!stopped && config.staticPeers.length > 0) {
-          routes.reconcile(await discover({ ...config, discover: false }, emptyStatus()));
+          routes.reconcile(await discover({ ...config, discover: false }, emptyStatus(), trace));
         }
       } finally {
         if (!stopped) timer = setTimeout(() => void refresh(), config.refreshSeconds * 1000);

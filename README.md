@@ -127,11 +127,28 @@ The plugin's config row id is `kivotos`. Override it in `$DSH_HOME/profiles/<pro
     allowSelf: false # admit requests from this node's own address (lab only)
     tailscale: tailscale # CLI path
     staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
+    trace: requests # off | requests | frames
 ```
 
 A matching override replaces the complete `config` object of the row; keys you leave out fall back to the defaults above.
 
 `tls: auto` uses HTTPS when the tailnet has HTTPS certificates enabled and issues the certificate with `tailscale cert` into `$DSH_HOME/kivotos/tls/`. `on` requires HTTPS; `off` never uses it. Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
+
+## Trace log
+
+Kivotos records how it serves the phone and your other machines, one JSON object per line, in `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl` (by default `~/.dsh/kivotos/logs/`). Files older than 7 days are deleted and a day stops at 50 MB. Paths are logged without their query string.
+
+| `event`                            | Recorded                                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http`                             | Each request to the tailnet listener: client IP and node, admission time (`admitMs`; `cached` tells whether `tailscale whois` was skipped), status, time to first byte (`ttfbMs`), total time (`totalMs`), bytes each way, `content-encoding`, `cache-control` |
+| `ws.open`, `ws`                    | Each WebSocket (dsh's `remote.mux`): handshake time, duration, bytes each way                                                                                                                                                                                  |
+| `ws.frame`                         | At `trace: frames` only: every WebSocket frame header, direction, size, and milliseconds since the socket opened                                                                                                                                               |
+| `client`                           | From the phone page itself: navigation phases, every resource's time, first-byte time and size as the phone saw them, and when the dsh frame first rendered (`shellReadyMs`)                                                                                   |
+| `sse.open`, `sse.close`            | The Android app's notification stream                                                                                                                                                                                                                          |
+| `peer.http`, `peer.ws`             | Requests this dsh forwards to other machines                                                                                                                                                                                                                   |
+| `login`, `probe`, `listener.start` | Loopback login, peer discovery, listener start                                                                                                                                                                                                                 |
+
+`trace: frames` is the level for diagnosing a slow session: it shows each request dsh's UI sends over the WebSocket and when the answer goes back. Turn it on in the config row, restart dsh, reproduce, then read the day's file.
 
 ## Security
 

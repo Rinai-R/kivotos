@@ -129,6 +129,7 @@ Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라�
     allowSelf: false # 이 노드 자신의 주소에서 오는 요청을 허용(테스트 환경 전용)
     tailscale: tailscale # CLI 경로
     staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
+    trace: requests # off | requests | frames
 ```
 
 일치하는 재정의는 `config` 객체 전체를 대체합니다.
@@ -140,6 +141,22 @@ Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라�
 - `off`: HTTPS를 사용하지 않습니다.
 
 Kivotos는 `tailscale serve`를 실행하지 않으며 Tailscale 설정도 변경하지 않습니다.
+
+## 추적 로그
+
+Kivotos는 휴대폰과 다른 머신에 어떻게 응답했는지를 한 줄에 JSON 객체 하나씩 `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`(기본값 `~/.dsh/kivotos/logs/`)에 기록합니다. 7일이 지난 파일은 삭제되고, 하루 파일은 50 MB에서 멈춥니다. 경로는 쿼리 문자열 없이 기록됩니다.
+
+| `event`                            | 기록 내용                                                                                                                                                                                                                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http`                             | tailnet 리스너로 들어온 각 요청: 클라이언트 IP와 노드, 허용 판단 시간(`admitMs`, `cached`는 `tailscale whois`를 건너뛰었는지 여부), 상태 코드, 첫 바이트까지의 시간(`ttfbMs`), 전체 시간(`totalMs`), 송수신 바이트 수, `content-encoding`, `cache-control` |
+| `ws.open`, `ws`                    | 각 WebSocket(dsh의 `remote.mux`): 핸드셰이크 시간, 지속 시간, 송수신 바이트 수                                                                                                                                                                             |
+| `ws.frame`                         | `trace: frames`일 때만: 각 WebSocket 프레임의 방향, 크기, 연결 후 경과 밀리초                                                                                                                                                                              |
+| `client`                           | 휴대폰 페이지가 직접 보고: 내비게이션 단계, 휴대폰에서 본 각 리소스의 시간·첫 바이트까지의 시간·크기, dsh 프레임이 처음 렌더링된 시각(`shellReadyMs`)                                                                                                      |
+| `sse.open`, `sse.close`            | Android 앱의 알림 스트림                                                                                                                                                                                                                                   |
+| `peer.http`, `peer.ws`             | 이 dsh가 다른 머신으로 전달하는 요청                                                                                                                                                                                                                       |
+| `login`, `probe`, `listener.start` | 루프백 로그인, 피어 탐색, 리스너 시작                                                                                                                                                                                                                      |
+
+세션 로딩이 느린 원인을 찾을 때는 `trace: frames`를 사용하세요. dsh UI가 WebSocket으로 보내는 각 요청과 응답이 돌아가는 시각을 볼 수 있습니다. 설정 행에서 켜고 dsh를 재시작해 재현한 뒤 그날의 파일을 확인하세요.
 
 ## 보안
 

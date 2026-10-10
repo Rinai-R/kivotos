@@ -19,6 +19,7 @@ The repository previously hosted a fork of Paseo. That code is gone; do not rein
 
 - `packages/kivotos/src/index.ts`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.
 - `packages/kivotos/src/proxy.ts`: HTTP and WebSocket forwarding helpers, header filtering, hop marking, `Location` rewriting.
+- `packages/kivotos/src/trace.ts`: trace log (`TraceLog`, daily JSONL under `$DSH_HOME/kivotos/logs/`, 7-day retention, 50 MB/day) and `WsFrameReader`, a passive WebSocket frame-header parser for `trace: frames`. Every trace record drops the query string (`tracePath`): it can carry a login token.
 - `packages/kivotos/src/tailscale.ts`: `tailscale` CLI wrapper (`status --json`, `whois --json`, `cert`).
 - `packages/kivotos/src/dsh.ts`: the slice of the dsh Host API Kivotos uses (`webServer`, `connection`, `logger`, `on`, optional `sessionProjections`), typed locally.
 - `packages/kivotos/src/attention.ts`: `AttentionTracker`, which folds every Session's log (`approval/asked`, `approval/decided`, `ask_user_question` calls and answers, `turn/end`) into attention frames for `/kivotos/events`.

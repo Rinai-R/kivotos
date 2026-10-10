@@ -129,6 +129,7 @@ Tailscale 上のプレーンな HTTP 通信は WireGuard で暗号化されて�
     allowSelf: false # このノード自身のアドレスからのリクエストを許可する(検証環境のみ)
     tailscale: tailscale # CLI のパス
     staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
+    trace: requests # off | requests | frames
 ```
 
 一致する上書きは、`config` オブジェクト全体を置き換えます。
@@ -140,6 +141,22 @@ Tailscale 上のプレーンな HTTP 通信は WireGuard で暗号化されて�
 - `off`: HTTPS を使いません。
 
 Kivotos は `tailscale serve` を実行せず、Tailscale の設定も変更しません。
+
+## トレースログ
+
+Kivotos は、スマートフォンや他のマシンへの応答の様子を 1 行 1 つの JSON オブジェクトとして `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`（既定では `~/.dsh/kivotos/logs/`）に記録します。7 日より古いファイルは削除され、1 日のファイルは 50 MB で打ち切られます。パスはクエリ文字列を除いて記録されます。
+
+| `event`                            | 記録内容                                                                                                                                                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http`                             | tailnet リスナーへの各リクエスト：クライアントの IP とノード、受け入れ判定の時間（`admitMs`。`cached` は `tailscale whois` を省いたかどうか）、ステータス、最初のバイトまでの時間（`ttfbMs`）、合計時間（`totalMs`）、送受信バイト数、`content-encoding`、`cache-control` |
+| `ws.open`、`ws`                    | 各 WebSocket（dsh の `remote.mux`）：ハンドシェイク時間、継続時間、送受信バイト数                                                                                                                                                                                         |
+| `ws.frame`                         | `trace: frames` のときのみ：各 WebSocket フレームの方向、サイズ、接続からの経過ミリ秒                                                                                                                                                                                     |
+| `client`                           | スマートフォンのページ自身からの報告：ナビゲーションの各段階、スマートフォンから見た各リソースの時間・最初のバイトまでの時間・サイズ、dsh のフレームが最初に描画された時刻（`shellReadyMs`）                                                                              |
+| `sse.open`、`sse.close`            | Android アプリの通知ストリーム                                                                                                                                                                                                                                            |
+| `peer.http`、`peer.ws`             | この dsh が他のマシンへ転送するリクエスト                                                                                                                                                                                                                                 |
+| `login`、`probe`、`listener.start` | ループバックへのログイン、ピアの検出、リスナーの起動                                                                                                                                                                                                                      |
+
+セッションの読み込みが遅いときの調査には `trace: frames` を使います。dsh の UI が WebSocket で送る各リクエストと、その応答が返る時刻がわかります。設定の行で有効にし、dsh を再起動して再現したあと、その日のファイルを確認してください。
 
 ## セキュリティ
 

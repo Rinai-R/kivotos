@@ -571,12 +571,121 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   );
 }
 
+/** Where the tailnet listener records client reports (index.ts). */
+const TRACE_CLIENT_PATH = "/kivotos/trace/client";
+/** Give up waiting for the dsh frame after this long and report anyway. */
+const TRACE_REPORT_TIMEOUT_MS = 60_000;
+/** After the dsh frame renders, wait this long so the report holds its first data requests. */
+const TRACE_REPORT_SETTLE_MS = 5_000;
+/**
+ * Performance marks, which live as long as the document. dsh re-applies the
+ * plugin on every reconnect: the first keeps the frame's real render time, the
+ * second stops a later run from reporting the reconnect as a page load.
+ */
+const TRACE_SHELL_MARK = "kivotos:shell-ready";
+const TRACE_REPORTED_MARK = "kivotos:trace-reported";
+
+function marked(name: string): boolean {
+  return performance.getEntriesByName(name, "mark").length > 0;
+}
+
+/** A resource timing entry, reduced to what explains a slow load. */
+interface ResourceReport {
+  /** Path without query. */
+  path: string;
+  type: string;
+  startMs: number;
+  durationMs: number;
+  /** Request sent to first response byte; -1 when the browser does not expose it. */
+  ttfbMs: number;
+  /** Bytes over the network (0 when served from the HTTP cache). */
+  transferBytes: number;
+  cached: boolean;
+}
+
+function resourceReport(entry: PerformanceResourceTiming): ResourceReport {
+  return {
+    path: new URL(entry.name, window.location.href).pathname.slice(0, 160),
+    type: entry.initiatorType,
+    startMs: Math.round(entry.startTime),
+    durationMs: Math.round(entry.duration),
+    ttfbMs: entry.responseStart > 0 ? Math.round(entry.responseStart - entry.requestStart) : -1,
+    transferBytes: entry.transferSize,
+    cached: entry.transferSize === 0 && entry.decodedBodySize > 0,
+  };
+}
+
+/**
+ * On pages the tailnet listener served, report once how this page loaded as
+ * the phone saw it: navigation phases, every resource, and when the dsh frame
+ * first rendered. The listener writes it to its trace log next to its own
+ * timings.
+ *
+ * The frame is the marker because it exists at every width; Session rows do
+ * not exist while the phone drawer is closed.
+ * @returns cleanup that cancels a report not yet sent.
+ */
+function reportLoadTiming(): () => void {
+  if (marked(TRACE_REPORTED_MARK)) return () => undefined;
+  let frame = 0;
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  const send = (): void => {
+    if (marked(TRACE_REPORTED_MARK)) return;
+    performance.mark(TRACE_REPORTED_MARK);
+    const shell = performance.getEntriesByName(TRACE_SHELL_MARK, "mark")[0];
+    // Entry types are fixed by the type string asked for.
+    const nav = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+    const report = {
+      page: window.location.pathname,
+      navigation:
+        nav === undefined
+          ? null
+          : {
+              connectMs: Math.round(nav.connectEnd - nav.connectStart),
+              ttfbMs: Math.round(nav.responseStart - nav.requestStart),
+              responseEndMs: Math.round(nav.responseEnd),
+              domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd),
+              loadMs: Math.round(nav.loadEventEnd),
+            },
+      shellReadyMs: shell === undefined ? null : Math.round(shell.startTime),
+      resources: resources.map(resourceReport),
+    };
+    void fetch(TRACE_CLIENT_PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(report),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
+  const watch = (): void => {
+    if (document.querySelector("[data-shell-overlay]") === null) {
+      frame = requestAnimationFrame(watch);
+      return;
+    }
+    if (!marked(TRACE_SHELL_MARK)) performance.mark(TRACE_SHELL_MARK);
+    settle = setTimeout(send, TRACE_REPORT_SETTLE_MS);
+  };
+  frame = requestAnimationFrame(watch);
+  const timeout = setTimeout(send, TRACE_REPORT_TIMEOUT_MS);
+  return () => {
+    cancelAnimationFrame(frame);
+    clearTimeout(settle);
+    clearTimeout(timeout);
+  };
+}
 /**
  * Client plugin body: dictionaries and the three slot contributions.
  * @param ctx - Client plugin context.
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh: ZH, en: EN }), "kivotos: dictionaries");
+  // Set by the tailnet listener on pages it serves (index.ts TRACE_FLAG).
+  if (Reflect.get(globalThis, "__KIVOTOS_TRACE__") === true) {
+    ctx.effect(reportLoadTiming, "kivotos: load timing report");
+  }
   // One stable function for every render, injected as a slot prop.
   const injected = { toggleSidebar: (): void => ctx.layout.toggleSidebar() };
   const props = (): typeof injected => injected;
