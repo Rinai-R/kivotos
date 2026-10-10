@@ -10,7 +10,7 @@ Kivotos has no UI of its own for sessions. It adds four things:
 
 1. Federation over Tailscale: from any dsh, open the complete UI of any other dsh on the same tailnet that also runs Kivotos, through a reverse proxy.
 2. A machine switcher in the dsh sidebar footer.
-3. A phone layout below 768px width (slide-in sidebar drawer, backdrop, drawer toggle, safe-area insets).
+3. A phone layout (slide-in sidebar drawer, backdrop, drawer toggle, safe-area insets, full-screen Settings). It applies below 768px width when the page runs in the Kivotos app, which appends `Kivotos` to its WebView User-Agent, or, for a phone's own browser, when `(pointer: coarse)` matches. A narrowed desktop window must keep dsh's own layout.
 4. An Android app (`packages/mobile/`) that shows each machine's dsh UI in a WebView and posts system notifications when a session needs an approval, asks a question, or finishes.
 
 The repository previously hosted a fork of Paseo. That code is gone; do not reintroduce it or reference it.

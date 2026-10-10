@@ -44,7 +44,14 @@ interface ClientContext {
 }
 
 const NS = "kivotos";
-const PHONE = "(max-width: 767px)";
+/** The Kivotos phone app names itself in its WebView's User-Agent (packages/mobile MachineView). */
+const IN_APP = /\bKivotos\b/.test(navigator.userAgent);
+/**
+ * When the phone layout applies. Width alone would also catch a narrowed
+ * desktop window, where dsh's own layout must stay, so the page must also be
+ * in the phone app or, for a phone's own browser, on a touch-first device.
+ */
+const PHONE = IN_APP ? "(max-width: 767px)" : "(max-width: 767px) and (pointer: coarse)";
 const PEER_PATH = /^\/kivotos\/peer\/([^/]+)\//;
 const ZH = {
   "machines.label": "机器",

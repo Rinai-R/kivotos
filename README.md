@@ -23,7 +23,7 @@ Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every
   - workspace files
   - terminal
 - **Machine switcher.** An entry in the dsh sidebar footer, above Settings, lists "this machine" plus the peers the serving host mounts. Selecting one navigates to `/` or `/kivotos/peer/<id>/`.
-- **Phone layout.** Below 768px width:
+- **Phone layout.** Below 768px width, in the Kivotos app or on a touch-first device (a narrowed desktop window keeps dsh's own layout):
   - single column; the sidebar becomes a slide-in drawer (`min(86vw, 320px)`) with a dimmed backdrop that closes it
   - a drawer toggle button before the conversation title
   - composer pinned at the bottom (dsh's own sticky composer) with safe-area insets and `viewport-fit=cover`

@@ -26,6 +26,11 @@ import { t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 const EDGES = ["top", "bottom"] as const;
+/**
+ * Appended to the WebView's User-Agent. The plugin's client module reads it to
+ * know the page runs in this app (packages/kivotos/src/client.tsx, IN_APP).
+ */
+const USER_AGENT_NAME = "Kivotos";
 
 /** Imperative handle: open a Session inside the loaded dsh page. */
 export interface MachineViewHandle {
@@ -131,6 +136,7 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
         ref={web}
         source={source}
         injectedJavaScript={BRIDGE}
+        applicationNameForUserAgent={USER_AGENT_NAME}
         onMessage={onMessage}
         onNavigationStateChange={onNavigation}
         onLoadStart={onLoadStart}
