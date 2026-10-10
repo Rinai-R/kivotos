@@ -1,6 +1,22 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
@@ -25,6 +41,27 @@ interface Props {
   onBack: () => void;
 }
 
+/**
+ * Height the soft keyboard covers, minus the bottom inset the screen already
+ * pads. With edge-to-edge on (Android 15 default) `adjustResize` no longer
+ * shrinks the WebView, so the page never learns about the keyboard and dsh's
+ * composer stays underneath it. Shrinking the WebView here gives dsh a
+ * shorter viewport; its frame pins the composer to that viewport's bottom.
+ */
+function useKeyboardInset(bottomInset: number): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (event) =>
+      setHeight(event.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener("keyboardDidHide", () => setHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return Math.max(0, height - bottomInset);
+}
 /** One machine's complete dsh UI. */
 export const MachineView = forwardRef<MachineViewHandle, Props>(function MachineView(props, ref) {
   const styles = useStyles(createStyles);
@@ -37,6 +74,9 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
   const [loaded, setLoaded] = useState(false);
   const [source] = useState(() => ({ uri: `${props.machine.url}/` }));
   const { onBack, onSession } = props;
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardInset(insets.bottom);
+  const keyboardSpace = useMemo(() => ({ height: keyboard }), [keyboard]);
 
   useImperativeHandle(ref, () => ({
     openSession(sessionId: string) {
@@ -104,6 +144,7 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
         pullToRefreshEnabled
         style={styles.web}
       />
+      <View style={keyboardSpace} />
       {!loaded && !failed ? (
         <View style={styles.cover}>
           <KivotosMark size={56} />

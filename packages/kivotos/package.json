@@ -1,6 +1,6 @@
 {
   "name": "@kivotos/dsh-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Open and drive every dsh on your tailnet from any dsh, with a complete phone layout.",
   "keywords": [
     "deepseek-harness",

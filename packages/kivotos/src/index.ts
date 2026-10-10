@@ -33,7 +33,7 @@ import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } fr
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const PEER_PREFIX = "/kivotos/peer";
 const HELLO_PATH = "/kivotos/hello";
 const EVENTS_PATH = "/kivotos/events";

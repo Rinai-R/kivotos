@@ -174,6 +174,49 @@ function useSidebarCollapsed(): boolean {
   return collapsed;
 }
 
+/**
+ * dsh's current-Session store (ui-workspace snapshot store, dsh 0.2.0-rc.2):
+ * it rewrites this localStorage key whenever the selection changes.
+ */
+const CURRENT_SESSION_KEY = "dsh.sessions.current";
+
+/**
+ * On a phone the drawer covers the conversation, so opening a Session from
+ * it, or starting a new one, should close it, as native apps do; dsh's own
+ * layout collapses the sidebar only on a width change. Two signals, because
+ * neither covers every case:
+ * - a tap on a Session row, which also catches the Session already open.
+ *   In dsh 0.2.0-rc.2 Session rows are `[role=treeitem]` without
+ *   `aria-expanded`; workspace folders carry it and only toggle.
+ * - a change of the current Session, which catches New Session and any
+ *   other way dsh switches. The store writes synchronously in dsh's click
+ *   handler, and same-document storage writes fire no event, so it is polled.
+ * @param active - phone width with the drawer open.
+ * @param close - collapses the drawer.
+ */
+function useCloseDrawerOnSelect(active: boolean, close: () => void): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    const sidebar = document.querySelector('[class*="_sidebarCol"]');
+    const onClick = (event: Event): void => {
+      const target = event.target as Element | null;
+      // Row menus and actions sit inside the row: those keep the drawer open.
+      if (target?.closest("button, [role=menuitem]")) return;
+      const row = target?.closest("[role=treeitem]");
+      if (row && !row.hasAttribute("aria-expanded")) requestAnimationFrame(close);
+    };
+    sidebar?.addEventListener("click", onClick);
+    const opened = window.localStorage.getItem(CURRENT_SESSION_KEY);
+    const timer = setInterval(() => {
+      if (window.localStorage.getItem(CURRENT_SESSION_KEY) !== opened) close();
+    }, 150);
+    return () => {
+      sidebar?.removeEventListener("click", onClick);
+      clearInterval(timer);
+    };
+  }, [active, close]);
+}
+
 /** Monitor glyph (original artwork, currentColor). */
 function MachineGlyph(): ReactNode {
   return (
@@ -512,6 +555,7 @@ function DrawerToggle({ t, toggleSidebar }: Injected): ReactNode {
 function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const phone = useMedia(PHONE);
   const collapsed = useSidebarCollapsed();
+  useCloseDrawerOnSelect(phone && !collapsed, toggleSidebar);
   return (
     <>
       <style>{CSS}</style>

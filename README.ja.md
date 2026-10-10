@@ -198,11 +198,11 @@ npm run apk -w packages/mobile   # expo prebuild、その後 gradlew assembleRel
 
 `packages/mobile/android/` は `expo prebuild` が生成するもので、コミットされません。リリース APK はデバッグキーで署名されているため、そのままインストールできますが、アプリストア向けのものではありません。
 
-バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、Android のアップグレード用に `expo.android.versionCode` を増やしてから、対応する `v<version>` タグ（例: `v0.1.1`）を push します。CI のチェックと APK ビルドが成功すると、まず `@kivotos/dsh-plugin` を npm に公開し（provenance 付き）、続いて GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになり、npm では `next` タグで公開されます。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
+バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、Android のアップグレード用に `expo.android.versionCode` を増やしてから、対応する `v<version>` タグ（例: `v0.1.2`）を push します。CI のチェックと APK ビルドが成功すると、まず `@kivotos/dsh-plugin` を npm に公開し（provenance 付き）、続いて GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになり、npm では `next` タグで公開されます。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
 
 ```sh
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 ## ライセンス
