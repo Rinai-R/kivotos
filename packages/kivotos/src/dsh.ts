@@ -1,5 +1,5 @@
 /**
- * The slice of the dsh 0.2.1-alpha.1 Host API that Kivotos uses.
+ * The slice of the dsh 0.2.0-rc.2 Host API that Kivotos uses.
  *
  * Declared locally, the way dsh's own open-in-app plugin types `connection`:
  * the real declarations live in packages whose type graphs pull in most of

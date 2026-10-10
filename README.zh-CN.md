@@ -33,7 +33,7 @@ Kivotos 是 DeepSeek Harness（dsh）的插件。它让你在任意一个 dsh �
 
 ## 环境要求
 
-- DeepSeek Harness（dsh）`0.2.1-alpha.1`
+- DeepSeek Harness（dsh）`0.2.0-rc.2`
 - Node `^22.19.0 || >=24`
 - 每台机器都安装并登录 Tailscale，且所有机器登录同一个 tailnet 账号
 
@@ -62,7 +62,13 @@ dsh plugin --profile web add "$PWD/packages/kivotos"
 dsh --profile web --dump-config
 ```
 
-以上命令使用 `web` profile。桌面应用使用 `desktop` profile，尚未与 Kivotos 一起测试过。
+以上命令使用 `web` profile。DeepSeek Harness 桌面应用使用 `desktop` profile：请先完全退出桌面应用，再用应用内自带的命令行安装（普通的 `dsh` 会拒绝操作 `desktop` profile），然后重新打开应用：
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kivotos/dsh-plugin
+```
+
+同一时间只在一个运行中的 profile 里装 Kivotos：每个 Kivotos 都会监听 7380 端口。
 
 ## 在电脑上使用
 
@@ -151,7 +157,7 @@ tailnet 监听器只在满足以下全部条件时接受请求：
 
 ## 兼容性
 
-Kivotos 锁定 dsh `0.2.1-alpha.1`。dsh 本身没有手机布局，也没有插槽负责整体框架网格，因此手机样式表依赖 dsh 的内部实现（0.2.1-alpha.1 的 CSS module 类名和 data 属性）。index 改写（viewport meta、manifest 链接）同样匹配 0.2.1-alpha.1 的确切标记，标记变化后会静默失效。每次升级 dsh 后都需要重新验证 Kivotos。
+Kivotos 锁定 dsh `0.2.0-rc.2`。dsh 本身没有手机布局，也没有插槽负责整体框架网格，因此手机样式表依赖 dsh 的内部实现（0.2.0-rc.2 的 CSS module 类名和 data 属性）。index 改写（viewport meta、manifest 链接）同样匹配 0.2.0-rc.2 的确切标记，标记变化后会静默失效。每次升级 dsh 后都需要重新验证 Kivotos。
 
 ## 开发
 

@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 /** Locale lookup bound to the plugin's namespace. */
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
-/** The slice of the dsh 0.2.1-alpha.1 Client context Kivotos uses. */
+/** The slice of the dsh 0.2.0-rc.2 Client context Kivotos uses. */
 interface ClientContext {
   effect(factory: () => () => void, label?: string): void;
   locale: {
@@ -86,7 +86,7 @@ const EN: Record<keyof typeof ZH, string> = {
 
 /**
  * Phone layout. AppFrame and SidebarRoot class names are CSS-module hashes
- * of dsh 0.2.1-alpha.1; selectors match the stable `_<name>` suffix. This
+ * of dsh 0.2.0-rc.2; selectors match the stable `_<name>` suffix. This
  * is a deliberate, version-pinned exception to "do not read another
  * plugin's DOM": dsh ships no phone layout and no slot owns the frame grid.
  */

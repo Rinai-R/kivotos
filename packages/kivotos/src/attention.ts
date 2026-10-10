@@ -5,7 +5,7 @@
  * (the Android app's event stream).
  *
  * Built only from logged events, so it needs no dsh service beyond the event
- * feed. The shapes follow dsh 0.2.1-alpha.1 (`@deepseek-ai/dsh-session` and
+ * feed. The shapes follow dsh 0.2.0-rc.2 (`@deepseek-ai/dsh-session` and
  * `@deepseek-ai/dsh-user-approval` / `-user-questions`).
  */
 

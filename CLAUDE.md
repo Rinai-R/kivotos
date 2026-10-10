@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## What this repository is
 
-Kivotos is a plugin for DeepSeek Harness (dsh) 0.2.1-alpha.1. Package `@kivotos/dsh-plugin` in `packages/kivotos/`. TypeScript sources in `src/`, built with esbuild into `dist/`; no runtime dependencies.
+Kivotos is a plugin for DeepSeek Harness (dsh) 0.2.0-rc.2. Package `@kivotos/dsh-plugin` in `packages/kivotos/`. TypeScript sources in `src/`, built with esbuild into `dist/`; no runtime dependencies.
 
 Kivotos has no UI of its own for sessions. It adds four things:
 
@@ -71,12 +71,12 @@ Android app:
 - Session screens stay dsh's own UI in a WebView. App-owned screens are limited to the machine list and settings; do not rebuild dsh features natively.
 - The app talks only to each machine's tailnet listener: `/kivotos/hello`, `/kivotos/events`, and the dsh UI. It stores no token; the listener admits by Tailscale identity.
 - Notifications come from `/kivotos/events` held open by `AttentionService`; there is no push service. A frame for the Session on screen (`AttentionState.isOnScreen`) posts nothing; `resolved` cancels the matching notification by key.
-- Opening a Session works by writing `localStorage['dsh.sessions.current'] = {"sessionId": ...}` and reloading (dsh restores it at startup). This is another dsh 0.2.1-alpha.1 internal; re-verify on upgrade.
+- Opening a Session works by writing `localStorage['dsh.sessions.current'] = {"sessionId": ...}` and reloading (dsh restores it at startup). This is another dsh 0.2.0-rc.2 internal; re-verify on upgrade.
 - React Native components keep props stable (memoized style sheets via `useStyles`, `useCallback` handlers); the repo's react-perf lint rules apply here too.
 
 ## Deliberate exception: version-pinned phone stylesheet
 
-dsh ships no phone layout and no slot owns the frame grid. The phone stylesheet in `src/client.tsx` therefore reads dsh 0.2.1-alpha.1 internals, which breaks the dsh plugin rule "do not read another plugin's DOM or stylesheet". This is intentional and pinned to dsh 0.2.1-alpha.1.
+dsh ships no phone layout and no slot owns the frame grid. The phone stylesheet in `src/client.tsx` therefore reads dsh 0.2.0-rc.2 internals, which breaks the dsh plugin rule "do not read another plugin's DOM or stylesheet". This is intentional and pinned to dsh 0.2.0-rc.2.
 
 It depends on:
 
@@ -84,9 +84,17 @@ It depends on:
 - The frame, found as `div:has(> [data-shell-overlay])`.
 - The attributes `[data-sidebar-collapsed]`, `[data-conversation-header-leading]`, `[data-conversation-scroll]`.
 
-The index rewrites in `src/index.ts` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.1-alpha.1 `index.html` markup and silently do nothing if it changes.
+The index rewrites in `src/index.ts` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.0-rc.2 `index.html` markup and silently do nothing if it changes.
 
 Re-verify all of the above on every dsh upgrade. Keep the exception confined to these places; everything else follows the dsh plugin rules.
+
+## Desktop app (DeepSeek Harness 0.2.0-rc.2)
+
+- The target version is the one the desktop app bundles. Its update feed (`download.deepseek.com/dsh-desk/feeds/mac-arm64/`, channel nightly) decides upgrades; npm `alpha` releases do not reach it.
+- The `desktop` profile is reserved: the regular `dsh` CLI refuses it. Install with the app's own CLI while the app is fully quit: `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add <spec>`.
+- Only one running profile may carry Kivotos: every instance binds port 7380 on the Tailscale address.
+- The Electron window builds its `index.html` itself and applies only `webserver/index-inject` rows, not `tapIndex` transforms. The phone path is unaffected: pages served through the tailnet listener come from the host's own frontend.
+- Not yet verified: opening a peer from the machine switcher inside the Electron window. The window is served from `dsh-app://app` with the local host's `streamBaseUrl`, so a mounted peer's WebSocket may not reach the peer.
 
 ## Security invariants
 

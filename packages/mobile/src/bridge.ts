@@ -4,7 +4,7 @@
  * notifications for it, and lets React Native open a given Session.
  *
  * dsh keeps the current Session in `localStorage['dsh.sessions.current']` as
- * `{"sessionId": ...}` and restores it at startup (dsh 0.2.1-alpha.1,
+ * `{"sessionId": ...}` and restores it at startup (dsh 0.2.0-rc.2,
  * ui-workspace). On a Kivotos peer page `localStorage` is already the peer's
  * namespace, so the same key works everywhere.
  */

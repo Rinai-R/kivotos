@@ -33,7 +33,7 @@ Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every
 
 ## Requirements
 
-- DeepSeek Harness (dsh) `0.2.1-alpha.1`
+- DeepSeek Harness (dsh) `0.2.0-rc.2`
 - Node `^22.19.0 || >=24`
 - Tailscale installed and signed in on each machine, all machines signed in to the same tailnet account
 
@@ -62,7 +62,13 @@ Verify that the plugin is registered; the output shows the `kivotos` entry:
 dsh --profile web --dump-config
 ```
 
-The commands above use the `web` profile. The desktop app uses the `desktop` profile, which has not been tested with Kivotos.
+The commands above use the `web` profile. For the DeepSeek Harness desktop app, which uses the `desktop` profile, fully quit the app and install with the CLI that ships inside it (the regular `dsh` refuses the `desktop` profile), then reopen the app:
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kivotos/dsh-plugin
+```
+
+Install Kivotos in only one profile that you run at a time: every Kivotos listens on port 7380.
 
 ## Use from a computer
 
@@ -151,7 +157,7 @@ See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
 ## Compatibility
 
-Kivotos is pinned to dsh `0.2.1-alpha.1`. dsh ships no phone layout and no slot owns the frame grid, so the phone stylesheet targets dsh internals (CSS-module class names and data attributes of 0.2.1-alpha.1). The index rewrites (viewport meta, manifest link) also match the exact 0.2.1-alpha.1 markup and silently do nothing if it changes. Re-verify Kivotos on every dsh upgrade.
+Kivotos is pinned to dsh `0.2.0-rc.2`. dsh ships no phone layout and no slot owns the frame grid, so the phone stylesheet targets dsh internals (CSS-module class names and data attributes of 0.2.0-rc.2). The index rewrites (viewport meta, manifest link) also match the exact 0.2.0-rc.2 markup and silently do nothing if it changes. Re-verify Kivotos on every dsh upgrade.
 
 ## Development
 

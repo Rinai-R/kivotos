@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # dsh 0.2.1-alpha.1 supports ^22.19.0 || >=24.
+        # Kivotos declares node ^22.19.0 || >=24 (packages/kivotos/package.json engines).
         node: ["22", "24"]
     steps:
       - uses: actions/checkout@v4

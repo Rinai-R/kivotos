@@ -100,7 +100,7 @@ test("injectStorageNamespace cannot be broken out of by a peer id", () => {
   assert.equal(out.split("</script>").length, 2);
 });
 
-test("index rewrites match the dsh 0.2.1-alpha.1 index.html markup", () => {
+test("index rewrites match the dsh 0.2.0-rc.2 index.html markup", () => {
   const viewport = '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   assert.match(coverViewport(viewport), /viewport-fit=cover/);
   const manifest = '<link rel="manifest" href="./manifest.webmanifest" />';

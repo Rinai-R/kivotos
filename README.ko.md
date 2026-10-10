@@ -34,7 +34,7 @@ Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에�
 ## 요구 사항
 
 - Node `^22.19.0 || >=24`
-- dsh 0.2.1-alpha.1
+- dsh 0.2.0-rc.2
 - 각 머신에서 Tailscale에 로그인되어 있을 것
 
 ## 설치
@@ -62,7 +62,13 @@ dsh plugin --profile web add "$PWD/packages/kivotos"
 dsh --profile web --dump-config
 ```
 
-데스크톱 앱 프로필은 `desktop`이지만 동작은 아직 검증되지 않았습니다.
+DeepSeek Harness 데스크톱 앱은 `desktop` 프로필을 사용합니다. 앱을 완전히 종료한 뒤 앱에 포함된 CLI로 설치하고(일반 `dsh`는 `desktop` 프로필을 거부합니다) 앱을 다시 여세요.
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kivotos/dsh-plugin
+```
+
+동시에 실행하는 프로필 중 하나에만 Kivotos를 설치하세요. 모든 Kivotos가 7380 포트에서 수신합니다.
 
 ## 사용법
 
@@ -159,7 +165,7 @@ tailnet 리스너는 Tailscale 주소에만 바인딩하며 `0.0.0.0`이나 LAN�
 
 ## 호환성
 
-Kivotos는 **dsh 0.2.1-alpha.1에 고정**되어 있습니다. dsh에는 휴대폰 레이아웃이 없고 프레임 그리드를 담당하는 슬롯도 없기 때문에, 휴대폰 스타일시트는 dsh 0.2.1-alpha.1의 내부 구조(CSS 모듈 클래스 이름 접미사와 data 속성)에 의존합니다. 이는 "다른 플러그인의 DOM이나 스타일시트를 읽지 않는다"는 dsh 플러그인 규칙을 의도적으로 어기는 것입니다. index HTML 재작성(viewport 메타, manifest 링크)도 0.2.1-alpha.1 마크업과 정확히 일치해야 하며, 마크업이 바뀌면 아무 동작 없이 무효가 됩니다. dsh를 업그레이드할 때마다 동작을 다시 확인하세요.
+Kivotos는 **dsh 0.2.0-rc.2에 고정**되어 있습니다. dsh에는 휴대폰 레이아웃이 없고 프레임 그리드를 담당하는 슬롯도 없기 때문에, 휴대폰 스타일시트는 dsh 0.2.0-rc.2의 내부 구조(CSS 모듈 클래스 이름 접미사와 data 속성)에 의존합니다. 이는 "다른 플러그인의 DOM이나 스타일시트를 읽지 않는다"는 dsh 플러그인 규칙을 의도적으로 어기는 것입니다. index HTML 재작성(viewport 메타, manifest 링크)도 0.2.0-rc.2 마크업과 정확히 일치해야 하며, 마크업이 바뀌면 아무 동작 없이 무효가 됩니다. dsh를 업그레이드할 때마다 동작을 다시 확인하세요.
 
 그 외의 부분은 dsh 플러그인 규칙을 따릅니다.
 

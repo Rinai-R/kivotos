@@ -34,7 +34,7 @@ Kivotos は DeepSeek Harness (dsh) のプラグインです。Tailscale の tail
 ## 要件
 
 - Node `^22.19.0 || >=24`
-- dsh 0.2.1-alpha.1
+- dsh 0.2.0-rc.2
 - 各マシンで Tailscale にサインイン済みであること
 
 ## インストール
@@ -62,7 +62,13 @@ dsh plugin --profile web add "$PWD/packages/kivotos"
 dsh --profile web --dump-config
 ```
 
-デスクトップアプリのプロファイルは `desktop` ですが、動作は未検証です。
+DeepSeek Harness デスクトップアプリは `desktop` プロファイルを使います。アプリを完全に終了し、アプリに同梱された CLI でインストールしてから（通常の `dsh` は `desktop` プロファイルを拒否します）、アプリを開き直してください。
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kivotos/dsh-plugin
+```
+
+同時に動かすプロファイルのうち 1 つにだけ Kivotos を入れてください。どの Kivotos も 7380 番ポートで待ち受けます。
 
 ## 使い方
 
@@ -159,7 +165,7 @@ tailnet リスナーは Tailscale のアドレスにのみバインドし、`0.0
 
 ## 互換性
 
-Kivotos は **dsh 0.2.1-alpha.1 に固定**されています。dsh にはスマートフォン向けレイアウトがなく、フレームのグリッドを管理するスロットもないため、スマートフォン用スタイルシートは dsh 0.2.1-alpha.1 の内部構造(CSS モジュールのクラス名サフィックスや data 属性)に依存しています。これは「他のプラグインの DOM やスタイルシートを読まない」という dsh プラグインの規則に意図的に反しています。index HTML の書き換え(viewport メタ、manifest リンク)も 0.2.1-alpha.1 のマークアップに厳密に一致させており、マークアップが変わると何もせずに無効になります。dsh をアップグレードするたびに動作を再確認してください。
+Kivotos は **dsh 0.2.0-rc.2 に固定**されています。dsh にはスマートフォン向けレイアウトがなく、フレームのグリッドを管理するスロットもないため、スマートフォン用スタイルシートは dsh 0.2.0-rc.2 の内部構造(CSS モジュールのクラス名サフィックスや data 属性)に依存しています。これは「他のプラグインの DOM やスタイルシートを読まない」という dsh プラグインの規則に意図的に反しています。index HTML の書き換え(viewport メタ、manifest リンク)も 0.2.0-rc.2 のマークアップに厳密に一致させており、マークアップが変わると何もせずに無効になります。dsh をアップグレードするたびに動作を再確認してください。
 
 それ以外の部分は dsh プラグインの規則に従っています。
 

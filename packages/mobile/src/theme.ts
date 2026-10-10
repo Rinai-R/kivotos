@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { StyleSheet, useColorScheme, type ColorSchemeName } from "react-native";
 
 /**
- * Colors of the app's own screens. Each value is the resolved dsh 0.2.1-alpha.1
+ * Colors of the app's own screens. Each value is the resolved dsh 0.2.0-rc.2
  * `--dsw-alias-*` token (ui-theme design-platform.css) named in its comment,
  * so the native screens and the dsh WebView read as one product.
  */
