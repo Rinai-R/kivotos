@@ -59,6 +59,17 @@ jobs:
         run: |
           node -e 'const fs = require("node:fs"); const version = process.env.TAG.slice(1); for (const file of ["package.json", "packages/kivotos/package.json", "packages/mobile/package.json", "packages/mobile/app.json"]) { const data = JSON.parse(fs.readFileSync(file)); const actual = data.expo?.version ?? data.version; if (actual !== version) { console.error(`${file}: expected ${version}, found ${actual}`); process.exitCode = 1; } }'
 
+      # The release job publishes this section as the GitHub Release description.
+      - name: Verify the changelog describes the tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! grep -qxF "## ${TAG}" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md has no \"## ${TAG}\" section."
+            exit 1
+          fi
+
   android:
     name: android apk
     runs-on: ubuntu-latest
@@ -154,6 +165,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: kivotos-android
@@ -167,6 +180,18 @@ jobs:
           cd release
           sha256sum "Kivotos-${TAG}.apk" > "Kivotos-${TAG}.sha256"
 
+      # The description is the tag's section of CHANGELOG.md, up to the next "## " heading.
+      - name: Extract release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          awk -v heading="## ${TAG}" '$0 == heading { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error file=CHANGELOG.md::The \"## ${TAG}\" section of CHANGELOG.md is empty."
+            exit 1
+          fi
+
+      # --generate-notes appends GitHub's "Full Changelog" link below the description.
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,7 +199,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [[ "$TAG" == *-* ]]; then
-            gh release create "$TAG" release/* --verify-tag --generate-notes --prerelease --title "$TAG"
+            gh release create "$TAG" release/* --verify-tag --notes-file notes.md --generate-notes --prerelease --title "$TAG"
           else
-            gh release create "$TAG" release/* --verify-tag --generate-notes --title "$TAG"
+            gh release create "$TAG" release/* --verify-tag --notes-file notes.md --generate-notes --title "$TAG"
           fi
