@@ -70,6 +70,33 @@ jobs:
             exit 1
           fi
 
+  relay:
+    name: relay (go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/relay
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/relay/go.mod
+          cache-dependency-path: packages/relay/go.sum
+
+      - name: Format
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build
+        run: go build -o kivotos-relay .
+
   android:
     name: android apk
     runs-on: ubuntu-latest

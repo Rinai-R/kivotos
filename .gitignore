@@ -58,3 +58,6 @@ packages/dsh-link/
 
 # Heap snapshots dumped by --heapsnapshot-near-heap-limit; keep them for debugging.
 *.heapsnapshot
+
+# Relay binary built in place
+packages/relay/kivotos-relay
