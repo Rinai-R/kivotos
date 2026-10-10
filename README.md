@@ -11,222 +11,75 @@
   <a href="README.ko.md">한국어</a>
 </p>
 
-Kivotos is a plugin for DeepSeek Harness (dsh). It lets you open and drive every dsh on your tailnet from any dsh, with dsh's full UI, gives dsh a complete phone layout, and comes with an Android app that notifies you when a session needs you. Kivotos has no UI of its own for sessions: every session screen is dsh's own UI.
+<p align="center">Every DeepSeek Harness you run, from any computer or your phone.</p>
 
-## Features
+Kivotos is an open source plugin for DeepSeek Harness (dsh). Open any of your machines' dsh from any other, with its full UI: sessions, approvals, models, settings, files, and terminal. It adds a phone layout to dsh and comes with an Android app.
 
-- **Federation over Tailscale.** From any dsh, open the complete UI of any other dsh on your tailnet that also runs Kivotos. The remote UI is the remote dsh's own UI served through a reverse proxy, not a reimplementation, so everything works remotely:
-  - sessions: new, delete, archive
-  - approvals and user questions
-  - model listing and switching
-  - settings
-  - workspace files
-  - terminal
-- **Machine switcher.** An entry in the dsh sidebar footer, above Settings, lists "this machine" plus the peers the serving host mounts. Selecting one navigates to `/` or `/kivotos/peer/<id>/`.
-- **Phone layout.** Below 768px width, in the Kivotos app or on a touch-first device (a narrowed desktop window keeps dsh's own layout):
-  - single column; the sidebar becomes a slide-in drawer (`min(86vw, 320px)`) with a dimmed backdrop that closes it
-  - a drawer toggle button before the conversation title
-  - composer pinned at the bottom (dsh's own sticky composer) with safe-area insets and `viewport-fit=cover`
-  - 16px inputs, so iOS does not zoom on focus
-  - dsh theme tokens only, light and dark
-- **Android app.** Opens each machine's full dsh UI and notifies you, with a system notification and a pop-up, when a session needs an approval, asks a question, or finishes a task while you are not looking at it. Tapping the notification opens that session.
+- **All your machines:** Switch between them from the dsh sidebar. What you see is the remote dsh's own UI, so everything works.
+- **Two ways to connect:** Tailscale, or a relay server you run yourself. A machine can use both at once.
+- **Untrusted relay:** The relay only forwards end-to-end encrypted data. It cannot read it or join your network.
+- **Phone layout:** Drawer sidebar, composer at the bottom, safe areas, light and dark.
+- **Android app:** The full dsh UI, with notifications for approvals, questions, and finished tasks.
+- **Self-hosted:** No account, no telemetry, no push service.
 
-## Requirements
+## Getting Started
 
-- DeepSeek Harness (dsh) `0.2.0-rc.2`
-- Node `^22.19.0 || >=24`
-- Tailscale installed and signed in on each machine, all machines signed in to the same tailnet account
+### Prerequisites
 
-## Install
+- DeepSeek Harness `0.2.0-rc.2`
+- [Tailscale](https://tailscale.com) signed in to the same account on every device, or your own relay server
 
-On each machine, install the published package from npm:
+### Plugin
 
-```sh
+Install it on every machine and restart dsh:
+
+```bash
 dsh plugin --profile web add kivotos
 ```
 
-Restart dsh. Repeat on every machine you want to reach or reach from.
+For the desktop app, quit it first and use the CLI inside it:
 
-To run from source instead (for development), build the plugin and add its directory:
-
-```sh
-git clone git@github.com:Rinai-R/kivotos.git
-cd kivotos
-npm install   # installs the build tools and builds packages/kivotos/dist/
-dsh plugin --profile web add "$PWD/packages/kivotos"
-```
-
-Verify that the plugin is registered; the output shows the `kivotos` entry:
-
-```sh
-dsh --profile web --dump-config
-```
-
-The commands above use the `web` profile. For the DeepSeek Harness desktop app, which uses the `desktop` profile, fully quit the app and install with the CLI that ships inside it (the regular `dsh` refuses the `desktop` profile), then reopen the app:
-
-```sh
+```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add kivotos
 ```
 
-Install Kivotos in only one profile that you run at a time: every Kivotos listens on port 7380.
+Your other machines appear under **Machines** at the bottom of the sidebar.
 
-## Use from a computer
+### Phone
 
-Open dsh as usual. The machine switcher in the sidebar footer lists this machine and every peer that was discovered. Select a peer to open its full UI at `/kivotos/peer/<id>/`; select "this machine" to return to `/`.
+Install the APK from the [releases page](https://github.com/Rinai-R/kivotos/releases). On the computer, open **Machines → Pair phone** and scan the code in the app.
 
-## Use from a phone
+### Relay
 
-### Android app
+Run the relay on a server with a public address:
 
-1. Install the Tailscale app on the phone and sign in with the same tailnet account as your computers.
-2. Install the Kivotos APK from the latest [GitHub Release](https://github.com/Rinai-R/kivotos/releases) (`Kivotos-v*.apk`). For an unreleased build, download `kivotos-android` from GitHub Actions or build it yourself (see Development).
-3. Keep dsh with Kivotos running on the computer. In its sidebar machine switcher choose **Pair phone** to show a QR code. In the phone app choose **Scan code** and scan it; the app checks that the computer responds and admits the phone. Repeat for each computer. If scanning is unavailable, enter the **computer's** Tailscale IP and listener port manually (not the phone's IP).
-4. Turn on **Notifications**. Android asks for permission; allow Kivotos to run in the background when the app offers it, or the system may stop notifications to save battery.
-5. Tap a machine to open its full dsh UI.
-
-While notifications are on, the app keeps one connection per machine open (Android shows an ongoing "Watching N machines" notification for it). You get a system notification with a pop-up when a session:
-
-- needs an approval (the notification shows what it wants to run),
-- asks you a question,
-- finishes a task or fails.
-
-No notification is shown for the session you are looking at in the app; opening a session clears its notifications, and an approval or question answered anywhere withdraws its notification. Tapping a notification opens the app on that machine, in that session. While the app is open on another screen, the same events also appear as an in-app banner.
-
-The app is Android only and built with Expo (React Native); the dsh screens are dsh's own UI in a WebView. Notifications come from Kivotos on each computer, not from a push service, so no Google services are needed.
-
-The QR code contains only the computer's tailnet listener address, never a login token. Tailscale's Android app does not expose its peer list to Kivotos: scanning pairs a computer once, and the app remembers it thereafter.
-
-### Browser
-
-You can also open the computer's tailnet listener in the phone browser:
-
-- `http://<computer's tailscale IP>:7380/`
-- or `https://<name>.<tailnet>.ts.net:7380/` once HTTPS certificates are enabled for the tailnet
-
-Use the machine switcher on that page to reach the other machines. The browser gets no notifications.
-
-There is no token and no login in either case: the tailnet identity is the login.
-
-Plain HTTP over Tailscale is encrypted by WireGuard, but the browser does not treat the page as a secure context, so some browser APIs (for example the clipboard) may be unavailable. Enabling HTTPS certificates for the tailnet fixes that; see [Tailscale HTTPS certificates](https://tailscale.com/kb/1153/enabling-https).
-
-The app and the phone layout have been verified on an Android 15 emulator and in a browser at 390x844. Use on a physical phone and between two physical machines has not been verified yet.
-
-## Connect through your own relay
-
-Tailscale is one way to connect machines; a relay server you run is another. They are independent: a machine can be in a tailnet and in a relay network at once, and a phone can reach it through either. Use a relay when Tailscale cannot connect two devices directly and falls back to its slow public relays.
-
-The relay is not trusted. It pairs connections and copies bytes; the devices encrypt end to end and prove membership to each other with a key the relay never sees. Anyone who has the invite link is a member: keep it like a password. To remove a member, create a new network and join the remaining devices to it.
-
-1. Run the relay on a server with a public address (see `packages/relay/Dockerfile`, or build `packages/relay` with Go). It serves plain HTTP on port 7443; put an HTTPS reverse proxy in front of it, or set `tls.cert` and `tls.key`.
-2. On the first computer, open dsh **Settings → Remote access → Own relay**, enter the relay address, and choose **Create network**.
-3. The page shows a command. Run it once on the relay server: `kivotos-relay network add <registration>` (with Docker: `docker exec kivotos-relay kivotos-relay network add <registration>`).
-4. On every other computer, paste the invite link on the same page and choose **Join network**. In the phone app, scan the invite QR code, or paste the link under **Enter address manually**.
-
-Computers of the network appear in the machine switcher marked **Relay**, and in the phone app marked **Through relay**.
-
-## Configuration
-
-The plugin's config row id is `kivotos`. Override it in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. Defaults:
-
-```yaml
-- id: kivotos
-  config:
-    port: 7380 # tailnet listener port, same on every machine
-    tls: auto # auto | on | off
-    discover: true # probe same-user tailnet nodes
-    refreshSeconds: 30 # 5..3600
-    listen: true # run the tailnet listener on this machine
-    listenHost: "" # "" = this node's Tailscale IPv4
-    allowSelf: false # admit requests from this node's own address (lab only)
-    tailscale: tailscale # CLI path
-    staticPeers: [] # [{ id, name, host, port, tls?, servername? }]
-    trace: requests # off | requests | frames
+```bash
+docker build -t kivotos-relay packages/relay
+docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data kivotos-relay
 ```
 
-A matching override replaces the complete `config` object of the row; keys you leave out fall back to the defaults above.
+On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay with the command the page shows. Other computers and phones join with the invite link or its QR code.
 
-`tls: auto` uses HTTPS when the tailnet has HTTPS certificates enabled and issues the certificate with `tailscale cert` into `$DSH_HOME/kivotos/tls/`. `on` requires HTTPS; `off` never uses it. Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
-
-## Trace log
-
-Kivotos records how it serves the phone and your other machines, one JSON object per line, in `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl` (by default `~/.dsh/kivotos/logs/`). Files older than 7 days are deleted and a day stops at 50 MB. Paths are logged without their query string.
-
-| `event`                            | Recorded                                                                                                                                                                                                                                                       |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `http`                             | Each request to the tailnet listener: client IP and node, admission time (`admitMs`; `cached` tells whether `tailscale whois` was skipped), status, time to first byte (`ttfbMs`), total time (`totalMs`), bytes each way, `content-encoding`, `cache-control` |
-| `ws.open`, `ws`                    | Each WebSocket (dsh's `remote.mux`): handshake time, duration, bytes each way                                                                                                                                                                                  |
-| `ws.frame`                         | At `trace: frames` only: every WebSocket frame header, direction, size, and milliseconds since the socket opened                                                                                                                                               |
-| `client`                           | From the phone page itself: navigation phases, every resource's time, first-byte time and size as the phone saw them, and when the dsh frame first rendered (`shellReadyMs`)                                                                                   |
-| `sse.open`, `sse.close`            | The Android app's notification stream                                                                                                                                                                                                                          |
-| `peer.http`, `peer.ws`             | Requests this dsh forwards to other machines                                                                                                                                                                                                                   |
-| `login`, `probe`, `listener.start` | Loopback login, peer discovery, listener start                                                                                                                                                                                                                 |
-
-`trace: frames` is the level for diagnosing a slow session: it shows each request dsh's UI sends over the WebSocket and when the answer goes back. Turn it on in the config row, restart dsh, reproduce, then read the day's file.
-
-## Security
-
-**Anyone signed in to your tailnet account has full control of every dsh running Kivotos on it**, the same as sitting at that computer: run commands, read and write files, use the terminal, approve tool calls. Only Tailscale identity is checked; there is no second factor. Keep the tailnet account secure and do not share it.
-
-The tailnet listener admits a request only if:
-
-- the `Host` header names this node (its Tailscale IPs or MagicDNS name); otherwise 421
-- the request is not cross-site: no `Sec-Fetch-Site: cross-site`, and any `Origin` equals the request authority; otherwise 403
-- `tailscale whois` of the remote address belongs to the same tailnet user as this node; otherwise 403. Tagged devices, device sharing, and other users of a shared tailnet are rejected
-- it does not come from this node's own address, unless `allowSelf: true`
-
-The listener binds only the Tailscale address, not `0.0.0.0` and not the LAN. Peer mounts on the serving dsh sit behind dsh's own connection fence (dsh login cookie plus Host and Origin checks).
-
-See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
-
-## How it works
-
-- Every dsh running Kivotos opens a second HTTP listener on its Tailscale address only (default port 7380). dsh itself stays on loopback. Admitted requests are forwarded to the loopback dsh with a dsh login cookie that Kivotos obtains in-process; the browser never sees that cookie.
-- Every `refreshSeconds`, Kivotos reads `tailscale status --json`, takes the online nodes of the same tailnet user, probes `GET /kivotos/hello` on `port` (HTTPS first, then HTTP), and mounts those that answer, plus any `staticPeers`.
-- Each peer is mounted on the serving dsh at `/kivotos/peer/<id>/`, behind dsh's connection fence, and forwarded to the peer's tailnet listener. Each peer page gets its own `localStorage` namespace so peer UIs on the same origin do not overwrite each other's client state.
-- Hops do not chain. A mount marks forwarded requests and refuses marked ones with 508, so `/kivotos/peer/b/kivotos/peer/a/` does not work. The machine list always comes from the serving host.
-
-## Compatibility
-
-Kivotos is pinned to dsh `0.2.0-rc.2`. dsh ships no phone layout and no slot owns the frame grid, so the phone stylesheet targets dsh internals (CSS-module class names and data attributes of 0.2.0-rc.2). The index rewrites (viewport meta, manifest link) also match the exact 0.2.0-rc.2 markup and silently do nothing if it changes. Re-verify Kivotos on every dsh upgrade.
+Anyone with the invite link, or signed in to your Tailscale account, has full control of your machines.
 
 ## Development
 
-The plugin lives in `packages/kivotos/`: TypeScript sources in `src/`, built with esbuild into `dist/`, which dsh loads. It has no runtime dependencies. Scripts at the repository root:
+- `packages/kivotos`: the dsh plugin (TypeScript)
+- `packages/mobile`: the Android app (Expo, Kotlin)
+- `packages/relay`: the relay server (Go)
 
-```sh
-npm run build         # esbuild: src/ -> dist/ (npm install also runs it)
-npm run typecheck     # tsc --noEmit
-npm run lint          # oxlint
-npm run format        # oxfmt
-npm run format:check  # oxfmt, check only
-npm test              # node --test on the TypeScript sources
+```bash
+npm install          # install tools and build the plugin
+npm run build        # rebuild the plugin after changing src/
+npm run typecheck
+npm test
+
+npm run apk -w packages/mobile     # Android APK (JDK 17, Android SDK)
+cd packages/relay && go test ./...
 ```
 
-After changing `src/`, run `npm run build` and restart dsh.
-
-The lefthook pre-commit hook runs the format check, lint, and typecheck.
-
-To test federation on one machine, run two dsh instances with Kivotos, give each a distinct `port`, set `allowSelf: true`, and point each at the other through `staticPeers`.
-
-The Android app lives in `packages/mobile/` (Expo SDK 57, React Native). Its notification service is a local Expo module in Kotlin, `packages/mobile/modules/kivotos-attention/`. To build the APK you need JDK 17 and the Android SDK (`ANDROID_HOME`):
-
-```sh
-npm install
-npm run apk -w packages/mobile   # expo prebuild, then gradlew assembleRelease
-# -> packages/mobile/android/app/build/outputs/apk/release/app-release.apk
-```
-
-`packages/mobile/android/` is generated by `expo prebuild` and is not committed. The release APK is signed with the debug key; it installs directly but is not meant for an app store.
-
-To publish a version, update `version` in the root, plugin, and mobile `package.json` files and `expo.version` in `packages/mobile/app.json` to the same value; increment `expo.android.versionCode` for Android upgrades. Write the version's section in [CHANGELOG.md](CHANGELOG.md): CI publishes it as the description of the GitHub Release and refuses a tag without one. Then push a matching `v<version>` tag (for example `v0.1.2`). CI runs the checks and builds the APK, publishes `kivotos` to npm (with provenance), then attaches `Kivotos-v<version>.apk` and `Kivotos-v<version>.sha256` to a GitHub Release. Tags containing a hyphen create a prerelease and publish to npm under the `next` dist-tag. Ordinary commits on `main` keep the temporary Actions artifact. The published APK still uses Expo's debug signing key: this is for direct installation, not store distribution or a production signing identity.
-
-```sh
-git tag v0.1.2
-git push origin v0.1.2
-```
+See [AGENTS.md](AGENTS.md) for architecture and conventions, and [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
-
-Kivotos is not affiliated with DeepSeek or Tailscale.
+Apache-2.0. Kivotos is not affiliated with DeepSeek or Tailscale.
