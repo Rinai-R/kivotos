@@ -20,6 +20,11 @@ The repository previously hosted a fork of Paseo. That code is gone; do not rein
 - `packages/kivotos/src/index.ts`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.
 - `packages/kivotos/src/proxy.ts`: HTTP and WebSocket forwarding helpers, header filtering, hop marking, `Location` rewriting.
 - `packages/kivotos/src/trace.ts`: trace log (`TraceLog`, daily JSONL under `$DSH_HOME/kivotos/logs/`, 7-day retention, 50 MB/day) and `WsFrameReader`, a passive WebSocket frame-header parser for `trace: frames`. Every trace record drops the query string (`tracePath`): it can carry a login token.
+- `packages/kivotos/src/federation.ts`: a relay network as a member sees it: the values derived from the federation key, invite links, the registration, and the member-to-member proof. Must stay in step with `packages/relay/wire/wire.go` and the app's `Network.kt`.
+- `packages/kivotos/src/relay.ts`: member side of the relay protocol: WebSocket byte streams, `secureDial` / `secureAccept` (TLS 1.3 with both certificates, node id pinned, proofs both ways), `RelayLink` (control connection with reconnect), `relayAgent`.
+- `packages/kivotos/src/relay-host.ts`: `RelayHost`: stored identity and membership (`$DSH_HOME/kivotos/identity.json`, `relay.json`, mode 0600), sessions served to the `Frontend`, relay peers published to `PeerRoutes`.
+- `packages/kivotos/src/x509.ts`: the node's self-signed P-256 certificate, DER-encoded by hand (no dependency).
+- `packages/kivotos/src/settings.tsx`: the "Remote access" section of dsh Settings, a tab per link.
 - `packages/kivotos/src/tailscale.ts`: `tailscale` CLI wrapper (`status --json`, `whois --json`, `cert`).
 - `packages/kivotos/src/dsh.ts`: the slice of the dsh Host API Kivotos uses (`webServer`, `connection`, `logger`, `on`, optional `sessionProjections`), typed locally.
 - `packages/kivotos/src/attention.ts`: `AttentionTracker`, which folds every Session's log (`approval/asked`, `approval/decided`, `ask_user_question` calls and answers, `turn/end`) into attention frames for `/kivotos/events`.
@@ -30,6 +35,7 @@ The repository previously hosted a fork of Paseo. That code is gone; do not rein
 - `packages/kivotos/test/*.test.ts`: `node:test` regression tests, run directly on the TypeScript sources (Node type stripping).
 - `packages/mobile/`: Android app, Expo SDK 57 / React Native, Android only. `App.tsx` and `src/` are the React Native screens; `src/bridge.ts` is the script injected into dsh pages (reports the on-screen Session, opens a Session).
 - `packages/mobile/modules/kivotos-attention/`: local Expo module in Kotlin. `AttentionService` (foreground service, one SSE stream per machine), `Notifier` (channels, heads-up notifications, the monochrome status-bar icon), `AttentionState`, `KivotosAttentionPackage` (activity lifecycle: visibility, notification taps), `BootReceiver`.
+- `packages/mobile/modules/kivotos-attention/.../Network.kt`, `WsStream.kt`, `RelayClient.kt`, `RelayProxy.kt`: the app's relay side. `RelayProxy` gives each relay computer a loopback HTTP address guarded by a per-process cookie; each connection becomes a `RelayClient.dial` session (Keystore-held node key, pinned node id, proofs).
 - `packages/relay/`: the relay server, a Go module (`github.com/Rinai-R/kivotos/packages/relay`). See "Relay" below.
 
 ## Commands
@@ -145,6 +151,10 @@ Re-verify all of the above on every dsh upgrade. Keep the exception confined to 
 - The Electron window builds its `index.html` itself and applies only `webserver/index-inject` rows, not `tapIndex` transforms. The phone path is unaffected: pages served through the tailnet listener come from the host's own frontend.
 - Not yet verified: opening a peer from the machine switcher inside the Electron window. The window is served from `dsh-app://app` with the local host's `streamBaseUrl`, so a mounted peer's WebSocket may not reach the peer.
 
+## Links
+
+A machine is reachable through independent links: the tailnet listener and a relay network. Both admit a caller their own way and then hand it to the same `Frontend` (`index.ts`), which serves Kivotos' routes and forwards the rest to the loopback dsh. `PeerRoutes.update(via, peers)` keeps one peer list per link and mounts the union. Adding a link means: admit, call `Frontend`, publish peers; nothing else changes.
+
 ## Security invariants
 
 These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure parts; run `npm test` after touching `src/index.ts` or `src/proxy.ts`.
@@ -160,6 +170,10 @@ These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure
 - Hop guard: peer mounts set `x-kivotos-hop` on forwarded requests and answer `508` to requests that already carry it. Hops never chain.
 - `injectStorageNamespace` escapes the peer id so it cannot close the injected script.
 - Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
+- Relay sessions: nothing is served or sent before `secureAccept` / `secureDial` returns. The dialing side pins the target's node id; both sides check a proof that binds the federation key to both certificates of that session. `test/relay.test.ts` covers outsiders and a relay in the middle.
+- The federation key, the peer proof key and the node's private key never go to the relay; only the network id and relay token do.
+- `/kivotos/links` and `/kivotos/relay` check `ctx.connection.requestRejection` first: the invite they return is the federation key.
+- The app's loopback doors serve only requests carrying `RelayProxy.cookie`.
 
 ## Two-instance lab
 

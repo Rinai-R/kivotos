@@ -2,6 +2,20 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## Unreleased
+
+- Connect through a relay server you run, next to or instead of Tailscale. A machine can be in a tailnet and a relay network at once. The relay (`packages/relay`, Go, with a Dockerfile) forwards end-to-end encrypted streams and cannot read them or join the network.
+- dsh Settings gains **Remote access**, with a tab per way to connect: create or join a relay network, see its state, and invite other devices by link or QR code.
+- Android app: scan or paste an invite to add every computer of a relay network.
+- The phone layout applies only in the app or on touch devices, no longer in a narrowed desktop window.
+
+### 中文
+
+- 可以通过自建的中继服务器连接，与 Tailscale 并存或替代它。一台机器可以同时在 tailnet 和中继网络里。中继（`packages/relay`，Go，附 Dockerfile）只转发端到端加密的数据流，读不到内容，也无法加入网络。
+- dsh 设置新增 **远程连接**，每种连接方式一个标签页：创建或加入中继网络、查看状态、用链接或二维码邀请其它设备。
+- 安卓 App：扫描或粘贴邀请，即可添加中继网络里的所有电脑。
+- 手机布局只在 App 内或触摸设备上生效，缩窄的桌面窗口不再触发。
+
 ## v0.1.3
 
 - Add a trace log for diagnosing slow phone connections. One JSON line per event in `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`; set `trace` to `off`, `requests` (default) or `frames`. The README lists the fields.

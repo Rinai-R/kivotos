@@ -111,6 +111,19 @@ Plain HTTP over Tailscale is encrypted by WireGuard, but the browser does not tr
 
 The app and the phone layout have been verified on an Android 15 emulator and in a browser at 390x844. Use on a physical phone and between two physical machines has not been verified yet.
 
+## Connect through your own relay
+
+Tailscale is one way to connect machines; a relay server you run is another. They are independent: a machine can be in a tailnet and in a relay network at once, and a phone can reach it through either. Use a relay when Tailscale cannot connect two devices directly and falls back to its slow public relays.
+
+The relay is not trusted. It pairs connections and copies bytes; the devices encrypt end to end and prove membership to each other with a key the relay never sees. Anyone who has the invite link is a member: keep it like a password. To remove a member, create a new network and join the remaining devices to it.
+
+1. Run the relay on a server with a public address (see `packages/relay/Dockerfile`, or build `packages/relay` with Go). It serves plain HTTP on port 7443; put an HTTPS reverse proxy in front of it, or set `tls.cert` and `tls.key`.
+2. On the first computer, open dsh **Settings → Remote access → Own relay**, enter the relay address, and choose **Create network**.
+3. The page shows a command. Run it once on the relay server: `kivotos-relay network add <registration>` (with Docker: `docker exec kivotos-relay kivotos-relay network add <registration>`).
+4. On every other computer, paste the invite link on the same page and choose **Join network**. In the phone app, scan the invite QR code, or paste the link under **Enter address manually**.
+
+Computers of the network appear in the machine switcher marked **Relay**, and in the phone app marked **Through relay**.
+
 ## Configuration
 
 The plugin's config row id is `kivotos`. Override it in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. Defaults:

@@ -113,6 +113,19 @@ Tailscale 위의 일반 HTTP 통신은 WireGuard로 암호화되지만, 브라�
 
 앱과 휴대폰 레이아웃은 Android 15 에뮬레이터와 브라우저 390x844에서 검증되었습니다. 실제 휴대폰에서의 사용과 두 대의 물리 머신 간 사용은 아직 검증되지 않았습니다.
 
+## 직접 운영하는 릴레이로 연결하기
+
+Tailscale은 머신을 연결하는 한 가지 방법이고, 직접 운영하는 릴레이 서버는 또 다른 방법입니다. 둘은 서로 독립적입니다. 한 머신이 tailnet과 릴레이 네트워크에 동시에 참여할 수 있고, 휴대폰은 어느 쪽으로든 접속할 수 있습니다. Tailscale이 직접 연결하지 못해 느린 공용 릴레이를 거칠 때 사용하세요.
+
+릴레이는 신뢰하지 않습니다. 연결을 짝지어 바이트를 전달할 뿐이며, 기기끼리는 종단 간 암호화하고 릴레이가 알 수 없는 키로 서로 구성원임을 증명합니다. 초대 링크를 가진 사람은 누구나 구성원이 되므로 비밀번호처럼 보관하세요. 구성원을 제외하려면 새 네트워크를 만들고 나머지 기기를 다시 참여시켜야 합니다.
+
+1. 공인 주소가 있는 서버에서 릴레이를 실행합니다(`packages/relay/Dockerfile` 참고, 또는 Go로 `packages/relay` 빌드). 7443 포트에서 평문 HTTP를 제공하므로 앞단에 HTTPS 리버스 프록시를 두거나 `tls.cert`와 `tls.key`를 설정하세요.
+2. 첫 번째 컴퓨터에서 dsh의 **Settings → Remote access → Own relay**를 열고 릴레이 주소를 입력한 뒤 **Create network**를 선택합니다.
+3. 표시되는 명령을 릴레이 서버에서 한 번 실행합니다: `kivotos-relay network add <registration>` (Docker: `docker exec kivotos-relay kivotos-relay network add <registration>`).
+4. 다른 컴퓨터에서는 같은 페이지에 초대 링크를 붙여 넣고 **Join network**를 선택합니다. 휴대폰 앱에서는 초대 QR 코드를 스캔하거나 **Enter address manually**에 링크를 붙여 넣습니다.
+
+네트워크의 컴퓨터는 머신 전환기에 **Relay**, 휴대폰 앱에 **Through relay**로 표시됩니다.
+
 ## 설정
 
 설정 행의 id는 `kivotos`입니다. 재정의는 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`에 작성합니다. 기본값은 다음과 같습니다.

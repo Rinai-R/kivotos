@@ -111,6 +111,19 @@ App 只支持安卓，用 Expo（React Native）构建；dsh 页面是 WebView �
 
 App 和手机布局已在安卓 15 模拟器上、以及浏览器中以 390x844 尺寸验证。在真实手机上使用以及两台物理机器之间的使用尚未验证。
 
+## 通过自建中继连接
+
+Tailscale 是连接机器的一种方式，自建中继是另一种。两者互不影响：一台机器可以同时在 tailnet 和中继网络里，手机可以走任意一条。当 Tailscale 打不通直连、只能走它很慢的公共中继时，可以改用自建中继。
+
+中继不被信任。它只配对连接、转发字节；设备之间端到端加密，并用一把中继拿不到的密钥互相证明成员身份。拿到邀请链接的人就是成员，请像密码一样保管。要移除某个成员，只能新建一个网络，让其余设备重新加入。
+
+1. 在一台有公网地址的服务器上运行中继（见 `packages/relay/Dockerfile`，或用 Go 构建 `packages/relay`）。它在 7443 端口提供明文 HTTP，请在前面放一个 HTTPS 反向代理，或配置 `tls.cert` 和 `tls.key`。
+2. 在第一台电脑上打开 dsh 的 **设置 → 远程连接 → 自建中继**，填写中继地址，点 **创建网络**。
+3. 页面会显示一条命令，在中继服务器上执行一次：`kivotos-relay network add <registration>`（用 Docker 时：`docker exec kivotos-relay kivotos-relay network add <registration>`）。
+4. 在其它电脑的同一页面粘贴邀请链接，点 **加入网络**。在手机 App 里扫描邀请二维码，或在 **手动输入地址** 里粘贴链接。
+
+网络里的电脑会出现在机器切换器中，标注 **中继**；在手机 App 中标注 **经由中继**。
+
 ## 配置
 
 插件的配置行 id 为 `kivotos`，可在 `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 中覆盖。默认值：
