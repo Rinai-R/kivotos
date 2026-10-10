@@ -97,6 +97,18 @@ jobs:
       - name: Build
         run: go build -o kivotos-relay .
 
+      # The image must start as its non-root user and be able to write its volume.
+      - name: Build and start the container image
+        run: |
+          docker build -t kivotos-relay --build-arg VERSION=ci .
+          docker run --rm kivotos-relay --version
+          docker run -d --name relay kivotos-relay
+          sleep 2
+          docker exec relay kivotos-relay host list
+          docker exec relay wget -q -O /dev/null http://127.0.0.1:7443/healthz
+          docker stop relay
+          docker logs relay
+
   android:
     name: android apk
     runs-on: ubuntu-latest

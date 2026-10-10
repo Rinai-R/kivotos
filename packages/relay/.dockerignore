@@ -1,0 +1,5 @@
+kivotos-relay
+kivotos-relay.yaml
+registry.json
+admin.sock
+*.pem
