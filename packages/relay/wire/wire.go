@@ -1,141 +1,151 @@
 // Package wire defines what travels between the relay and its peers before a
-// connection becomes an opaque byte stream: the challenge, the signed hello,
-// the reply, and the control messages on a host's long-lived connection.
+// connection becomes an opaque byte stream: the hello, the reply, and the
+// control messages on a node's long-lived connection.
 //
 // Every message is one line of JSON. The package does no network I/O beyond
 // reading and writing those lines.
+//
+// A federation ("network") is identified by values its members derive from
+// one shared secret, with HKDF-SHA256 (no salt) and these info strings:
+//
+//	"kivotos network id"   16 bytes  NetworkID, public
+//	"kivotos relay token"  32 bytes  Token, shown to the relay to be let in
+//	"kivotos peer proof"   32 bytes  never sent to the relay; members prove
+//	                                 it to each other inside their own TLS
+//
+// The relay therefore learns who may use it, but nothing that lets it pose
+// as a member.
 package wire
 
 import (
 	"bufio"
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+	"time"
+	"unicode/utf8"
 )
 
-// Version is the protocol version the relay announces in its challenge.
-const Version = 1
+// Version is the protocol version a hello must carry.
+const Version = 2
 
-// MaxLine bounds one JSON line, newline included.
-const MaxLine = 4096
+// MaxLine bounds one JSON line, newline included. It has room for a reply
+// listing every node of a full network.
+const MaxLine = 16 << 10
 
-// signingContext separates relay hello signatures from any other use of a device key.
-const signingContext = "kivotos-relay-v1"
+// MaxName bounds a node's display name, in bytes.
+const MaxName = 64
 
 // Role says what a connection is for.
 type Role string
 
 const (
-	// RoleHost is a computer's long-lived control connection.
-	RoleHost Role = "host"
+	// RoleNode is a computer's long-lived control connection. The computer
+	// becomes visible to its network and can be dialed.
+	RoleNode Role = "node"
 	// RoleAccept is a computer's data connection answering one "open".
 	RoleAccept Role = "accept"
-	// RoleClient is a paired device asking for a stream to a host.
-	RoleClient Role = "client"
-	// RolePair is an unpaired device presenting a one-time pairing ticket.
-	RolePair Role = "pair"
+	// RoleDial asks for a stream to the node named by Target.
+	RoleDial Role = "dial"
+	// RolePeers asks which nodes of the network are online.
+	RolePeers Role = "peers"
 )
 
-// Key is a device identity: an Ed25519 public key in unpadded base64url.
-type Key string
+// NetworkID names a federation: 16 bytes in unpadded base64url.
+type NetworkID string
 
-// NewKey encodes a public key.
-func NewKey(pub ed25519.PublicKey) Key {
-	return Key(base64.RawURLEncoding.EncodeToString(pub))
-}
+// Token lets its holder use the relay as a member of one network: 32 bytes
+// in unpadded base64url.
+type Token string
 
-// ParseKey validates s as a Key.
-func ParseKey(s string) (Key, error) {
-	if _, err := Key(s).public(); err != nil {
-		return "", err
-	}
-	return Key(s), nil
-}
+// NodeID names a member: the SHA-256 of the certificate it presents to other
+// members, 32 bytes in unpadded base64url. The relay cannot check it and does
+// not need to: the member dialing verifies it end to end.
+type NodeID string
 
-func (k Key) public() (ed25519.PublicKey, error) {
-	raw, err := base64.RawURLEncoding.DecodeString(string(k))
+func checkLen(what, s string, n int) error {
+	raw, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return nil, fmt.Errorf("decoding key: %w", err)
+		return fmt.Errorf("%s: %w", what, err)
 	}
-	if len(raw) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("key is %d bytes, want %d", len(raw), ed25519.PublicKeySize)
+	if len(raw) != n {
+		return fmt.Errorf("%s is %d bytes, want %d", what, len(raw), n)
 	}
-	return raw, nil
+	return nil
 }
 
-// Challenge is the relay's first line on every connection.
-type Challenge struct {
-	V         int    `json:"v"`
-	Challenge string `json:"challenge"`
+// Registration is what a network's creator hands the relay operator:
+// "<network id>.<token>".
+type Registration struct {
+	Network NetworkID
+	Token   Token
 }
 
-// NewChallenge returns a challenge with a fresh random nonce.
-func NewChallenge() Challenge {
-	nonce := make([]byte, 32)
-	rand.Read(nonce) // never fails (Go 1.24+)
-	return Challenge{V: Version, Challenge: base64.RawURLEncoding.EncodeToString(nonce)}
+// ParseRegistration validates s as a Registration.
+func ParseRegistration(s string) (Registration, error) {
+	id, token, ok := strings.Cut(s, ".")
+	if !ok {
+		return Registration{}, errors.New(`registration must look like "<network id>.<token>"`)
+	}
+	if err := checkLen("network id", id, 16); err != nil {
+		return Registration{}, err
+	}
+	if err := checkLen("token", token, 32); err != nil {
+		return Registration{}, err
+	}
+	return Registration{Network: NetworkID(id), Token: Token(token)}, nil
 }
 
-// Hello is a peer's answer to the challenge. Which fields are set depends on Role.
+// Hello is the first line a peer sends. Which fields are set depends on Role.
 type Hello struct {
-	Role Role `json:"role"`
-	// Key is the sender's identity.
-	Key Key `json:"key"`
-	// Host is the computer a client or pairing device wants to reach.
-	Host Key `json:"host,omitempty"`
-	// Conn names the "open" an accept connection answers.
+	V       int       `json:"v"`
+	Role    Role      `json:"role"`
+	Network NetworkID `json:"network"`
+	Token   Token     `json:"token"`
+	// Node is the sender.
+	Node NodeID `json:"node"`
+	// Name labels a node for people (RoleNode).
+	Name string `json:"name,omitempty"`
+	// Target is the node to reach (RoleDial).
+	Target NodeID `json:"target,omitempty"`
+	// Conn names the "open" an accept connection answers (RoleAccept).
 	Conn string `json:"conn,omitempty"`
-	// Ticket is the one-time pairing code (RolePair only).
-	Ticket string `json:"ticket,omitempty"`
-	// Sig signs the challenge and every field above with Key.
-	Sig string `json:"sig"`
 }
 
-func (h Hello) signingInput(challenge string) []byte {
-	return fmt.Appendf(nil, "%s\n%s\n%s\n%s\n%s\n%s\n%s",
-		signingContext, challenge, h.Role, h.Key, h.Host, h.Conn, h.Ticket)
-}
-
-// Sign fills in Key and Sig for the given challenge.
-func (h *Hello) Sign(priv ed25519.PrivateKey, challenge string) {
-	h.Key = NewKey(priv.Public().(ed25519.PublicKey))
-	h.Sig = base64.RawURLEncoding.EncodeToString(ed25519.Sign(priv, h.signingInput(challenge)))
-}
-
-// Verify checks that the hello is well formed for its role and that Key
-// signed it for this challenge.
-func (h Hello) Verify(challenge string) error {
-	pub, err := h.Key.public()
-	if err != nil {
+// Validate checks that the hello is well formed for its role. It says nothing
+// about whether the token is right.
+func (h Hello) Validate() error {
+	if h.V != Version {
+		return fmt.Errorf("protocol version %d, want %d", h.V, Version)
+	}
+	if err := checkLen("network id", string(h.Network), 16); err != nil {
+		return err
+	}
+	if err := checkLen("token", string(h.Token), 32); err != nil {
+		return err
+	}
+	if err := checkLen("node id", string(h.Node), 32); err != nil {
 		return err
 	}
 	switch h.Role {
-	case RoleHost:
+	case RoleNode:
+		if len(h.Name) > MaxName || !utf8.ValidString(h.Name) {
+			return fmt.Errorf("name must be valid UTF-8 of at most %d bytes", MaxName)
+		}
 	case RoleAccept:
 		if h.Conn == "" {
 			return errors.New("accept hello without conn")
 		}
-	case RoleClient, RolePair:
-		if _, err := h.Host.public(); err != nil {
-			return fmt.Errorf("host: %w", err)
+	case RoleDial:
+		if err := checkLen("target", string(h.Target), 32); err != nil {
+			return err
 		}
-		if h.Role == RolePair && h.Ticket == "" {
-			return errors.New("pair hello without ticket")
-		}
+	case RolePeers:
 	default:
 		return fmt.Errorf("unknown role %q", h.Role)
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(h.Sig)
-	if err != nil {
-		return fmt.Errorf("decoding signature: %w", err)
-	}
-	if !ed25519.Verify(pub, h.signingInput(challenge), sig) {
-		return errors.New("signature does not match")
 	}
 	return nil
 }
@@ -145,59 +155,45 @@ const (
 	ErrCodeBadHello    = "bad_hello"
 	ErrCodeDenied      = "denied"
 	ErrCodeRateLimited = "rate_limited"
-	ErrCodeHostOffline = "host_offline"
+	ErrCodeOffline     = "offline"
 	ErrCodeBusy        = "busy"
 	ErrCodeTimeout     = "timeout"
 	ErrCodeUnknownConn = "unknown_conn"
 )
 
-// Reply ends the handshake. After an OK reply to a client, pair or accept
-// hello, the connection carries raw bytes to the other side.
+// Peer is one online node of a network.
+type Peer struct {
+	Node  NodeID    `json:"node"`
+	Name  string    `json:"name,omitempty"`
+	Since time.Time `json:"since"`
+}
+
+// Reply answers a hello. After an OK reply to a dial or accept hello, the
+// connection carries raw bytes to the other side. The reply to a peers hello
+// carries Peers and ends the connection.
 type Reply struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	Peers []Peer `json:"peers,omitempty"`
 }
 
-// Control message types on a host's control connection.
+// Control message types on a node's control connection.
 const (
-	// Relay to host.
-	TypeOpen   = "open"   // a device wants a stream: dial back with RoleAccept and Conn
-	TypePing   = "ping"   // answer with pong
-	TypeResult = "result" // outcome of the request with the same ID
+	// Relay to node.
+	TypeOpen = "open" // a member wants a stream: dial back with RoleAccept and Conn
+	TypePing = "ping" // answer with pong
 
-	// Host to relay.
-	TypePong   = "pong"
-	TypeGrant  = "grant"  // let Client reach this host
-	TypeRevoke = "revoke" // stop letting Client reach this host
-	TypeTicket = "ticket" // admit one unpaired device that presents the code hashing to Ticket
+	// Node to relay.
+	TypePong = "pong"
 )
 
-// Control is one message on a host's control connection.
+// Control is one message on a node's control connection.
 type Control struct {
 	Type string `json:"type"`
-	// ID pairs a request with its result.
-	ID uint64 `json:"id,omitempty"`
 	// Conn names a stream (open).
 	Conn string `json:"conn,omitempty"`
-	// Client is the device asking (open) or being granted or revoked.
-	Client Key `json:"client,omitempty"`
-	// Name labels a granted device for people.
-	Name string `json:"name,omitempty"`
-	// Pair marks an open that came in on a pairing ticket, not a grant.
-	Pair bool `json:"pair,omitempty"`
-	// Ticket is TicketHash of the pairing code (ticket).
-	Ticket string `json:"ticket,omitempty"`
-	// TTL is the ticket's lifetime in seconds.
-	TTL   int    `json:"ttl,omitempty"`
-	OK    bool   `json:"ok,omitempty"`
-	Error string `json:"error,omitempty"`
-}
-
-// TicketHash is what a host registers for a pairing code, so the relay never
-// stores the code itself.
-func TicketHash(code string) string {
-	sum := sha256.Sum256([]byte(code))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
+	// From is the member asking (open), as it named itself.
+	From NodeID `json:"from,omitempty"`
 }
 
 // NewReader returns a reader sized so that ReadJSON rejects longer lines.

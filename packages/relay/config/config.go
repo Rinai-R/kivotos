@@ -13,14 +13,13 @@ import (
 // keys in the config file; the environment form is KIVOTOS_RELAY_<KEY> with
 // dots and dashes as underscores.
 type Config struct {
-	// Listen is the HTTP address whose /v1/connect devices and hosts open as
-	// a WebSocket.
+	// Listen is the HTTP address whose /v1/connect members open as a WebSocket.
 	Listen string `mapstructure:"listen"`
 	// BehindProxy says a reverse proxy you run is the only way in, so the
 	// peer's address is the last X-Forwarded-For entry. Leave it off when the
 	// relay is reachable directly: the header would then be the peer's to forge.
 	BehindProxy bool `mapstructure:"behind-proxy"`
-	// DataDir holds the registry file and, by default, the admin socket.
+	// DataDir holds the registry of networks and, by default, the admin socket.
 	DataDir string `mapstructure:"data-dir"`
 	// AdminSocket overrides the admin socket path.
 	AdminSocket string `mapstructure:"admin-socket"`
@@ -29,14 +28,16 @@ type Config struct {
 	// stays end-to-end encrypted, but who talks to whom, and pairing codes,
 	// are visible on the network.
 	TLS TLS `mapstructure:"tls"`
-	// HandshakeTimeout bounds the challenge and hello exchange.
+	// HandshakeTimeout is how long a new connection has to send its hello.
 	HandshakeTimeout time.Duration `mapstructure:"handshake-timeout"`
-	// AcceptTimeout is how long a device waits for a host to dial back.
+	// AcceptTimeout is how long a dialing member waits for a computer to dial back.
 	AcceptTimeout time.Duration `mapstructure:"accept-timeout"`
-	// PingInterval is how often hosts are pinged; three missed drop the host.
+	// PingInterval is how often computers are pinged; three missed drop one.
 	PingInterval time.Duration `mapstructure:"ping-interval"`
-	// MaxStreamsPerHost caps concurrent streams to one host.
-	MaxStreamsPerHost int `mapstructure:"max-streams-per-host"`
+	// MaxNodesPerNetwork caps the computers one network can have online.
+	MaxNodesPerNetwork int `mapstructure:"max-nodes-per-network"`
+	// MaxStreamsPerNode caps concurrent streams to one computer.
+	MaxStreamsPerNode int `mapstructure:"max-streams-per-node"`
 }
 
 // TLS names the relay's own certificate and key files (PEM).
@@ -49,16 +50,17 @@ type TLS struct {
 // the environment is still seen when the configuration is decoded.
 func Defaults() map[string]any {
 	return map[string]any{
-		"listen":               ":7443",
-		"behind-proxy":         false,
-		"data-dir":             ".",
-		"admin-socket":         "",
-		"tls.cert":             "",
-		"tls.key":              "",
-		"handshake-timeout":    10 * time.Second,
-		"accept-timeout":       15 * time.Second,
-		"ping-interval":        20 * time.Second,
-		"max-streams-per-host": 64,
+		"listen":                ":7443",
+		"behind-proxy":          false,
+		"data-dir":              ".",
+		"admin-socket":          "",
+		"tls.cert":              "",
+		"tls.key":               "",
+		"handshake-timeout":     10 * time.Second,
+		"accept-timeout":        15 * time.Second,
+		"ping-interval":         20 * time.Second,
+		"max-nodes-per-network": 32,
+		"max-streams-per-node":  64,
 	}
 }
 
@@ -83,13 +85,17 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%s must be positive", d.name)
 		}
 	}
-	if c.MaxStreamsPerHost < 1 {
-		return errors.New("max-streams-per-host must be at least 1")
+	// A full node list must fit one reply line (wire.MaxLine).
+	if c.MaxNodesPerNetwork < 1 || c.MaxNodesPerNetwork > 64 {
+		return errors.New("max-nodes-per-network must be between 1 and 64")
+	}
+	if c.MaxStreamsPerNode < 1 {
+		return errors.New("max-streams-per-node must be at least 1")
 	}
 	return nil
 }
 
-// RegistryPath is where enrolled hosts and their grants are stored.
+// RegistryPath is where registered networks are stored.
 func (c Config) RegistryPath() string {
 	return filepath.Join(c.DataDir, "registry.json")
 }

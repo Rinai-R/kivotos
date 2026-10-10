@@ -36,7 +36,7 @@ func newServeCmd(v *viper.Viper) *cobra.Command {
 			return serve(cmd.Context(), cfg, log)
 		},
 	}
-	cmd.Flags().String("listen", ":7443", "HTTP address; devices and hosts open /v1/connect as a WebSocket")
+	cmd.Flags().String("listen", ":7443", "HTTP address; members open /v1/connect as a WebSocket")
 	cmd.Flags().Bool("behind-proxy", false, "trust X-Forwarded-For from a reverse proxy that is the only way in")
 	cmd.Flags().String("tls.cert", "", "relay certificate file (PEM)")
 	cmd.Flags().String("tls.key", "", "relay private key file (PEM)")
@@ -49,15 +49,15 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	tickets := &admission.Tickets{}
-	hub := tunnel.NewHub(reg, tickets, tunnel.Limits{
-		AcceptTimeout:     cfg.AcceptTimeout,
-		PingInterval:      cfg.PingInterval,
-		MaxStreamsPerHost: cfg.MaxStreamsPerHost,
+	hub := tunnel.NewHub(tunnel.Limits{
+		AcceptTimeout:      cfg.AcceptTimeout,
+		PingInterval:       cfg.PingInterval,
+		MaxNodesPerNetwork: cfg.MaxNodesPerNetwork,
+		MaxStreamsPerNode:  cfg.MaxStreamsPerNode,
 	}, log)
 	connections := &tunnel.Server{
 		Hub:         hub,
-		Gate:        admission.NewGate(reg, tickets, cfg.HandshakeTimeout),
+		Gate:        admission.NewGate(reg, cfg.HandshakeTimeout),
 		Log:         log,
 		BehindProxy: cfg.BehindProxy,
 	}
@@ -100,7 +100,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	log.Info("relay listening", "addr", publicLn.Addr(), "tls", cfg.TLS.Cert != "", "admin", cfg.SocketPath())
 	if cfg.TLS.Cert == "" && !cfg.BehindProxy {
-		log.Warn("serving plain HTTP with no proxy in front: connection metadata and pairing codes are visible on the network")
+		log.Warn("serving plain HTTP with no proxy in front: relay tokens are visible on the network")
 	}
 
 	failed := make(chan error, 2)

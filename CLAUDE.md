@@ -58,35 +58,45 @@ The lefthook pre-commit hook runs format check, lint, and typecheck. Never skip 
 
 ## Relay (`packages/relay/`)
 
-A Go server on the public internet that joins devices to hosts when Tailscale cannot connect them directly. It is **untrusted by design**: it forwards bytes of an end-to-end TLS session between device and host and must never be given a way to read them. Nothing uses it yet: the plugin and the Android app still have to learn the protocol.
+A Go server on the public internet that joins the members of a federation ("network") when Tailscale cannot connect them directly. It is **untrusted by design**: it forwards bytes of an end-to-end TLS session between two members and must never be given a way to read them or to pose as a member.
 
 ```sh
 cd packages/relay
 go test -race ./...     # includes end-to-end tests against a real relay on loopback
 go vet ./... && gofmt -l .
 go build -o kivotos-relay . && ./kivotos-relay serve --data-dir /var/lib/kivotos-relay
-./kivotos-relay host add <host-key> --name desk   # talks to the running relay over its admin socket
+./kivotos-relay network add <registration> --name home   # talks to the running relay over its admin socket
 ```
 
 Packages, one job each. Dependencies point one way: `wire` is imported by all; `registry`, `admission` and `tunnel` do not import each other (they meet through small interfaces declared by the consumer); `admin` sits on `registry` and `tunnel`; `cmd` assembles everything.
 
-- `wire/`: the protocol before a connection becomes raw bytes. One JSON object per line: `Challenge`, signed `Hello`, `Reply`, and `Control` messages on a host's control connection.
-- `registry/`: enrolled hosts and the devices each host granted, in `registry.json` (rewritten atomically on every change).
-- `admission/`: `Gate` runs challenge and hello, verifies the Ed25519 signature, and checks the registry or a one-time pairing ticket (`Tickets`, memory only). Counts refused handshakes per source address.
-- `tunnel/`: `Hub` holds each host's control connection, asks the host to dial back for every device stream, and splices the two connections. `Server` is the WebSocket endpoint (`http.Handler`).
+- `wire/`: the protocol before a connection becomes raw bytes. One JSON object per line: `Hello`, `Reply`, and `Control` messages on a node's control connection.
+- `registry/`: registered networks in `registry.json` (rewritten atomically and synced on every change). Per network: its ID and a salted SHA-256 of its relay token, never the token.
+- `admission/`: `Gate` reads the hello, validates it, and checks the token against the registry. Counts refused hellos per source address.
+- `tunnel/`: `Hub` holds each node's control connection per network, asks the node to dial back for every stream, and splices the two connections. `Server` is the WebSocket endpoint (`http.Handler`).
 - `admin/`: operator HTTP API on a unix socket (mode 0600) and its client.
 - `config/`, `cmd/`, `main.go`: configuration struct, Cobra commands with Viper (`kivotos-relay.yaml`, `KIVOTOS_RELAY_*`), entry point.
 
-Transport: every connection is a WebSocket to `GET /v1/connect` (plain HTTP for a reverse proxy to front, or HTTPS with `tls.cert` and `tls.key`); `GET /healthz` answers 204. A WebSocket carries one byte stream in binary messages, and message boundaries mean nothing: the handshake lines and the later raw bytes are read as a stream, never one message at a time. A WebSocket cannot be half-closed, so either side closing ends the stream.
+Federation secret: a network is one random 32-byte secret that its members share (in the invite link and QR code). Members derive three values from it with HKDF-SHA256, no salt, and the info strings in `wire/wire.go`:
 
-Protocol: the relay sends a challenge; the peer answers with a hello signed by its device key, with role `host` (control connection), `accept` (host's data connection for one stream), `client` (granted device) or `pair` (unpaired device with a ticket). A host is enrolled by the operator; a device is granted only by its host, over the host's control connection (`grant`, `revoke`, `ticket`).
+- network ID (16 bytes, public): names the network on the relay.
+- relay token (32 bytes): sent to the relay in every hello; the relay compares it with the salted hash the operator registered. It only says "may use this relay".
+- peer proof key (32 bytes): never sent to the relay. Members prove it to each other inside their own TLS session. This is what keeps a compromised relay out.
+
+The registration the operator runs once per network is `<network id>.<relay token>`; it does not reveal the secret or the proof key.
+
+Transport: every connection is a WebSocket to `GET /v1/connect` (plain HTTP for a reverse proxy to front, or HTTPS with `tls.cert` and `tls.key`); `GET /healthz` answers 204. A WebSocket carries one byte stream in binary messages, and message boundaries mean nothing: the hello and reply lines and the later raw bytes are read as a stream, never one message at a time. A WebSocket cannot be half-closed, so either side closing ends the stream.
+
+Protocol: the peer sends a hello with protocol version, network ID, relay token, its node ID (SHA-256 of the certificate it shows other members) and a role: `node` (a computer's control connection; it becomes visible and dialable), `accept` (a computer's data connection for one stream), `dial` (any member asking for a stream to a node), or `peers` (list the network's online nodes). The relay cannot verify a node ID and does not need to: the dialing member checks the certificate and the proof end to end.
 
 Invariants:
 
 - The relay never terminates the inner TLS and never parses stream bytes.
-- A device reaches a host only if that host granted it, or with an unexpired one-time ticket that host issued. A ticket grants nothing by itself.
-- A host can accept only streams opened to itself, and can grant or revoke only for itself.
-- Revoking a device, or removing or disconnecting a host, closes the affected live streams.
+- The federation secret and the peer proof key never reach the relay, in any message.
+- The relay token is never stored; only its salted hash.
+- Nodes are visible and dialable only from inside their own network.
+- A node can accept only streams opened to itself.
+- Removing a network closes its live connections.
 - The admin API is never exposed on TCP.
 - `behind-proxy` is off unless a reverse proxy is the only way in; otherwise `X-Forwarded-For` is the peer's to forge and defeats the per-address refusal limit.
 

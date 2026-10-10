@@ -1,17 +1,15 @@
-// Package admin is the operator's interface to a running relay: enroll and
-// remove hosts, revoke devices, and see who is online. It is served on a unix
-// socket only, so access is whoever may open that file.
+// Package admin is the operator's interface to a running relay: register and
+// remove networks and see which of their computers are online. It is served
+// on a unix socket only, so access is whoever may open that file.
 package admin
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/Rinai-R/kivotos/packages/relay/registry"
@@ -19,26 +17,25 @@ import (
 	"github.com/Rinai-R/kivotos/packages/relay/wire"
 )
 
-// Host is an enrolled host with its live state.
-type Host struct {
-	Key     wire.Key  `json:"key"`
-	Name    string    `json:"name,omitzero"`
-	Added   time.Time `json:"added"`
-	Online  bool      `json:"online"`
-	Streams int       `json:"streams"`
-	Devices []Device  `json:"devices"`
+// Network is a registered network with its live state.
+type Network struct {
+	ID    wire.NetworkID `json:"id"`
+	Name  string         `json:"name,omitzero"`
+	Added time.Time      `json:"added"`
+	Nodes []Node         `json:"nodes"`
 }
 
-// Device is a device a host has granted.
-type Device struct {
-	Key   wire.Key  `json:"key"`
-	Name  string    `json:"name,omitzero"`
-	Added time.Time `json:"added"`
+// Node is a computer of a network that is online now.
+type Node struct {
+	ID      wire.NodeID `json:"id"`
+	Name    string      `json:"name,omitzero"`
+	Since   time.Time   `json:"since"`
+	Streams int         `json:"streams"`
 }
 
-type addHostRequest struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
+type addRequest struct {
+	Registration string `json:"registration"`
+	Name         string `json:"name"`
 }
 
 type errorResponse struct {
@@ -48,65 +45,47 @@ type errorResponse struct {
 // NewHandler serves the admin API over reg and hub.
 func NewHandler(reg *registry.Registry, hub *tunnel.Hub) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /hosts", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, listHosts(reg, hub))
+	mux.HandleFunc("GET /networks", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, list(reg, hub))
 	})
-	mux.HandleFunc("POST /hosts", func(w http.ResponseWriter, r *http.Request) {
-		var req addHostRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, wire.MaxLine)).Decode(&req); err != nil {
+	mux.HandleFunc("POST /networks", func(w http.ResponseWriter, r *http.Request) {
+		var req addRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		key, err := wire.ParseKey(req.Key)
+		registration, err := wire.ParseRegistration(req.Registration)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		if err := reg.AddHost(key, req.Name); err != nil {
+		if err := reg.Add(registration, req.Name); err != nil {
 			writeError(w, statusOf(err), err)
 			return
 		}
-		w.WriteHeader(http.StatusCreated)
+		writeJSON(w, http.StatusCreated, Network{ID: registration.Network, Name: req.Name})
 	})
-	mux.HandleFunc("DELETE /hosts/{host}", func(w http.ResponseWriter, r *http.Request) {
-		host := wire.Key(r.PathValue("host"))
-		if err := reg.RemoveHost(host); err != nil {
+	mux.HandleFunc("DELETE /networks/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := wire.NetworkID(r.PathValue("id"))
+		if err := reg.Remove(id); err != nil {
 			writeError(w, statusOf(err), err)
 			return
 		}
-		hub.Kick(host)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	mux.HandleFunc("DELETE /hosts/{host}/devices/{device}", func(w http.ResponseWriter, r *http.Request) {
-		host, client := wire.Key(r.PathValue("host")), wire.Key(r.PathValue("device"))
-		if err := reg.Revoke(host, client); err != nil {
-			writeError(w, statusOf(err), err)
-			return
-		}
-		hub.DropClient(host, client)
+		hub.Kick(id)
 		w.WriteHeader(http.StatusNoContent)
 	})
 	return mux
 }
 
-func listHosts(reg *registry.Registry, hub *tunnel.Hub) []Host {
-	online := map[wire.Key]tunnel.Session{}
-	for _, s := range hub.Sessions() {
-		online[s.Host] = s
-	}
-	hosts := reg.Hosts()
-	out := make([]Host, 0, len(hosts))
-	for _, h := range hosts {
-		session, isOnline := online[h.Key]
-		view := Host{
-			Key: h.Key, Name: h.Name, Added: h.Added,
-			Online: isOnline, Streams: session.Streams,
-			Devices: make([]Device, 0, len(h.Clients)),
+func list(reg *registry.Registry, hub *tunnel.Hub) []Network {
+	networks := reg.Networks()
+	out := make([]Network, 0, len(networks))
+	for _, n := range networks {
+		online := hub.Nodes(n.ID)
+		view := Network{ID: n.ID, Name: n.Name, Added: n.Added, Nodes: make([]Node, len(online))}
+		for i, node := range online {
+			view.Nodes[i] = Node{ID: node.Node, Name: node.Name, Since: node.Since, Streams: node.Streams}
 		}
-		for key, c := range h.Clients {
-			view.Devices = append(view.Devices, Device{Key: key, Name: c.Name, Added: c.Added})
-		}
-		slices.SortFunc(view.Devices, func(a, b Device) int { return cmp.Compare(a.Key, b.Key) })
 		out = append(out, view)
 	}
 	return out
@@ -114,9 +93,9 @@ func listHosts(reg *registry.Registry, hub *tunnel.Hub) []Host {
 
 func statusOf(err error) int {
 	switch {
-	case errors.Is(err, registry.ErrHostExists):
+	case errors.Is(err, registry.ErrExists):
 		return http.StatusConflict
-	case errors.Is(err, registry.ErrHostNotFound):
+	case errors.Is(err, registry.ErrNotFound):
 		return http.StatusNotFound
 	}
 	return http.StatusInternalServerError

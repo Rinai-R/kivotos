@@ -32,27 +32,23 @@ func NewClient(path string) *Client {
 	}}
 }
 
-// Hosts lists the enrolled hosts and their live state.
-func (c *Client) Hosts(ctx context.Context) ([]Host, error) {
-	var hosts []Host
-	err := c.do(ctx, http.MethodGet, "/hosts", nil, &hosts)
-	return hosts, err
+// Networks lists the registered networks and their online computers.
+func (c *Client) Networks(ctx context.Context) ([]Network, error) {
+	var networks []Network
+	err := c.do(ctx, http.MethodGet, "/networks", nil, &networks)
+	return networks, err
 }
 
-// AddHost enrolls a host.
-func (c *Client) AddHost(ctx context.Context, key wire.Key, name string) error {
-	return c.do(ctx, http.MethodPost, "/hosts", addHostRequest{Key: string(key), Name: name}, nil)
+// AddNetwork registers a network from the registration its creator was shown.
+func (c *Client) AddNetwork(ctx context.Context, registration, name string) (Network, error) {
+	var added Network
+	err := c.do(ctx, http.MethodPost, "/networks", addRequest{Registration: registration, Name: name}, &added)
+	return added, err
 }
 
-// RemoveHost drops a host, its grants, and its live connections.
-func (c *Client) RemoveHost(ctx context.Context, key wire.Key) error {
-	return c.do(ctx, http.MethodDelete, "/hosts/"+url.PathEscape(string(key)), nil, nil)
-}
-
-// RevokeDevice stops a device from reaching a host and ends its streams.
-func (c *Client) RevokeDevice(ctx context.Context, host, device wire.Key) error {
-	path := "/hosts/" + url.PathEscape(string(host)) + "/devices/" + url.PathEscape(string(device))
-	return c.do(ctx, http.MethodDelete, path, nil, nil)
+// RemoveNetwork unregisters a network and drops its live connections.
+func (c *Client) RemoveNetwork(ctx context.Context, id wire.NetworkID) error {
+	return c.do(ctx, http.MethodDelete, "/networks/"+url.PathEscape(string(id)), nil, nil)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, in, out any) error {

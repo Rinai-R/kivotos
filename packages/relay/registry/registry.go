@@ -1,9 +1,13 @@
-// Package registry is the relay's durable record of who may use it: the
-// enrolled hosts and, per host, the devices that host has granted.
+// Package registry is the relay's durable record of which federations
+// ("networks") may use it. For each it keeps a salted hash of the network's
+// relay token, never the token.
 package registry
 
 import (
 	"cmp"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,44 +21,44 @@ import (
 	"github.com/Rinai-R/kivotos/packages/relay/wire"
 )
 
-// MaxClientsPerHost bounds what one host can make the relay store.
-const MaxClientsPerHost = 64
-
 var (
-	ErrHostExists   = errors.New("host is already enrolled")
-	ErrHostNotFound = errors.New("host is not enrolled")
-	ErrTooMany      = fmt.Errorf("host already has %d granted devices", MaxClientsPerHost)
+	ErrExists   = errors.New("network is already registered")
+	ErrNotFound = errors.New("network is not registered")
 )
 
-// Client is a device a host has granted.
-type Client struct {
-	Name  string    `json:"name,omitzero"`
-	Added time.Time `json:"added"`
+// Network is a registered federation.
+type Network struct {
+	ID    wire.NetworkID `json:"id"`
+	Name  string         `json:"name,omitzero"`
+	Added time.Time      `json:"added"`
+	// Salt and Hash verify the network's token: Hash is SHA-256(Salt || token).
+	// The token is 32 random bytes, so a fast hash is enough.
+	Salt []byte `json:"salt"`
+	Hash []byte `json:"hash"`
 }
 
-// Host is an enrolled computer.
-type Host struct {
-	Key     wire.Key            `json:"key"`
-	Name    string              `json:"name,omitzero"`
-	Added   time.Time           `json:"added"`
-	Clients map[wire.Key]Client `json:"clients,omitzero"`
+func hashToken(salt []byte, token wire.Token) []byte {
+	h := sha256.New()
+	h.Write(salt)
+	h.Write([]byte(token))
+	return h.Sum(nil)
 }
 
-// Registry holds every Host in memory and rewrites its file on each change.
-// It is safe for concurrent use.
+// Registry holds every Network in memory and rewrites its file on each
+// change. It is safe for concurrent use.
 type Registry struct {
-	path  string
-	mu    sync.RWMutex
-	hosts map[wire.Key]*Host
+	path     string
+	mu       sync.RWMutex
+	networks map[wire.NetworkID]*Network
 }
 
 type file struct {
-	Hosts []*Host `json:"hosts"`
+	Networks []*Network `json:"networks"`
 }
 
 // Open loads the registry at path; a missing file is an empty registry.
 func Open(path string) (*Registry, error) {
-	r := &Registry{path: path, hosts: map[wire.Key]*Host{}}
+	r := &Registry{path: path, networks: map[wire.NetworkID]*Network{}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return r, nil
@@ -66,11 +70,11 @@ func Open(path string) (*Registry, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("decoding registry %s: %w", path, err)
 	}
-	for _, h := range f.Hosts {
-		if _, err := wire.ParseKey(string(h.Key)); err != nil {
-			return nil, fmt.Errorf("registry %s: host %q: %w", path, h.Key, err)
+	for _, n := range f.Networks {
+		if n.ID == "" || len(n.Salt) == 0 || len(n.Hash) != sha256.Size {
+			return nil, fmt.Errorf("registry %s: network %q is incomplete", path, n.ID)
 		}
-		r.hosts[h.Key] = h
+		r.networks[n.ID] = n
 	}
 	return r, nil
 }
@@ -79,8 +83,8 @@ func Open(path string) (*Registry, error) {
 // into place, so neither a crash nor a power loss leaves a half-written
 // registry. Callers hold mu.
 func (r *Registry) save() error {
-	f := file{Hosts: slices.SortedFunc(maps.Values(r.hosts), func(a, b *Host) int {
-		return cmp.Compare(a.Key, b.Key)
+	f := file{Networks: slices.SortedFunc(maps.Values(r.networks), func(a, b *Network) int {
+		return cmp.Compare(a.ID, b.ID)
 	})}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -114,118 +118,61 @@ func (r *Registry) save() error {
 	return nil
 }
 
-// AddHost enrolls a computer.
-func (r *Registry) AddHost(key wire.Key, name string) error {
+// Add registers a network. Only the salted hash of its token is kept.
+func (r *Registry) Add(reg wire.Registration, name string) error {
+	salt := make([]byte, 16)
+	rand.Read(salt) // never fails (Go 1.24+)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.hosts[key]; ok {
-		return ErrHostExists
+	if _, ok := r.networks[reg.Network]; ok {
+		return ErrExists
 	}
-	r.hosts[key] = &Host{Key: key, Name: name, Added: time.Now().UTC()}
+	r.networks[reg.Network] = &Network{
+		ID: reg.Network, Name: name, Added: time.Now().UTC(),
+		Salt: salt, Hash: hashToken(salt, reg.Token),
+	}
 	if err := r.save(); err != nil {
-		delete(r.hosts, key)
+		delete(r.networks, reg.Network)
 		return err
 	}
 	return nil
 }
 
-// RemoveHost drops a computer and every grant it made.
-func (r *Registry) RemoveHost(key wire.Key) error {
+// Remove unregisters a network.
+func (r *Registry) Remove(id wire.NetworkID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	host, ok := r.hosts[key]
+	n, ok := r.networks[id]
 	if !ok {
-		return ErrHostNotFound
+		return ErrNotFound
 	}
-	delete(r.hosts, key)
+	delete(r.networks, id)
 	if err := r.save(); err != nil {
-		r.hosts[key] = host
+		r.networks[id] = n
 		return err
 	}
 	return nil
 }
 
-// Hosts returns a copy of every host, ordered by key.
-func (r *Registry) Hosts() []Host {
+// Networks returns a copy of every network, ordered by ID.
+func (r *Registry) Networks() []Network {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]Host, 0, len(r.hosts))
-	for _, h := range r.hosts {
-		c := *h
-		c.Clients = maps.Clone(h.Clients)
-		out = append(out, c)
+	out := make([]Network, 0, len(r.networks))
+	for _, n := range r.networks {
+		out = append(out, *n)
 	}
-	slices.SortFunc(out, func(a, b Host) int { return cmp.Compare(a.Key, b.Key) })
+	slices.SortFunc(out, func(a, b Network) int { return cmp.Compare(a.ID, b.ID) })
 	return out
 }
 
-// HostKnown reports whether key is an enrolled host.
-func (r *Registry) HostKnown(key wire.Key) bool {
+// Member reports whether token is the token of the registered network id.
+func (r *Registry) Member(id wire.NetworkID, token wire.Token) bool {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-	_, ok := r.hosts[key]
-	return ok
-}
-
-// ClientAllowed reports whether host has granted client.
-func (r *Registry) ClientAllowed(host, client wire.Key) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	h, ok := r.hosts[host]
+	n, ok := r.networks[id]
+	r.mu.RUnlock()
 	if !ok {
 		return false
 	}
-	_, ok = h.Clients[client]
-	return ok
-}
-
-// Grant lets client reach host. Granting again updates the name.
-func (r *Registry) Grant(host, client wire.Key, name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	h, ok := r.hosts[host]
-	if !ok {
-		return ErrHostNotFound
-	}
-	prev, had := h.Clients[client]
-	if !had && len(h.Clients) >= MaxClientsPerHost {
-		return ErrTooMany
-	}
-	if h.Clients == nil {
-		h.Clients = map[wire.Key]Client{}
-	}
-	next := Client{Name: name, Added: time.Now().UTC()}
-	if had {
-		next.Added = prev.Added
-	}
-	h.Clients[client] = next
-	if err := r.save(); err != nil {
-		if had {
-			h.Clients[client] = prev
-		} else {
-			delete(h.Clients, client)
-		}
-		return err
-	}
-	return nil
-}
-
-// Revoke stops client from reaching host. Revoking an unknown client is not an error.
-func (r *Registry) Revoke(host, client wire.Key) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	h, ok := r.hosts[host]
-	if !ok {
-		return ErrHostNotFound
-	}
-	prev, had := h.Clients[client]
-	if !had {
-		return nil
-	}
-	delete(h.Clients, client)
-	if err := r.save(); err != nil {
-		h.Clients[client] = prev
-		return err
-	}
-	return nil
+	return subtle.ConstantTimeCompare(hashToken(n.Salt, token), n.Hash) == 1
 }

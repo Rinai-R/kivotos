@@ -1,8 +1,9 @@
 package registry_test
 
 import (
-	"crypto/ed25519"
+	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -13,86 +14,83 @@ import (
 	"github.com/Rinai-R/kivotos/packages/relay/wire"
 )
 
-func newKey(t *testing.T) wire.Key {
+func newRegistration(t *testing.T) wire.Registration {
 	t.Helper()
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	random := func(n int) string {
+		raw := make([]byte, n)
+		rand.Read(raw)
+		return base64.RawURLEncoding.EncodeToString(raw)
+	}
+	reg, err := wire.ParseRegistration(random(16) + "." + random(32))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return wire.NewKey(pub)
+	return reg
 }
 
-func TestGrantsSurviveRestartAndFollowTheirHost(t *testing.T) {
+func TestNetworksSurviveRestartAndKeepTheirOwnTokens(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "registry.json")
-	host, other, phone := newKey(t), newKey(t), newKey(t)
+	home, other := newRegistration(t), newRegistration(t)
 
 	r, err := registry.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []wire.Key{host, other} {
-		if err := r.AddHost(h, "desk"); err != nil {
+	for _, reg := range []wire.Registration{home, other} {
+		if err := r.Add(reg, "home"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := r.Grant(host, phone, "phone"); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.AddHost(host, "again"); !errors.Is(err, registry.ErrHostExists) {
-		t.Fatalf("enrolling twice: err = %v, want ErrHostExists", err)
+	if err := r.Add(home, "again"); !errors.Is(err, registry.ErrExists) {
+		t.Fatalf("registering twice: err = %v, want ErrExists", err)
 	}
 
 	r, err = registry.Open(path)
 	if err != nil {
 		t.Fatalf("reopening: %v", err)
 	}
-	if !r.ClientAllowed(host, phone) {
-		t.Fatal("grant was lost across a restart")
+	if !r.Member(home.Network, home.Token) {
+		t.Fatal("network was lost across a restart")
 	}
-	if r.ClientAllowed(other, phone) {
-		t.Fatal("a grant on one host let the device reach another")
+	if r.Member(home.Network, other.Token) {
+		t.Fatal("one network's token was accepted for another")
 	}
 
-	if err := r.RemoveHost(host); err != nil {
+	if err := r.Remove(home.Network); err != nil {
 		t.Fatal(err)
 	}
-	if r.HostKnown(host) || r.ClientAllowed(host, phone) {
-		t.Fatal("removed host or its grant is still honored")
+	if r.Member(home.Network, home.Token) {
+		t.Fatal("removed network is still admitted")
 	}
-	if err := r.Grant(host, phone, ""); !errors.Is(err, registry.ErrHostNotFound) {
-		t.Fatalf("granting on a removed host: err = %v, want ErrHostNotFound", err)
+	if err := r.Remove(home.Network); !errors.Is(err, registry.ErrNotFound) {
+		t.Fatalf("removing twice: err = %v, want ErrNotFound", err)
 	}
 }
 
-func TestHostCannotGrantWithoutBound(t *testing.T) {
-	r, err := registry.Open(filepath.Join(t.TempDir(), "registry.json"))
+func TestTheTokenIsNotWrittenToDisk(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	r, err := registry.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := newKey(t)
-	if err := r.AddHost(host, ""); err != nil {
+	reg := newRegistration(t)
+	if err := r.Add(reg, "home"); err != nil {
 		t.Fatal(err)
 	}
-	first := newKey(t)
-	if err := r.Grant(host, first, ""); err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	for range registry.MaxClientsPerHost - 1 {
-		if err := r.Grant(host, newKey(t), ""); err != nil {
-			t.Fatal(err)
-		}
+	if bytes.Contains(data, []byte(reg.Token)) {
+		t.Fatal("registry file contains the token itself")
 	}
-	if err := r.Grant(host, newKey(t), ""); !errors.Is(err, registry.ErrTooMany) {
-		t.Fatalf("grant past the limit: err = %v, want ErrTooMany", err)
-	}
-	// Renaming a device already granted is not a new grant.
-	if err := r.Grant(host, first, "renamed"); err != nil {
-		t.Fatalf("re-granting at the limit: %v", err)
+	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
+		t.Fatalf("registry file mode = %v, want 0600", info.Mode().Perm())
 	}
 }
 
 func TestOpenRejectsACorruptRegistry(t *testing.T) {
-	for i, content := range []string{`{"hosts": [`, `{"hosts":[{"key":"not a key"}]}`} {
+	for i, content := range []string{`{"networks": [`, `{"networks":[{"id":"x"}]}`} {
 		path := filepath.Join(t.TempDir(), fmt.Sprintf("registry-%d.json", i))
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatal(err)

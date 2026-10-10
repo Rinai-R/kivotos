@@ -1,7 +1,7 @@
-// Package tunnel joins devices to hosts. A host keeps one control connection
-// open to the relay; when a device asks for that host, the hub tells the host
-// to dial back, pairs the two connections, and copies bytes between them
-// without looking at them.
+// Package tunnel joins the members of a network. A computer keeps one control
+// connection open to the relay; when a member asks for that computer, the hub
+// tells it to dial back, pairs the two connections, and copies bytes between
+// them without looking at them.
 //
 // Every connection is a WebSocket carrying one byte stream in binary
 // messages; message boundaries mean nothing.
@@ -9,12 +9,15 @@ package tunnel
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -30,27 +33,17 @@ type refusal string
 
 func (r refusal) Error() string { return string(r) }
 
-// Grants records which devices a host lets in. *registry.Registry implements it.
-type Grants interface {
-	Grant(host, client wire.Key, name string) error
-	Revoke(host, client wire.Key) error
-}
-
-// Tickets registers pairing tickets. *admission.Tickets implements it.
-type Tickets interface {
-	Issue(host wire.Key, hash string, ttl time.Duration) error
-	Forget(host wire.Key)
-}
-
-// Limits bounds what one host and its devices can ask of the relay.
+// Limits bounds what one network and its members can ask of the relay.
 type Limits struct {
-	// AcceptTimeout is how long a device waits for the host to dial back.
+	// AcceptTimeout is how long a dialing member waits for the node to dial back.
 	AcceptTimeout time.Duration
-	// PingInterval is how often the relay pings a host. A host silent for
+	// PingInterval is how often the relay pings a node. A node silent for
 	// three intervals is dropped.
 	PingInterval time.Duration
-	// MaxStreamsPerHost caps concurrent streams to one host.
-	MaxStreamsPerHost int
+	// MaxNodesPerNetwork caps the nodes one network can have online.
+	MaxNodesPerNetwork int
+	// MaxStreamsPerNode caps concurrent streams to one node.
+	MaxStreamsPerNode int
 }
 
 // peer is an admitted connection. Reads go through r, which may already hold
@@ -60,67 +53,59 @@ type peer struct {
 	r    *bufio.Reader
 }
 
-// Hub tracks the hosts that are online and the streams to them. It is safe
+// Hub tracks the nodes that are online and the streams to them. It is safe
 // for concurrent use.
 type Hub struct {
-	grants  Grants
-	tickets Tickets
-	limits  Limits
-	log     *slog.Logger
+	limits Limits
+	log    *slog.Logger
 
-	mu     sync.Mutex
-	hosts  map[wire.Key]*session
-	closed bool
+	mu       sync.Mutex
+	networks map[wire.NetworkID]map[wire.NodeID]*session
+	closed   bool
 }
 
 // NewHub returns an empty Hub.
-func NewHub(grants Grants, tickets Tickets, limits Limits, log *slog.Logger) *Hub {
-	return &Hub{grants: grants, tickets: tickets, limits: limits, log: log, hosts: map[wire.Key]*session{}}
+func NewHub(limits Limits, log *slog.Logger) *Hub {
+	return &Hub{limits: limits, log: log, networks: map[wire.NetworkID]map[wire.NodeID]*session{}}
 }
 
-// Session describes one online host.
-type Session struct {
-	Host    wire.Key
-	Since   time.Time
+// Node describes one online node.
+type Node struct {
+	wire.Peer
 	Streams int
 }
 
-// Sessions lists the hosts that are online.
-func (h *Hub) Sessions() []Session {
+// Nodes lists the online nodes of a network, ordered by name, then ID.
+func (h *Hub) Nodes(network wire.NetworkID) []Node {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]Session, 0, len(h.hosts))
-	for _, s := range h.hosts {
-		out = append(out, Session{Host: s.host, Since: s.since, Streams: s.count()})
+	out := make([]Node, 0, len(h.networks[network]))
+	for _, s := range h.networks[network] {
+		out = append(out, Node{Peer: wire.Peer{Node: s.node, Name: s.name, Since: s.since}, Streams: s.count()})
 	}
+	h.mu.Unlock()
+	slices.SortFunc(out, func(a, b Node) int {
+		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.Node, b.Node))
+	})
 	return out
 }
 
-// Kick drops a host's control connection and all its streams. It reports
-// whether the host was online.
-func (h *Hub) Kick(host wire.Key) bool {
-	s := h.lookup(host)
-	if s == nil {
-		return false
-	}
-	s.close()
-	return true
-}
-
-// DropClient closes every stream client has open to host.
-func (h *Hub) DropClient(host, client wire.Key) {
-	if s := h.lookup(host); s != nil {
-		s.drop(client)
+// Kick drops every node and stream of a network.
+func (h *Hub) Kick(network wire.NetworkID) {
+	h.mu.Lock()
+	sessions := slices.Collect(maps.Values(h.networks[network]))
+	h.mu.Unlock()
+	for _, s := range sessions {
+		s.close()
 	}
 }
 
-// Close drops every host and refuses new ones.
+// Close drops every node and refuses new ones.
 func (h *Hub) Close() {
 	h.mu.Lock()
 	h.closed = true
-	sessions := make([]*session, 0, len(h.hosts))
-	for _, s := range h.hosts {
-		sessions = append(sessions, s)
+	var sessions []*session
+	for _, nodes := range h.networks {
+		sessions = slices.AppendSeq(sessions, maps.Values(nodes))
 	}
 	h.mu.Unlock()
 	for _, s := range sessions {
@@ -128,39 +113,42 @@ func (h *Hub) Close() {
 	}
 }
 
-func (h *Hub) lookup(host wire.Key) *session {
+func (h *Hub) lookup(network wire.NetworkID, node wire.NodeID) *session {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.hosts[host]
+	return h.networks[network][node]
 }
 
-// serveHost runs a host's control connection until it ends. A second control
-// connection from the same host replaces the first.
-func (h *Hub) serveHost(ctx context.Context, p peer, host wire.Key) error {
-	s := newSession(host, p.conn)
+// serveNode runs a node's control connection until it ends. A second control
+// connection from the same node replaces the first.
+func (h *Hub) serveNode(ctx context.Context, p peer, hello wire.Hello) error {
+	s := newSession(hello.Node, hello.Name, p.conn)
 	h.mu.Lock()
-	if h.closed {
+	nodes := h.networks[hello.Network]
+	old := nodes[hello.Node]
+	if h.closed || (old == nil && len(nodes) >= h.limits.MaxNodesPerNetwork) {
 		h.mu.Unlock()
 		return refusal(wire.ErrCodeBusy)
 	}
-	old := h.hosts[host]
-	h.hosts[host] = s
+	if nodes == nil {
+		nodes = map[wire.NodeID]*session{}
+		h.networks[hello.Network] = nodes
+	}
+	nodes[hello.Node] = s
 	h.mu.Unlock()
 	if old != nil {
 		old.close()
 	}
 	defer func() {
 		h.mu.Lock()
-		current := h.hosts[host] == s
-		if current {
-			delete(h.hosts, host)
+		if nodes := h.networks[hello.Network]; nodes[hello.Node] == s {
+			delete(nodes, hello.Node)
+			if len(nodes) == 0 {
+				delete(h.networks, hello.Network)
+			}
 		}
 		h.mu.Unlock()
 		s.close()
-		if current {
-			// A replacement session keeps the tickets it issued.
-			h.tickets.Forget(host)
-		}
 	}()
 	stop := context.AfterFunc(ctx, s.close)
 	defer stop()
@@ -170,8 +158,8 @@ func (h *Hub) serveHost(ctx context.Context, p peer, host wire.Key) error {
 		return err
 	}
 	p.conn.SetDeadline(time.Time{})
-	h.log.Info("host online", "host", host)
-	defer h.log.Info("host offline", "host", host)
+	h.log.Info("node online", "network", hello.Network, "node", hello.Node, "name", hello.Name)
+	defer h.log.Info("node offline", "network", hello.Network, "node", hello.Node)
 
 	go s.ping(h.limits.PingInterval)
 	for {
@@ -180,85 +168,71 @@ func (h *Hub) serveHost(ctx context.Context, p peer, host wire.Key) error {
 		if err := wire.ReadJSON(p.r, &msg); err != nil {
 			return err
 		}
-		if err := h.control(s, msg); err != nil {
-			return err
-		}
+		// Only pong is defined; a newer node may send types this relay does
+		// not know. Any message shows the node is alive.
 	}
 }
 
-// control handles one message from a host. A returned error ends the session.
-func (h *Hub) control(s *session, msg wire.Control) error {
-	var err error
-	switch msg.Type {
-	case wire.TypePong:
-		return nil
-	case wire.TypeGrant:
-		err = h.grants.Grant(s.host, msg.Client, msg.Name)
-	case wire.TypeRevoke:
-		err = h.grants.Revoke(s.host, msg.Client)
-		s.drop(msg.Client)
-	case wire.TypeTicket:
-		err = h.tickets.Issue(s.host, msg.Ticket, time.Duration(msg.TTL)*time.Second)
-	default:
-		return nil // a newer host may send types this relay does not know
+// peers answers which nodes of a network are online.
+func (h *Hub) peers(p peer, network wire.NetworkID) error {
+	nodes := h.Nodes(network)
+	reply := wire.Reply{OK: true, Peers: make([]wire.Peer, len(nodes))}
+	for i, n := range nodes {
+		reply.Peers[i] = n.Peer
 	}
-	result := wire.Control{Type: wire.TypeResult, ID: msg.ID, OK: err == nil}
-	if err != nil {
-		result.Error = err.Error()
-		h.log.Warn("host request failed", "host", s.host, "type", msg.Type, "err", err)
-	}
-	return s.send(result)
+	p.conn.SetDeadline(time.Now().Add(writeTimeout))
+	return wire.WriteJSON(p.conn, reply)
 }
 
-// connect asks host to dial back for client, then copies bytes between the
-// two until either side closes.
-func (h *Hub) connect(ctx context.Context, p peer, host, client wire.Key, pair bool) error {
-	s := h.lookup(host)
+// connect asks target to dial back for the member from, then copies bytes
+// between the two until either side closes.
+func (h *Hub) connect(ctx context.Context, p peer, network wire.NetworkID, target, from wire.NodeID) error {
+	s := h.lookup(network, target)
 	if s == nil {
-		return refusal(wire.ErrCodeHostOffline)
+		return refusal(wire.ErrCodeOffline)
 	}
-	id, st, err := s.begin(client, h.limits.MaxStreamsPerHost)
+	id, st, err := s.begin(h.limits.MaxStreamsPerNode)
 	if err != nil {
 		return err
 	}
 	defer s.end(id, st)
 
 	p.conn.SetDeadline(time.Time{})
-	if err := s.send(wire.Control{Type: wire.TypeOpen, Conn: id, Client: client, Pair: pair}); err != nil {
-		return refusal(wire.ErrCodeHostOffline)
+	if err := s.send(wire.Control{Type: wire.TypeOpen, Conn: id, From: from}); err != nil {
+		return refusal(wire.ErrCodeOffline)
 	}
 	timeout := time.NewTimer(h.limits.AcceptTimeout)
 	defer timeout.Stop()
-	var hp peer
+	var np peer
 	select {
-	case hp = <-st.accepted:
+	case np = <-st.accepted:
 	case <-timeout.C:
 		return refusal(wire.ErrCodeTimeout)
 	case <-s.done:
-		return refusal(wire.ErrCodeHostOffline)
+		return refusal(wire.ErrCodeOffline)
 	case <-ctx.Done():
-		return refusal(wire.ErrCodeHostOffline)
+		return refusal(wire.ErrCodeOffline)
 	}
-	if !s.attach(st, p.conn, hp.conn) {
-		return refusal(wire.ErrCodeHostOffline)
+	if !s.attach(st, p.conn, np.conn) {
+		return refusal(wire.ErrCodeOffline)
 	}
 
 	deadline := time.Now().Add(writeTimeout)
-	for _, c := range []net.Conn{hp.conn, p.conn} {
+	for _, c := range []net.Conn{np.conn, p.conn} {
 		c.SetDeadline(deadline)
 		if err := wire.WriteJSON(c, wire.Reply{OK: true}); err != nil {
 			return err
 		}
 		c.SetDeadline(time.Time{})
 	}
-	splice(p, hp)
+	splice(p, np)
 	return nil
 }
 
-// accept hands a host's data connection to the stream waiting for it and
+// accept hands a node's data connection to the stream waiting for it and
 // returns when that stream ends.
-func (h *Hub) accept(p peer, host wire.Key, id string) error {
-	s := h.lookup(host)
+func (h *Hub) accept(p peer, network wire.NetworkID, node wire.NodeID, id string) error {
+	s := h.lookup(network, node)
 	if s == nil {
 		return refusal(wire.ErrCodeUnknownConn)
 	}
@@ -284,9 +258,10 @@ func copyThenClose(dst net.Conn, src io.Reader) {
 	dst.Close()
 }
 
-// session is one host's control connection and the streams that go through it.
+// session is one node's control connection and the streams that go through it.
 type session struct {
-	host  wire.Key
+	node  wire.NodeID
+	name  string
 	conn  net.Conn
 	since time.Time
 	done  chan struct{}
@@ -298,19 +273,17 @@ type session struct {
 	closed  bool
 }
 
-// stream is one device-to-host stream, from the device's request to its end.
+// stream is one member-to-node stream, from the member's request to its end.
 type stream struct {
-	client   wire.Key
-	accepted chan peer     // the host's data connection, sent at most once
+	accepted chan peer     // the node's data connection, sent at most once
 	finished chan struct{} // closed when the stream ends, however it ends
-	taken    bool          // a host connection has claimed this stream
-	dead     bool          // revoked before the connections were attached
+	taken    bool          // a node connection has claimed this stream
 	conns    []net.Conn    // both ends, once attached
 }
 
-func newSession(host wire.Key, conn net.Conn) *session {
+func newSession(node wire.NodeID, name string, conn net.Conn) *session {
 	return &session{
-		host: host, conn: conn, since: time.Now(),
+		node: node, name: name, conn: conn, since: time.Now().UTC(),
 		done: make(chan struct{}), streams: map[string]*stream{},
 	}
 }
@@ -363,16 +336,16 @@ func (s *session) close() {
 	s.conn.Close()
 }
 
-// begin registers a new stream for client.
-func (s *session) begin(client wire.Key, limit int) (string, *stream, error) {
+// begin registers a new stream.
+func (s *session) begin(limit int) (string, *stream, error) {
 	raw := make([]byte, 16)
 	rand.Read(raw) // never fails (Go 1.24+)
 	id := base64.RawURLEncoding.EncodeToString(raw)
-	st := &stream{client: client, accepted: make(chan peer, 1), finished: make(chan struct{})}
+	st := &stream{accepted: make(chan peer, 1), finished: make(chan struct{})}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return "", nil, refusal(wire.ErrCodeHostOffline)
+		return "", nil, refusal(wire.ErrCodeOffline)
 	}
 	if len(s.streams) >= limit {
 		return "", nil, refusal(wire.ErrCodeBusy)
@@ -381,7 +354,7 @@ func (s *session) begin(client wire.Key, limit int) (string, *stream, error) {
 	return id, st, nil
 }
 
-// take claims the stream id for a host data connection. It returns nil when
+// take claims the stream id for a node data connection. It returns nil when
 // no stream is waiting under that id.
 func (s *session) take(id string, p peer) *stream {
 	s.mu.Lock()
@@ -395,37 +368,22 @@ func (s *session) take(id string, p peer) *stream {
 	return st
 }
 
-// attach records both ends of a stream so close and drop can end it. It
-// reports false when the stream must not start.
+// attach records both ends of a stream so close can end it. It reports false
+// when the session is already closed.
 func (s *session) attach(st *stream, conns ...net.Conn) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || st.dead {
+	if s.closed {
 		return false
 	}
 	st.conns = conns
 	return true
 }
 
-// end forgets a stream and releases the host connection waiting on it.
+// end forgets a stream and releases the node connection waiting on it.
 func (s *session) end(id string, st *stream) {
 	s.mu.Lock()
 	delete(s.streams, id)
 	s.mu.Unlock()
 	close(st.finished)
-}
-
-// drop ends every stream client has through this session.
-func (s *session) drop(client wire.Key) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, st := range s.streams {
-		if st.client != client {
-			continue
-		}
-		st.dead = true
-		for _, c := range st.conns {
-			c.Close()
-		}
-	}
 }

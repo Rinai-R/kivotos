@@ -1,10 +1,10 @@
-// Package admission decides whether a new connection may use the relay. It
-// runs the challenge and hello exchange, verifies the device's signature, and
-// checks the device against the registry or a pairing ticket.
+// Package admission decides whether a new connection may use the relay: it
+// reads the hello, checks its shape, and checks its token against the
+// registry.
 //
-// Admission protects the relay and the hosts' tunnels from strangers. It is
-// not what protects the traffic: that is the end-to-end TLS between device
-// and host, which the relay never sees inside.
+// Admission keeps strangers off the relay and out of a network's node list.
+// It is not what protects the traffic: members authenticate each other and
+// encrypt end to end, with a key the relay is never shown.
 package admission
 
 import (
@@ -12,78 +12,113 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/Rinai-R/kivotos/packages/relay/wire"
 )
 
-// Directory answers who is enrolled. *registry.Registry implements it.
+const (
+	// A source address is refused outright after failureLimit refused
+	// hellos within failureWindow.
+	failureLimit  = 10
+	failureWindow = time.Minute
+	// failureSweepAt is the table size that triggers dropping expired entries.
+	failureSweepAt = 4096
+)
+
+// Directory answers whether a token belongs to a registered network.
+// *registry.Registry implements it.
 type Directory interface {
-	HostKnown(host wire.Key) bool
-	ClientAllowed(host, client wire.Key) bool
+	Member(network wire.NetworkID, token wire.Token) bool
 }
 
 // Gate admits connections. It is safe for concurrent use.
 type Gate struct {
 	dir     Directory
-	tickets *Tickets
 	timeout time.Duration
 	fails   failures
 }
 
-// NewGate returns a Gate whose whole handshake must finish within timeout.
-func NewGate(dir Directory, tickets *Tickets, timeout time.Duration) *Gate {
-	return &Gate{dir: dir, tickets: tickets, timeout: timeout}
+// NewGate returns a Gate that waits at most timeout for a hello.
+func NewGate(dir Directory, timeout time.Duration) *Gate {
+	return &Gate{dir: dir, timeout: timeout}
 }
 
-// Admit runs the handshake on conn and returns the verified hello. remote is
-// the peer's address, used to slow down a source that keeps being refused.
+// Admit reads the hello from conn and returns it once its token is accepted.
+// remote is the peer's address, used to slow down a source that keeps being
+// refused.
 //
 // On refusal it tells the peer why with a wire.Reply and returns an error;
 // the caller only has to close conn. On success it writes nothing: the caller
-// replies once it knows whether the hello can be served. The handshake
-// deadline stays set on conn for the caller to extend or clear.
+// replies once it knows whether the hello can be served. The hello deadline
+// stays set on conn for the caller to extend or clear.
 func (g *Gate) Admit(conn net.Conn, r *bufio.Reader, remote string) (wire.Hello, error) {
-	ip := remote
 	conn.SetDeadline(time.Now().Add(g.timeout))
-	if g.fails.blocked(ip) {
-		return wire.Hello{}, g.refuse(conn, wire.ErrCodeRateLimited, errors.New("too many refused handshakes"))
-	}
-	challenge := wire.NewChallenge()
-	if err := wire.WriteJSON(conn, challenge); err != nil {
-		return wire.Hello{}, fmt.Errorf("sending challenge: %w", err)
+	if g.fails.blocked(remote) {
+		return wire.Hello{}, refuse(conn, wire.ErrCodeRateLimited, errors.New("too many refused hellos"))
 	}
 	var hello wire.Hello
 	if err := wire.ReadJSON(r, &hello); err != nil {
 		// Scanners and dropped connections end here; they are not counted.
 		return wire.Hello{}, fmt.Errorf("reading hello: %w", err)
 	}
-	if err := hello.Verify(challenge.Challenge); err != nil {
-		g.fails.record(ip)
-		return wire.Hello{}, g.refuse(conn, wire.ErrCodeBadHello, err)
+	if err := hello.Validate(); err != nil {
+		g.fails.record(remote)
+		return wire.Hello{}, refuse(conn, wire.ErrCodeBadHello, err)
 	}
-	if !g.allowed(hello) {
-		g.fails.record(ip)
-		return wire.Hello{}, g.refuse(conn, wire.ErrCodeDenied,
-			fmt.Errorf("%s %s is not allowed", hello.Role, hello.Key))
+	// An unknown network and a wrong token look the same to the peer.
+	if !g.dir.Member(hello.Network, hello.Token) {
+		g.fails.record(remote)
+		return wire.Hello{}, refuse(conn, wire.ErrCodeDenied,
+			fmt.Errorf("network %s: unknown, or wrong token", hello.Network))
 	}
 	return hello, nil
 }
 
-func (g *Gate) allowed(h wire.Hello) bool {
-	switch h.Role {
-	case wire.RoleHost, wire.RoleAccept:
-		return g.dir.HostKnown(h.Key)
-	case wire.RoleClient:
-		return g.dir.ClientAllowed(h.Host, h.Key)
-	case wire.RolePair:
-		return g.dir.HostKnown(h.Host) && g.tickets.Redeem(h.Host, h.Ticket)
-	}
-	return false
-}
-
-func (g *Gate) refuse(conn net.Conn, code string, cause error) error {
+func refuse(conn net.Conn, code string, cause error) error {
 	// Best effort: the peer may already be gone.
 	wire.WriteJSON(conn, wire.Reply{Error: code})
 	return fmt.Errorf("%s: %w", code, cause)
+}
+
+// failures counts refused hellos per source address. The zero value is ready
+// to use.
+type failures struct {
+	mu   sync.Mutex
+	byIP map[string]*failureCount
+}
+
+type failureCount struct {
+	n     int
+	until time.Time
+}
+
+func (f *failures) blocked(ip string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := f.byIP[ip]
+	return c != nil && time.Now().Before(c.until) && c.n >= failureLimit
+}
+
+func (f *failures) record(ip string) {
+	now := time.Now()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.byIP) >= failureSweepAt {
+		for k, c := range f.byIP {
+			if now.After(c.until) {
+				delete(f.byIP, k)
+			}
+		}
+	}
+	c := f.byIP[ip]
+	if c == nil || now.After(c.until) {
+		if f.byIP == nil {
+			f.byIP = map[string]*failureCount{}
+		}
+		f.byIP[ip] = &failureCount{n: 1, until: now.Add(failureWindow)}
+		return
+	}
+	c.n++
 }

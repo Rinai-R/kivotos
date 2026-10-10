@@ -7,8 +7,9 @@
 #   docker run -d --name kivotos-relay -p 127.0.0.1:7443:7443 \
 #     -e KIVOTOS_RELAY_BEHIND_PROXY=true -v kivotos-relay:/data kivotos-relay
 #
-# Manage hosts through the running container:
-#   docker exec kivotos-relay kivotos-relay host add <host-key> --name desk
+# Register a network through the running container, with the registration
+# Kivotos shows the computer that created the network:
+#   docker exec kivotos-relay kivotos-relay network add <registration> --name home
 
 FROM golang:1.25-alpine AS build
 WORKDIR /src

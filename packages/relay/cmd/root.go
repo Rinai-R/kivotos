@@ -22,7 +22,7 @@ func NewRootCmd() *cobra.Command {
 	v := viper.New()
 	root := &cobra.Command{
 		Use:           "kivotos-relay",
-		Short:         "Relay that joins Kivotos devices to hosts without seeing their traffic",
+		Short:         "Relay that joins the members of a Kivotos network without seeing their traffic",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -35,7 +35,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().String("admin-socket", "", "admin socket path (default <data-dir>/admin.sock)")
 	root.PersistentFlags().String("log-level", "info", "log level: debug, info, warn or error")
 
-	root.AddCommand(newServeCmd(v), newHostCmd(v))
+	root.AddCommand(newServeCmd(v), newNetworkCmd(v))
 	return root
 }
 

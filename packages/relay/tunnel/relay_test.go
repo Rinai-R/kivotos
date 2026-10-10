@@ -3,15 +3,14 @@ package tunnel_test
 import (
 	"bufio"
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -36,14 +35,14 @@ func startRelay(t *testing.T) *relay {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tickets := &admission.Tickets{}
 	log := slog.New(slog.DiscardHandler)
-	hub := tunnel.NewHub(reg, tickets, tunnel.Limits{
-		AcceptTimeout:     300 * time.Millisecond,
-		PingInterval:      200 * time.Millisecond,
-		MaxStreamsPerHost: 4,
+	hub := tunnel.NewHub(tunnel.Limits{
+		AcceptTimeout:      300 * time.Millisecond,
+		PingInterval:       200 * time.Millisecond,
+		MaxNodesPerNetwork: 2,
+		MaxStreamsPerNode:  4,
 	}, log)
-	server := &tunnel.Server{Hub: hub, Gate: admission.NewGate(reg, tickets, 2*time.Second), Log: log}
+	server := &tunnel.Server{Hub: hub, Gate: admission.NewGate(reg, 2*time.Second), Log: log}
 	web := httptest.NewUnstartedServer(server)
 	// t.Context is canceled before cleanups run, which ends every connection.
 	web.Config.BaseContext = func(net.Listener) context.Context { return t.Context() }
@@ -56,24 +55,33 @@ func startRelay(t *testing.T) *relay {
 	return &relay{url: "ws" + strings.TrimPrefix(web.URL, "http"), reg: reg, hub: hub}
 }
 
-type device struct {
-	priv ed25519.PrivateKey
-	key  wire.Key
+func random(t *testing.T, n int) string {
+	t.Helper()
+	raw := make([]byte, n)
+	rand.Read(raw)
+	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func newDevice(t *testing.T) device {
+// network is a federation registered on the relay, as its members know it.
+type network struct {
+	id    wire.NetworkID
+	token wire.Token
+}
+
+func (r *relay) register(t *testing.T) network {
 	t.Helper()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
+	n := network{id: wire.NetworkID(random(t, 16)), token: wire.Token(random(t, 32))}
+	if err := r.reg.Add(wire.Registration{Network: n.id, Token: n.token}, "home"); err != nil {
 		t.Fatal(err)
 	}
-	return device{priv: priv, key: wire.NewKey(pub)}
+	return n
 }
 
-// hello dials the relay, answers its challenge with h signed by d, and
-// returns the connection with the relay's reply. tamper, when set, edits the
-// hello after signing.
-func (r *relay) hello(t *testing.T, d device, h wire.Hello, tamper func(*wire.Hello)) (net.Conn, *bufio.Reader, wire.Reply) {
+func newNode(t *testing.T) wire.NodeID { return wire.NodeID(random(t, 32)) }
+
+// hello opens a connection, sends h, and returns the connection with the
+// relay's reply. Unset version, network and token come from n.
+func (r *relay) hello(t *testing.T, n network, h wire.Hello) (net.Conn, *bufio.Reader, wire.Reply) {
 	t.Helper()
 	ws, _, err := websocket.Dial(t.Context(), r.url, nil)
 	if err != nil {
@@ -82,18 +90,19 @@ func (r *relay) hello(t *testing.T, d device, h wire.Hello, tamper func(*wire.He
 	t.Cleanup(func() { ws.CloseNow() })
 	conn := websocket.NetConn(context.Background(), ws, websocket.MessageBinary)
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
-	br := wire.NewReader(conn)
-	var challenge wire.Challenge
-	if err := wire.ReadJSON(br, &challenge); err != nil {
-		t.Fatalf("reading challenge: %v", err)
+	if h.V == 0 {
+		h.V = wire.Version
 	}
-	h.Sign(d.priv, challenge.Challenge)
-	if tamper != nil {
-		tamper(&h)
+	if h.Network == "" {
+		h.Network = n.id
+	}
+	if h.Token == "" {
+		h.Token = n.token
 	}
 	if err := wire.WriteJSON(conn, h); err != nil {
 		t.Fatal(err)
 	}
+	br := wire.NewReader(conn)
 	var reply wire.Reply
 	if err := wire.ReadJSON(br, &reply); err != nil {
 		t.Fatalf("reading reply: %v", err)
@@ -101,83 +110,53 @@ func (r *relay) hello(t *testing.T, d device, h wire.Hello, tamper func(*wire.He
 	return conn, br, reply
 }
 
-// host is a fake computer: it holds a control connection and answers every
-// "open" by dialing back and echoing what the device sends.
-type host struct {
-	device
-	conn    net.Conn
-	opens   chan wire.Control
-	results chan wire.Control
-	wmu     sync.Mutex
-	// ignoreOpens makes the host stay silent when asked to dial back.
-	ignoreOpens bool
+// node is a fake computer: it holds a control connection and answers every
+// "open" by dialing back and echoing what the other member sends.
+type node struct {
+	id     wire.NodeID
+	opens  chan wire.Control
+	closed chan struct{}
 }
 
-func (r *relay) startHost(t *testing.T, d device, ignoreOpens bool) *host {
+// startNode brings a computer online. With ignoreOpens it stays silent when
+// asked to dial back.
+func (r *relay) startNode(t *testing.T, n network, id wire.NodeID, name string, ignoreOpens bool) *node {
 	t.Helper()
-	conn, br, reply := r.hello(t, d, wire.Hello{Role: wire.RoleHost}, nil)
+	conn, br, reply := r.hello(t, n, wire.Hello{Role: wire.RoleNode, Node: id, Name: name})
 	if !reply.OK {
-		t.Fatalf("host refused: %s", reply.Error)
+		t.Fatalf("node refused: %s", reply.Error)
 	}
 	conn.SetDeadline(time.Time{})
-	h := &host{
-		device: d, conn: conn, ignoreOpens: ignoreOpens,
-		opens: make(chan wire.Control, 8), results: make(chan wire.Control, 8),
-	}
+	nd := &node{id: id, opens: make(chan wire.Control, 8), closed: make(chan struct{})}
 	go func() {
+		defer close(nd.closed)
 		for {
 			var msg wire.Control
 			if wire.ReadJSON(br, &msg) != nil {
-				close(h.results)
 				return
 			}
 			switch msg.Type {
 			case wire.TypePing:
-				h.send(wire.Control{Type: wire.TypePong})
-			case wire.TypeResult:
-				h.results <- msg
+				wire.WriteJSON(conn, wire.Control{Type: wire.TypePong})
 			case wire.TypeOpen:
-				h.opens <- msg
-				if !h.ignoreOpens {
-					go r.echo(t, d, msg.Conn)
+				nd.opens <- msg
+				if !ignoreOpens {
+					go r.echo(t, n, id, msg.Conn)
 				}
 			}
 		}
 	}()
-	return h
+	return nd
 }
 
-func (h *host) send(msg wire.Control) {
-	h.wmu.Lock()
-	defer h.wmu.Unlock()
-	wire.WriteJSON(h.conn, msg)
-}
-
-// request sends msg and returns the relay's result for it.
-func (h *host) request(t *testing.T, msg wire.Control) wire.Control {
-	t.Helper()
-	msg.ID = 1
-	h.send(msg)
-	select {
-	case res, ok := <-h.results:
-		if !ok {
-			t.Fatal("control connection closed before the result")
-		}
-		return res
-	case <-time.After(5 * time.Second):
-		t.Fatal("no result from the relay")
-		return wire.Control{}
-	}
-}
-
-func (r *relay) echo(t *testing.T, d device, id string) {
-	conn, br, reply := r.hello(t, d, wire.Hello{Role: wire.RoleAccept, Conn: id}, nil)
+func (r *relay) echo(t *testing.T, n network, id wire.NodeID, conn string) {
+	c, br, reply := r.hello(t, n, wire.Hello{Role: wire.RoleAccept, Node: id, Conn: conn})
 	if !reply.OK {
 		return
 	}
-	conn.SetDeadline(time.Time{})
-	io.Copy(conn, br)
-	conn.Close()
+	c.SetDeadline(time.Time{})
+	io.Copy(c, br)
+	c.Close()
 }
 
 // roundTrip proves bytes cross the relay both ways on an open stream.
@@ -196,90 +175,94 @@ func roundTrip(t *testing.T, conn net.Conn, br *bufio.Reader) {
 	}
 }
 
-func TestGrantedDeviceReachesItsHost(t *testing.T) {
+func TestMemberReachesANodeOfItsNetwork(t *testing.T) {
 	r := startRelay(t)
-	hostDev, phone := newDevice(t), newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, "desk"); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.reg.Grant(hostDev.key, phone.key, "phone"); err != nil {
-		t.Fatal(err)
-	}
-	h := r.startHost(t, hostDev, false)
+	home := r.register(t)
+	desk, phone := newNode(t), newNode(t)
+	nd := r.startNode(t, home, desk, "desk", false)
+	dial := wire.Hello{Role: wire.RoleDial, Node: phone, Target: desk}
 
-	conn, br, reply := r.hello(t, phone, wire.Hello{Role: wire.RoleClient, Host: hostDev.key}, nil)
+	conn, br, reply := r.hello(t, home, dial)
 	if !reply.OK {
-		t.Fatalf("client refused: %s", reply.Error)
+		t.Fatalf("dial refused: %s", reply.Error)
 	}
-	open := <-h.opens
-	if open.Client != phone.key || open.Pair {
-		t.Fatalf("open = %+v, want client %s and no pair flag", open, phone.key)
+	if open := <-nd.opens; open.From != phone {
+		t.Fatalf("open.From = %s, want the dialing member %s", open.From, phone)
 	}
 	roundTrip(t, conn, br)
 
-	// One stream must not disturb another to the same host.
-	conn2, br2, reply := r.hello(t, phone, wire.Hello{Role: wire.RoleClient, Host: hostDev.key}, nil)
+	// One stream must not disturb another to the same node.
+	conn2, br2, reply := r.hello(t, home, dial)
 	if !reply.OK {
 		t.Fatalf("second stream refused: %s", reply.Error)
 	}
 	conn.Close()
 	roundTrip(t, conn2, br2)
 
-	// The device leaving must end its stream on the relay, not leave it counted.
+	// The member leaving must end its stream on the relay, not leave it counted.
 	deadline := time.Now().Add(5 * time.Second)
-	for r.hub.Sessions()[0].Streams != 1 {
+	for r.hub.Nodes(home.id)[0].Streams != 1 {
 		if time.Now().After(deadline) {
-			t.Fatalf("streams = %d after one of two closed, want 1", r.hub.Sessions()[0].Streams)
+			t.Fatalf("streams = %d after one of two closed, want 1", r.hub.Nodes(home.id)[0].Streams)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 }
 
+func TestNodesAreVisibleOnlyInsideTheirNetwork(t *testing.T) {
+	r := startRelay(t)
+	home, other := r.register(t), r.register(t)
+	desk, laptop, phone := newNode(t), newNode(t), newNode(t)
+	r.startNode(t, home, desk, "desk", false)
+	r.startNode(t, home, laptop, "laptop", false)
+
+	_, _, reply := r.hello(t, home, wire.Hello{Role: wire.RolePeers, Node: phone})
+	if !reply.OK || len(reply.Peers) != 2 || reply.Peers[0].Name != "desk" || reply.Peers[1].Node != laptop {
+		t.Fatalf("peers in the network = %+v, want desk then laptop", reply)
+	}
+	if _, _, reply := r.hello(t, other, wire.Hello{Role: wire.RolePeers, Node: phone}); !reply.OK || len(reply.Peers) != 0 {
+		t.Fatalf("peers seen from another network = %+v, want none", reply)
+	}
+	// Knowing a node's ID is not enough: it cannot be dialed from another network.
+	_, _, reply = r.hello(t, other, wire.Hello{Role: wire.RoleDial, Node: phone, Target: desk})
+	if reply.OK || reply.Error != wire.ErrCodeOffline {
+		t.Fatalf("dial across networks: reply = %+v, want offline", reply)
+	}
+}
+
 func TestRelayRefusesWhoItShould(t *testing.T) {
 	r := startRelay(t)
-	hostDev, phone, stranger := newDevice(t), newDevice(t), newDevice(t)
-	offlineHost := newDevice(t)
-	for _, d := range []device{hostDev, offlineHost} {
-		if err := r.reg.AddHost(d.key, ""); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, d := range []device{hostDev, offlineHost} {
-		if err := r.reg.Grant(d.key, phone.key, ""); err != nil {
-			t.Fatal(err)
-		}
-	}
-	r.startHost(t, hostDev, false)
+	home, other := r.register(t), r.register(t)
+	desk, phone := newNode(t), newNode(t)
+	r.startNode(t, home, desk, "desk", false)
+	unregistered := network{id: wire.NetworkID(random(t, 16)), token: wire.Token(random(t, 32))}
 
 	tests := []struct {
-		name   string
-		from   device
-		hello  wire.Hello
-		tamper func(*wire.Hello)
-		want   string
+		name  string
+		as    network
+		hello wire.Hello
+		want  string
 	}{
-		{"device the host never granted", stranger,
-			wire.Hello{Role: wire.RoleClient, Host: hostDev.key}, nil, wire.ErrCodeDenied},
-		{"host nobody enrolled", stranger,
-			wire.Hello{Role: wire.RoleHost}, nil, wire.ErrCodeDenied},
-		{"data connection from a non-host", stranger,
-			wire.Hello{Role: wire.RoleAccept, Conn: "x"}, nil, wire.ErrCodeDenied},
-		{"granted device claiming another host after signing", phone,
-			wire.Hello{Role: wire.RoleClient, Host: offlineHost.key},
-			func(h *wire.Hello) { h.Host = hostDev.key }, wire.ErrCodeBadHello},
-		{"stranger presenting a granted device's key", stranger,
-			wire.Hello{Role: wire.RoleClient, Host: hostDev.key},
-			func(h *wire.Hello) { h.Key = phone.key }, wire.ErrCodeBadHello},
-		{"pairing without a ticket the host issued", stranger,
-			wire.Hello{Role: wire.RolePair, Host: hostDev.key, Ticket: "guess"}, nil, wire.ErrCodeDenied},
-		{"host is enrolled but not connected", phone,
-			wire.Hello{Role: wire.RoleClient, Host: offlineHost.key}, nil, wire.ErrCodeHostOffline},
-		{"host answering a stream nobody asked for", hostDev,
-			wire.Hello{Role: wire.RoleAccept, Conn: "never-opened"}, nil, wire.ErrCodeUnknownConn},
+		{"network the operator never registered", unregistered,
+			wire.Hello{Role: wire.RoleNode, Node: desk}, wire.ErrCodeDenied},
+		{"right network, wrong token", home,
+			wire.Hello{Role: wire.RoleDial, Node: phone, Target: desk, Token: wire.Token(random(t, 32))}, wire.ErrCodeDenied},
+		{"another network's token", home,
+			wire.Hello{Role: wire.RoleDial, Node: phone, Target: desk, Token: other.token}, wire.ErrCodeDenied},
+		{"older protocol version", home,
+			wire.Hello{V: 1, Role: wire.RoleDial, Node: phone, Target: desk}, wire.ErrCodeBadHello},
+		{"dial without a target", home,
+			wire.Hello{Role: wire.RoleDial, Node: phone}, wire.ErrCodeBadHello},
+		{"target that is not online", home,
+			wire.Hello{Role: wire.RoleDial, Node: phone, Target: newNode(t)}, wire.ErrCodeOffline},
+		{"node answering a stream nobody asked for", home,
+			wire.Hello{Role: wire.RoleAccept, Node: desk, Conn: "never-opened"}, wire.ErrCodeUnknownConn},
+		{"member answering a stream of a node it is not", home,
+			wire.Hello{Role: wire.RoleAccept, Node: phone, Conn: "x"}, wire.ErrCodeUnknownConn},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, reply := r.hello(t, tt.from, tt.hello, tt.tamper)
+			_, _, reply := r.hello(t, tt.as, tt.hello)
 			if reply.OK || reply.Error != tt.want {
 				t.Fatalf("reply = %+v, want error %q", reply, tt.want)
 			}
@@ -287,136 +270,96 @@ func TestRelayRefusesWhoItShould(t *testing.T) {
 	}
 }
 
-func TestPairingTicketAdmitsOneDeviceOnce(t *testing.T) {
+func TestMemberIsToldWhenTheNodeDoesNotDialBack(t *testing.T) {
 	r := startRelay(t)
-	hostDev, phone, thief := newDevice(t), newDevice(t), newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	h := r.startHost(t, hostDev, false)
+	home := r.register(t)
+	desk := newNode(t)
+	r.startNode(t, home, desk, "desk", true)
 
-	const code = "one-time pairing code"
-	if res := h.request(t, wire.Control{Type: wire.TypeTicket, Ticket: wire.TicketHash(code), TTL: 60}); !res.OK {
-		t.Fatalf("ticket refused: %s", res.Error)
-	}
-	pair := wire.Hello{Role: wire.RolePair, Host: hostDev.key, Ticket: code}
-
-	conn, br, reply := r.hello(t, phone, pair, nil)
-	if !reply.OK {
-		t.Fatalf("pairing refused: %s", reply.Error)
-	}
-	if open := <-h.opens; !open.Pair || open.Client != phone.key {
-		t.Fatalf("open = %+v, want pair flag and client %s", open, phone.key)
-	}
-	roundTrip(t, conn, br)
-
-	// Someone who saw the code cannot use it again.
-	if _, _, reply := r.hello(t, thief, pair, nil); reply.OK || reply.Error != wire.ErrCodeDenied {
-		t.Fatalf("second use of the ticket: reply = %+v, want denied", reply)
-	}
-
-	// Pairing alone grants nothing: the device gets in later only once the host says so.
-	client := wire.Hello{Role: wire.RoleClient, Host: hostDev.key}
-	if _, _, reply := r.hello(t, phone, client, nil); reply.OK {
-		t.Fatal("paired but ungranted device was admitted as a client")
-	}
-	if res := h.request(t, wire.Control{Type: wire.TypeGrant, Client: phone.key, Name: "phone"}); !res.OK {
-		t.Fatalf("grant refused: %s", res.Error)
-	}
-	if _, _, reply := r.hello(t, phone, client, nil); !reply.OK {
-		t.Fatalf("granted device refused: %s", reply.Error)
-	}
-}
-
-func TestRevokeEndsLiveStreamsAndBlocksNewOnes(t *testing.T) {
-	r := startRelay(t)
-	hostDev, phone := newDevice(t), newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.reg.Grant(hostDev.key, phone.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	h := r.startHost(t, hostDev, false)
-	client := wire.Hello{Role: wire.RoleClient, Host: hostDev.key}
-	conn, br, reply := r.hello(t, phone, client, nil)
-	if !reply.OK {
-		t.Fatalf("client refused: %s", reply.Error)
-	}
-	roundTrip(t, conn, br)
-
-	if res := h.request(t, wire.Control{Type: wire.TypeRevoke, Client: phone.key}); !res.OK {
-		t.Fatalf("revoke refused: %s", res.Error)
-	}
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if _, err := br.ReadByte(); err == nil {
-		t.Fatal("stream of a revoked device stayed open")
-	} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
-		t.Fatal("stream of a revoked device was not closed")
-	}
-	if _, _, reply := r.hello(t, phone, client, nil); reply.OK || reply.Error != wire.ErrCodeDenied {
-		t.Fatalf("revoked device: reply = %+v, want denied", reply)
-	}
-}
-
-func TestDeviceIsToldWhenTheHostDoesNotDialBack(t *testing.T) {
-	r := startRelay(t)
-	hostDev, phone := newDevice(t), newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.reg.Grant(hostDev.key, phone.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	r.startHost(t, hostDev, true)
-
-	_, _, reply := r.hello(t, phone, wire.Hello{Role: wire.RoleClient, Host: hostDev.key}, nil)
+	_, _, reply := r.hello(t, home, wire.Hello{Role: wire.RoleDial, Node: newNode(t), Target: desk})
 	if reply.OK || reply.Error != wire.ErrCodeTimeout {
 		t.Fatalf("reply = %+v, want timeout", reply)
 	}
-	// The abandoned stream must not keep counting against the host's limit.
-	if s := r.hub.Sessions(); len(s) != 1 || s[0].Streams != 0 {
-		t.Fatalf("sessions = %+v, want one host with no streams", s)
+	// The abandoned stream must not keep counting against the node's limit.
+	if nodes := r.hub.Nodes(home.id); len(nodes) != 1 || nodes[0].Streams != 0 {
+		t.Fatalf("nodes = %+v, want one node with no streams", nodes)
 	}
 }
 
-func TestStreamLimitPerHost(t *testing.T) {
-	r := startRelay(t) // MaxStreamsPerHost is 4
-	hostDev, phone := newDevice(t), newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, ""); err != nil {
-		t.Fatal(err)
+func TestLimitsPerNetworkAndPerNode(t *testing.T) {
+	r := startRelay(t) // 2 nodes per network, 4 streams per node
+	home := r.register(t)
+	desk := newNode(t)
+	r.startNode(t, home, desk, "desk", false)
+	r.startNode(t, home, newNode(t), "laptop", false)
+
+	_, _, reply := r.hello(t, home, wire.Hello{Role: wire.RoleNode, Node: newNode(t)})
+	if reply.OK || reply.Error != wire.ErrCodeBusy {
+		t.Fatalf("third node: reply = %+v, want busy", reply)
 	}
-	if err := r.reg.Grant(hostDev.key, phone.key, ""); err != nil {
-		t.Fatal(err)
-	}
-	r.startHost(t, hostDev, false)
-	client := wire.Hello{Role: wire.RoleClient, Host: hostDev.key}
+	// A node reconnecting takes its own place, even with the network full.
+	r.startNode(t, home, desk, "desk", false)
+
+	dial := wire.Hello{Role: wire.RoleDial, Node: newNode(t), Target: desk}
 	for i := range 4 {
-		if _, _, reply := r.hello(t, phone, client, nil); !reply.OK {
+		if _, _, reply := r.hello(t, home, dial); !reply.OK {
 			t.Fatalf("stream %d refused: %s", i, reply.Error)
 		}
 	}
-	if _, _, reply := r.hello(t, phone, client, nil); reply.OK || reply.Error != wire.ErrCodeBusy {
+	if _, _, reply := r.hello(t, home, dial); reply.OK || reply.Error != wire.ErrCodeBusy {
 		t.Fatalf("fifth stream: reply = %+v, want busy", reply)
 	}
 }
 
-func TestRemovedHostLosesItsConnection(t *testing.T) {
+func TestReconnectingNodeReplacesItsOldConnection(t *testing.T) {
 	r := startRelay(t)
-	hostDev := newDevice(t)
-	if err := r.reg.AddHost(hostDev.key, ""); err != nil {
+	home := r.register(t)
+	desk := newNode(t)
+	first := r.startNode(t, home, desk, "desk", true)
+	r.startNode(t, home, desk, "desk", false)
+
+	select {
+	case <-first.closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the replaced control connection stayed open")
+	}
+	// Streams go to the new connection, which answers; the old one would not.
+	conn, br, reply := r.hello(t, home, wire.Hello{Role: wire.RoleDial, Node: newNode(t), Target: desk})
+	if !reply.OK {
+		t.Fatalf("dial after reconnect refused: %s", reply.Error)
+	}
+	roundTrip(t, conn, br)
+}
+
+func TestRemovedNetworkLosesItsConnections(t *testing.T) {
+	r := startRelay(t)
+	home := r.register(t)
+	desk := newNode(t)
+	nd := r.startNode(t, home, desk, "desk", false)
+	conn, br, reply := r.hello(t, home, wire.Hello{Role: wire.RoleDial, Node: newNode(t), Target: desk})
+	if !reply.OK {
+		t.Fatalf("dial refused: %s", reply.Error)
+	}
+	roundTrip(t, conn, br)
+
+	// What the admin API does on "network remove".
+	if err := r.reg.Remove(home.id); err != nil {
 		t.Fatal(err)
 	}
-	h := r.startHost(t, hostDev, false)
-	if !r.hub.Kick(hostDev.key) {
-		t.Fatal("Kick reported the host offline")
-	}
+	r.hub.Kick(home.id)
+
 	select {
-	case _, ok := <-h.results:
-		if ok {
-			t.Fatal("unexpected result")
-		}
+	case <-nd.closed:
 	case <-time.After(5 * time.Second):
-		t.Fatal("control connection stayed open after Kick")
+		t.Fatal("control connection stayed open after the network was removed")
+	}
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := br.ReadByte(); err == nil {
+		t.Fatal("stream stayed open after the network was removed")
+	} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		t.Fatal("stream was not closed after the network was removed")
+	}
+	if _, _, reply := r.hello(t, home, wire.Hello{Role: wire.RolePeers, Node: desk}); reply.OK {
+		t.Fatal("removed network was still admitted")
 	}
 }

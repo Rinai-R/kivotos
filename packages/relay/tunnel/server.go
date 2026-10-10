@@ -123,17 +123,19 @@ func (s *Server) handle(ctx context.Context, conn net.Conn, remote string) {
 	}
 	p := peer{conn: conn, r: r}
 	switch hello.Role {
-	case wire.RoleHost:
-		err = s.Hub.serveHost(ctx, p, hello.Key)
+	case wire.RoleNode:
+		err = s.Hub.serveNode(ctx, p, hello)
 	case wire.RoleAccept:
-		err = s.Hub.accept(p, hello.Key, hello.Conn)
-	case wire.RoleClient, wire.RolePair:
-		err = s.Hub.connect(ctx, p, hello.Host, hello.Key, hello.Role == wire.RolePair)
+		err = s.Hub.accept(p, hello.Network, hello.Node, hello.Conn)
+	case wire.RoleDial:
+		err = s.Hub.connect(ctx, p, hello.Network, hello.Target, hello.Node)
+	case wire.RolePeers:
+		err = s.Hub.peers(p, hello.Network)
 	}
 	var refused refusal
 	if errors.As(err, &refused) {
 		conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 		wire.WriteJSON(conn, wire.Reply{Error: string(refused)}) // best effort
-		s.Log.Debug("request refused", "role", hello.Role, "key", hello.Key, "code", string(refused))
+		s.Log.Debug("request refused", "role", hello.Role, "node", hello.Node, "code", string(refused))
 	}
 }
