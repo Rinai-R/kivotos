@@ -425,6 +425,36 @@ function PairDialog({
   );
 }
 
+/** "Pair phone" row at the foot of the machine list. */
+function PairEntry({
+  ready,
+  t,
+  onPair,
+}: {
+  ready: boolean;
+  t: Translate;
+  onPair: () => void;
+}): ReactNode {
+  const unavailable = ready ? undefined : t("pair.unavailable");
+  return (
+    <li className="kivotos-machines-separator">
+      <button
+        type="button"
+        className="kivotos-machines-item"
+        disabled={!ready}
+        title={unavailable}
+        onClick={onPair}
+      >
+        <QrGlyph />
+        <span className="kivotos-machines-name">{t("pair.action")}</span>
+      </button>
+      {unavailable === undefined ? null : (
+        <span className="kivotos-machines-note">{unavailable}</span>
+      )}
+    </li>
+  );
+}
+
 /** Machine switcher in the sidebar foot. */
 function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -432,6 +462,8 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const machines = useMachines(open);
+  // A phone is the thing being paired: it has no use for its own pairing code.
+  const phone = useMedia(PHONE);
   const peer = currentPeer();
   const toggle = useCallback(() => setOpen((value) => !value), []);
   const closePair = useCallback(() => {
@@ -511,21 +543,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             />
           ))}
           {note === null ? null : <li className="kivotos-machines-note">{note}</li>}
-          <li className="kivotos-machines-separator">
-            <button
-              type="button"
-              className="kivotos-machines-item"
-              disabled={!pairReady}
-              title={!pairReady ? t("pair.unavailable") : undefined}
-              onClick={showPair}
-            >
-              <QrGlyph />
-              <span className="kivotos-machines-name">{t("pair.action")}</span>
-            </button>
-            {!pairReady ? (
-              <span className="kivotos-machines-note">{t("pair.unavailable")}</span>
-            ) : null}
-          </li>
+          {phone ? null : <PairEntry ready={pairReady} t={t} onPair={showPair} />}
         </ul>
       ) : null}
       {pairUrl !== null ? <PairDialog url={pairUrl} t={t} onClose={closePair} /> : null}
