@@ -39,16 +39,22 @@ Kivotos は DeepSeek Harness (dsh) のプラグインです。Tailscale の tail
 
 ## インストール
 
-各マシンで実行します。`npm install` がビルドツールを入れ、プラグインを `packages/kivotos/dist/` にビルドします。
+各マシンで、公開済みのパッケージを npm からインストールします。
+
+```sh
+dsh plugin --profile web add @kivotos/dsh-plugin
+```
+
+インストール後に dsh を再起動します。Kivotos を使うすべてのマシンで同じ手順を繰り返してください。
+
+ソースから動かす場合（開発用）は、プラグインをビルドしてからそのディレクトリを追加します。
 
 ```sh
 git clone git@github.com:Rinai-R/kivotos.git
 cd kivotos
-npm install
+npm install   # ビルドツールを入れ、packages/kivotos/dist/ をビルドします
 dsh plugin --profile web add "$PWD/packages/kivotos"
 ```
-
-インストール後に dsh を再起動します。Kivotos を使うすべてのマシンで同じ手順を繰り返してください。
 
 次のコマンドの出力に `kivotos` のエントリが含まれていれば、インストールは完了しています。
 
@@ -186,7 +192,7 @@ npm run apk -w packages/mobile   # expo prebuild、その後 gradlew assembleRel
 
 `packages/mobile/android/` は `expo prebuild` が生成するもので、コミットされません。リリース APK はデバッグキーで署名されているため、そのままインストールできますが、アプリストア向けのものではありません。
 
-バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、Android のアップグレード用に `expo.android.versionCode` を増やしてから、対応する `v<version>` タグ（例: `v0.1.1`）を push します。CI のチェックと APK ビルドが成功すると、GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになります。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
+バージョンを公開するには、ルート、プラグイン、mobile の各 `package.json` の `version` と `packages/mobile/app.json` の `expo.version` を同じ値に更新し、Android のアップグレード用に `expo.android.versionCode` を増やしてから、対応する `v<version>` タグ（例: `v0.1.1`）を push します。CI のチェックと APK ビルドが成功すると、まず `@kivotos/dsh-plugin` を npm に公開し（provenance 付き、リポジトリの secret `NPM_TOKEN` を使用）、続いて GitHub Release に `Kivotos-v<version>.apk` と `Kivotos-v<version>.sha256` が添付されます。ハイフンを含むタグはプレリリースになり、npm では `next` タグで公開されます。通常の `main` のコミットでは、一時的な Actions artifact のみ生成します。公開 APK は引き続き Expo のデバッグキーで署名されるため、直接インストール用であり、ストア配布や正式な本番用署名には適しません。
 
 ```sh
 git tag v0.1.1

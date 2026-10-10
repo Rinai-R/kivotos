@@ -97,10 +97,59 @@ jobs:
           path: packages/mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
+  npm:
+    name: publish npm package
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [check, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance: a signed statement that this CI run built the package.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # npm ci runs the plugin's prepare script, which builds dist/.
+      - name: Install and build
+        run: npm ci
+
+      # npm shows the README and license that sit in the package directory.
+      - name: Add README and license to the package
+        run: cp README.md LICENSE NOTICE packages/kivotos/
+
+      - name: Publish @kivotos/dsh-plugin
+        working-directory: packages/kivotos
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::The NPM_TOKEN repository secret is not set."
+            exit 1
+          fi
+          version="${TAG#v}"
+          # A rerun after a later job failed must not fail on the version already published.
+          if npm view "@kivotos/dsh-plugin@${version}" version >/dev/null 2>&1; then
+            echo "@kivotos/dsh-plugin@${version} is already on npm; skipping."
+            exit 0
+          fi
+          # Prereleases go to the "next" dist-tag so they never become "latest".
+          if [[ "$TAG" == *-* ]]; then
+            npm publish --tag next
+          else
+            npm publish
+          fi
+
   release:
     name: publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [check, android]
+    needs: [check, android, npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write

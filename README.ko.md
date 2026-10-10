@@ -39,16 +39,22 @@ Kivotos는 DeepSeek Harness(dsh)용 플러그인입니다. Tailscale tailnet에�
 
 ## 설치
 
-각 머신에서 실행합니다. `npm install`이 빌드 도구를 설치하고 플러그인을 `packages/kivotos/dist/`에 빌드합니다.
+각 머신에서 공개된 패키지를 npm으로 설치합니다.
+
+```sh
+dsh plugin --profile web add @kivotos/dsh-plugin
+```
+
+설치 후 dsh를 재시작합니다. Kivotos를 사용할 모든 머신에서 같은 절차를 반복하세요.
+
+소스에서 실행하려면(개발용) 플러그인을 빌드한 뒤 해당 디렉터리를 추가합니다.
 
 ```sh
 git clone git@github.com:Rinai-R/kivotos.git
 cd kivotos
-npm install
+npm install   # 빌드 도구를 설치하고 packages/kivotos/dist/를 빌드합니다
 dsh plugin --profile web add "$PWD/packages/kivotos"
 ```
-
-설치 후 dsh를 재시작합니다. Kivotos를 사용할 모든 머신에서 같은 절차를 반복하세요.
 
 다음 명령의 출력에 `kivotos` 항목이 있으면 설치가 완료된 것입니다.
 
@@ -186,7 +192,7 @@ npm run apk -w packages/mobile   # expo prebuild, 그다음 gradlew assembleRele
 
 `packages/mobile/android/`는 `expo prebuild`가 생성하며 커밋되지 않습니다. 릴리스 APK는 디버그 키로 서명되어 바로 설치할 수 있지만 앱 스토어용은 아닙니다.
 
-버전을 출시하려면 루트, 플러그인, mobile의 각 `package.json`에 있는 `version`과 `packages/mobile/app.json`의 `expo.version`을 같은 값으로 바꾸고 Android 업그레이드를 위해 `expo.android.versionCode`를 증가시킨 뒤, 해당 `v<version>` 태그(예: `v0.1.1`)를 푸시합니다. CI 검사와 APK 빌드가 성공하면 GitHub Release에 `Kivotos-v<version>.apk`와 `Kivotos-v<version>.sha256`을 첨부합니다. 하이픈이 포함된 태그는 사전 릴리스로 게시됩니다. 일반 `main` 커밋에서는 임시 Actions artifact만 생성됩니다. 게시된 APK는 여전히 Expo의 디버그 키로 서명되므로 직접 설치용이며 스토어 배포나 정식 프로덕션 서명에는 적합하지 않습니다.
+버전을 출시하려면 루트, 플러그인, mobile의 각 `package.json`에 있는 `version`과 `packages/mobile/app.json`의 `expo.version`을 같은 값으로 바꾸고 Android 업그레이드를 위해 `expo.android.versionCode`를 증가시킨 뒤, 해당 `v<version>` 태그(예: `v0.1.1`)를 푸시합니다. CI 검사와 APK 빌드가 성공하면 먼저 `@kivotos/dsh-plugin`을 npm에 게시하고(provenance 포함, 저장소 secret `NPM_TOKEN` 사용) 이어서 GitHub Release에 `Kivotos-v<version>.apk`와 `Kivotos-v<version>.sha256`을 첨부합니다. 하이픈이 포함된 태그는 사전 릴리스로 게시되며 npm에서는 `next` 태그로 게시됩니다. 일반 `main` 커밋에서는 임시 Actions artifact만 생성됩니다. 게시된 APK는 여전히 Expo의 디버그 키로 서명되므로 직접 설치용이며 스토어 배포나 정식 프로덕션 서명에는 적합하지 않습니다.
 
 ```sh
 git tag v0.1.1

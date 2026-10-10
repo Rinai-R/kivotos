@@ -1,14 +1,35 @@
 {
   "name": "@kivotos/dsh-plugin",
   "version": "0.1.1",
-  "private": true,
   "description": "Open and drive every dsh on your tailnet from any dsh, with a complete phone layout.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "mobile",
+    "remote",
+    "tailscale"
+  ],
+  "homepage": "https://github.com/Rinai-R/kivotos#readme",
+  "bugs": {
+    "url": "https://github.com/Rinai-R/kivotos/issues"
+  },
   "license": "Apache-2.0",
+  "author": {
+    "name": "Rinai",
+    "email": "1130157066@qq.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rinai-R/kivotos.git",
+    "directory": "packages/kivotos"
+  },
   "files": [
     "dist",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "NOTICE"
   ],
   "type": "module",
   "exports": {
@@ -17,19 +38,21 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepare": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test \"test/*.test.ts\""
   },
-  "dependencies": {
-    "qrcode-generator": "2.0.4"
-  },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "@types/react": "^18.3.31",
     "esbuild": "^0.28.2",
+    "qrcode-generator": "2.0.4",
     "typescript": "^5.9.3"
   },
   "engines": {
