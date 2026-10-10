@@ -39,6 +39,7 @@
     "./icon": "./icon.svg"
   },
   "publishConfig": {
+    "access": "public",
     "provenance": true
   },
   "scripts": {
