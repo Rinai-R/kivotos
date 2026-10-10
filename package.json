@@ -1,6 +1,6 @@
 {
   "name": "kivotos-workspace",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Kivotos: a DeepSeek Harness plugin that federates dsh hosts over Tailscale, with a complete mobile layout",
   "keywords": [

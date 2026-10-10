@@ -2,7 +2,7 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
-## Unreleased
+## v0.1.4
 
 - Connect through a relay server you run, next to or instead of Tailscale. A machine can be in a tailnet and a relay network at once. The relay (`packages/relay`, Go, with a Dockerfile) forwards end-to-end encrypted streams and cannot read them or join the network.
 - dsh Settings gains **Remote access**, with a tab per way to connect: create or join a relay network, see its state, and invite other devices by link or QR code.
@@ -18,7 +18,7 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## v0.1.3
 
-- Add a trace log for diagnosing slow phone connections. One JSON line per event in `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`; set `trace` to `off`, `requests` (default) or `frames`. The README lists the fields.
+- Add a trace log for diagnosing slow phone connections. One JSON line per event in `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`; set `trace` to `off`, `requests` (default) or `frames`.
 - The Settings panel fits phone screens: full screen, with the section list as a tab row on top.
 - "Pair phone" no longer shows on phones.
 - Fix: concurrent requests from one address each started their own `tailscale whois` process.
@@ -27,7 +27,7 @@ Android app: version bump only.
 
 ### 中文
 
-- 新增追踪日志，用来排查手机连接慢。每个事件一行 JSON，写在 `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`；`trace` 可设为 `off`、`requests`（默认）或 `frames`。字段说明见 README。
+- 新增追踪日志，用来排查手机连接慢。每个事件一行 JSON，写在 `$DSH_HOME/kivotos/logs/trace-YYYY-MM-DD.jsonl`；`trace` 可设为 `off`、`requests`（默认）或 `frames`。
 - 设置面板适配手机屏幕：全屏显示，分区列表变成顶部的标签栏。
 - 手机上不再显示“配对手机”。
 - 修复：同一地址的并发请求会各自启动一个 `tailscale whois` 进程。
