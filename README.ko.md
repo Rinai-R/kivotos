@@ -45,13 +45,14 @@ dsh를 다시 시작하면 다른 머신은 사이드바 하단의 **Machines**�
 
 ### 릴레이
 
-공인 주소가 있는 서버에서 릴레이를 실행합니다.
+공인 주소가 있는 서버에서 Docker Compose로 릴레이를 실행합니다.
 
 ```bash
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
+curl -O https://raw.githubusercontent.com/Rinai-R/kivotos/main/packages/relay/docker-compose.yml
+docker compose up -d
 ```
 
-첫 번째 컴퓨터에서 **Settings → Remote access → Own relay**를 열어 릴레이 주소를 입력하고 네트워크를 만든 다음, 페이지에 표시되는 명령으로 릴레이에 등록합니다. 다른 컴퓨터와 휴대폰은 초대 링크나 QR 코드로 참여합니다.
+첫 번째 컴퓨터에서 **Settings → Remote access → Own relay**를 열어 릴레이 주소를 입력하고 네트워크를 만든 다음, 릴레이에서 `docker compose exec relay` 뒤에 페이지에 표시되는 명령을 붙여 실행해 등록합니다. 다른 컴퓨터와 휴대폰은 초대 링크나 QR 코드로 참여합니다.
 
 초대 링크를 가진 사람이나 내 Tailscale 계정에 로그인한 사람은 내 머신을 완전히 제어할 수 있습니다.
 

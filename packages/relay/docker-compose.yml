@@ -1,0 +1,29 @@
+# Kivotos relay.
+#
+#   docker compose up -d
+#
+# Register each network once, with the registration that dsh shows under
+# Settings → Remote access → Own relay:
+#
+#   docker compose exec relay kivotos-relay network add <registration>
+#
+# The relay serves plain HTTP on 7443 (WebSocket at /v1/connect, health at
+# /healthz). Traffic between your devices stays end-to-end encrypted either
+# way, but for TLS on the relay itself use one of the commented options below.
+services:
+  relay:
+    image: ghcr.io/rinai-r/kivotos-relay:latest
+    restart: unless-stopped
+    ports:
+      - "7443:7443"
+    volumes:
+      - data:/data
+    # environment:
+    #   # Behind your own reverse proxy with TLS (publish 127.0.0.1:7443:7443 instead):
+    #   KIVOTOS_RELAY_BEHIND_PROXY: "true"
+    #   # Or TLS on the relay itself, with the files mounted under /certs:
+    #   KIVOTOS_RELAY_TLS_CERT: /certs/fullchain.pem
+    #   KIVOTOS_RELAY_TLS_KEY: /certs/privkey.pem
+
+volumes:
+  data:
