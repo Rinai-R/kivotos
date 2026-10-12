@@ -5,6 +5,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"strings"
 
@@ -16,6 +17,12 @@ import (
 
 // version is set at build time with -ldflags "-X .../cmd.version=...".
 var version = "dev"
+
+// defaultConfigFile is read from the working directory when --config is not
+// given. It is named in full: a lookup by base name would also match the
+// extensionless file "kivotos-relay", which is the binary itself when the
+// relay runs from its own directory.
+const defaultConfigFile = "kivotos-relay.yaml"
 
 // NewRootCmd builds the whole command tree with its own configuration state.
 func NewRootCmd() *cobra.Command {
@@ -30,7 +37,7 @@ func NewRootCmd() *cobra.Command {
 			return initConfig(v, cmd)
 		},
 	}
-	root.PersistentFlags().String("config", "", "config file (default ./kivotos-relay.yaml)")
+	root.PersistentFlags().String("config", "", "config file (default ./"+defaultConfigFile+")")
 	root.PersistentFlags().String("data-dir", ".", "directory for the registry and the admin socket")
 	root.PersistentFlags().String("admin-socket", "", "admin socket path (default <data-dir>/admin.sock)")
 	root.PersistentFlags().String("log-level", "info", "log level: debug, info, warn or error")
@@ -43,19 +50,18 @@ func initConfig(v *viper.Viper, cmd *cobra.Command) error {
 	for key, value := range config.Defaults() {
 		v.SetDefault(key, value)
 	}
-	if file, _ := cmd.Flags().GetString("config"); file != "" {
-		v.SetConfigFile(file)
-	} else {
-		v.AddConfigPath(".")
-		v.SetConfigName("kivotos-relay")
-		v.SetConfigType("yaml")
+	file, _ := cmd.Flags().GetString("config")
+	named := file != ""
+	if !named {
+		file = defaultConfigFile
 	}
+	v.SetConfigFile(file)
 	v.SetEnvPrefix("KIVOTOS_RELAY")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	v.AutomaticEnv()
 	if err := v.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
+		// Only the default file may be absent; a file named on the command line must exist.
+		if named || !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("reading config: %w", err)
 		}
 	}
