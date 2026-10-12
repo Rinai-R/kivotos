@@ -223,6 +223,6 @@ A change to the Android app or to `/kivotos/events` is not done until it has bee
 - Approval, question, and finished each post a heads-up notification with the monochrome K icon while the app is in the background.
 - Answering elsewhere withdraws the notification; tapping a notification opens that exact Session; the on-screen Session gets no notification; an in-app banner appears on other app screens.
 - Restarting a lab dsh makes the service reconnect and keep notifying.
-- Reboot the device with notifications on: no crash in `adb logcat -b crash`. On Android 15+ the service must not start from `BOOT_COMPLETED` (dataSync is forbidden there); it resumes when the app is next opened.
+- Reboot the device with notifications on: no crash in `adb logcat -b crash`, and `BootReceiver` restarts the service. It runs as `specialUse` on Android 14+ (Android 15 caps dataSync at 6 hours a day and forbids it from `BOOT_COMPLETED`), where `adb shell dumpsys activity services com.rinai.kivotos` shows `types=0x40000000`, and as `dataSync` on 10-13.
 - Phone screens at several sizes (at least 1440x3200@560dpi as on the Xiaomi 15 Ultra, 720x1280@320dpi, and a 1600x2560 tablet), light and dark.
 - The bridge (`src/bridge.ts`) can only be checked in a running WebView: it relies on dsh's `dsh.sessions.current` key.
