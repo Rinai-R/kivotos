@@ -62,7 +62,8 @@ class KivotosAttentionModule : Module() {
       val array = JSONArray(json)
       val machines = List(array.length()) { Machine.fromJson(array.getJSONObject(it)) }
       AttentionState.setMachines(context, machines)
-      RelayProxy.retain(machines.filter { it.viaRelay }.map { it.id }.toSet())
+      MachineProxy.retain(machines.map { it.id }.toSet())
+      Prefetch.machines(context, machines)
       if (AttentionState.enabled(context)) {
         if (machines.isEmpty()) AttentionService.stop(context) else AttentionService.start(context)
       }
@@ -105,9 +106,9 @@ class KivotosAttentionModule : Module() {
       relayPeers(Network.of(endpoint, key))
     }
 
-    /** Open the local door to a relay machine. @return the base URL to load. */
-    Function("relayOpen") { json: String ->
-      RelayProxy.open(Machine.fromJson(JSONObject(json)))
+    /** Open the local door to a machine. @return the base URL to load. */
+    Function("machineOpen") { json: String ->
+      MachineProxy.open(context, Machine.fromJson(JSONObject(json)))
     }
 
     /** A notification tap that launched the app before JS was listening, consumed once. */

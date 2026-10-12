@@ -209,8 +209,13 @@ function pathnameOf(target: string): string {
   return at === -1 ? target : target.slice(0, at);
 }
 
-/** Content-hashed assets the peer sends without caching headers get the immutable ones. */
-function markImmutable(
+/**
+ * Content-hashed assets the peer sends without caching headers get the immutable ones.
+ * @param hashed - the request path is a {@link HASHED_ASSET}.
+ * @param upstream - the upstream response.
+ * @param headers - the headers the client receives; edited in place.
+ */
+export function markImmutable(
   hashed: boolean,
   upstream: IncomingMessage,
   headers: OutgoingHttpHeaders,
