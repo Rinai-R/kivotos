@@ -53,9 +53,6 @@ CLAUDE.local.md
 **/.claude/settings.local.json
 .claude/worktrees/
 
-# Local build leftovers of an earlier attempt (kept on disk, never tracked)
-packages/dsh-link/
-
 # Heap snapshots dumped by --heapsnapshot-near-heap-limit; keep them for debugging.
 *.heapsnapshot
 
