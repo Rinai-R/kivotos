@@ -101,9 +101,9 @@ class KivotosAttentionModule : Module() {
       mapOf("endpoint" to network.endpoint, "key" to network.key, "peers" to relayPeers(network))
     }
 
-    /** The computers of a joined network that are online now. */
-    AsyncFunction("relayPeers") { endpoint: String, key: String ->
-      relayPeers(Network.of(endpoint, key))
+    /** Probe every machine's links now: a `PhoneProbe` (packages/kivotos/src/machines.ts) as JSON. */
+    AsyncFunction("probeLinks") {
+      Links.probe(context)
     }
 
     /** Open the local door to a machine. @return the base URL to load. */

@@ -10,7 +10,7 @@
  *   `/kivotos/peer/<id>/` on the local webServer, behind dsh's own
  *   connection fence, so the browser opens the peer's complete UI.
  */
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import https from "node:https";
@@ -23,8 +23,18 @@ import { AttentionTracker, type AttentionFrame } from "./attention.ts";
 import { HASHED_ASSET, markImmutable, MountCache } from "./cache.ts";
 import type { HostContext } from "./dsh.ts";
 import {
+  MachineBook,
+  probeFailure,
+  tellingReason,
+  type Absent,
+  type BookMachine,
+  type Sighting,
+} from "./machine-book.ts";
+import type { LinkReason, MachineInfo, Via } from "./machines.ts";
+import {
   forwardHttp,
   forwardUpgrade,
+  getJson,
   HOP_HEADER,
   hostnameOf,
   remoteIp,
@@ -78,6 +88,10 @@ const TRACE_CLIENT_MAX_BYTES = 256 * 1024;
 /** Tells the client module, on pages the tailnet listener served, to report its load timings. */
 const TRACE_FLAG = "<script>globalThis.__KIVOTOS_TRACE__=true</script>";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Earliest re-probe of the tailnet after a refresh, when a mount's request failed. */
+const RECHECK_MIN_MS = 5_000;
+
 /** A peer configured without discovery. */
 export interface StaticPeer {
   /** URL-safe peer id. */
@@ -110,6 +124,12 @@ export interface KivotosConfig {
   tailscale: string;
   /** Peer discovery interval. */
   refreshSeconds: number;
+  /**
+   * Days a machine stays listed (as offline) after no link reports it any
+   * more: it left the relay network's online list, or the tailnet dropped it.
+   * Static peers stay while configured; the tailnet lists its own offline nodes.
+   */
+  offlineDays: number;
   /** Trace log: off, every HTTP exchange and WebSocket, or also every WebSocket frame. */
   trace: TraceLevel;
   /** Size cap of the peer mount cache (`$DSH_HOME/kivotos/cache/`); 0 turns it off. */
@@ -137,6 +157,7 @@ const DEFAULTS: KivotosConfig = {
   allowSelf: false,
   tailscale: "tailscale",
   refreshSeconds: 30,
+  offlineDays: 7,
   trace: "requests",
   // One dsh 0.2.0-rc.2 page load stores about 6 MB (gzip); every launch of a
   // peer's dsh revisions its plugin batches anew. 256 MB holds some 40 such
@@ -210,6 +231,7 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
   const ranges = [
     ["port", 1, 65535],
     ["refreshSeconds", 5, 3600],
+    ["offlineDays", 1, 365],
     ["cacheMegabytes", 0, 10240],
   ] as const;
   for (const [key, min, max] of ranges) {
@@ -596,13 +618,13 @@ export class Frontend {
   private readonly ctx: HostContext;
   private readonly attention: AttentionTracker;
   private readonly trace: TraceLog;
-  private readonly self: () => { name: string; os: string };
+  private readonly self: () => SelfView;
 
   constructor(
     ctx: HostContext,
     attention: AttentionTracker,
     trace: TraceLog,
-    self: () => { name: string; os: string },
+    self: () => SelfView,
   ) {
     this.ctx = ctx;
     this.attention = attention;
@@ -637,7 +659,9 @@ export class Frontend {
     if (parsed.pathname === HELLO_PATH) {
       trace.record("http", { ...base, status: 200, local: true });
       const self = this.self();
-      sendJson(res, 200, { kivotos: VERSION, name: self.name, os: self.os });
+      // The node id lets a caller that also reaches this computer through a
+      // relay network tell that both are one machine.
+      sendJson(res, 200, { kivotos: VERSION, name: self.name, os: self.os, node: self.node });
       return;
     }
     if (parsed.pathname === PENDING_PATH) {
@@ -869,85 +893,107 @@ function streamAttention(
   res.on("close", stop);
 }
 
-/** A mounted peer. */
+/** A mounted peer: a machine with a working route. */
 interface Peer {
   /** URL-safe id. */
   id: string;
   name: string;
   /** Operating system ("" when unknown). */
   os: string;
-  /** How to reach the peer's Kivotos. */
+  /** How to reach the peer's Kivotos now. */
   upstream: Upstream;
-  /** Which link found the peer; set by {@link PeerRoutes.update}. */
-  via?: string;
+  /** The link {@link upstream} goes through. */
+  via: Via;
+}
+
+/** What this computer tells its peers (`/kivotos/hello`) and its pages (`/kivotos/peers`). */
+interface SelfView {
+  name: string;
+  os: string;
+  /** Pairing URL of the tailnet listener, once it listens. */
+  url?: string;
+  /** Kivotos node id, once the identity is loaded. */
+  node?: string;
+}
+
+/** Longest wait for one `/kivotos/hello` answer. */
+const PROBE_TIMEOUT_MS = 3_000;
+/** Tailscale OS names of devices that never run dsh with Kivotos. */
+const HANDHELD_OS = /^(android|ios|ipados)$/i;
+
+/** What probing an entry found. */
+interface Probed {
+  upstream?: Upstream;
+  hello?: Record<string, unknown>;
+  reason?: LinkReason;
 }
 
 /**
- * Probe one tailnet node's Kivotos listener.
- * @returns the peer, or undefined when it runs no listener.
+ * Ask each candidate address for `/kivotos/hello`, in order.
+ * @returns the first that answers as Kivotos, else the most telling failure.
  */
-async function probe(node: TailnetNode, port: number): Promise<Peer | undefined> {
-  const ip = node.ips.find((address) => !address.includes(":"));
-  if (ip === undefined) return undefined;
-  const id = node.id.replace(/[^A-Za-z0-9_-]/g, "") || ip.replaceAll(".", "-");
-  const candidates: Pick<Upstream, "tls" | "servername" | "authority">[] = [
-    ...(node.dnsName === ""
-      ? []
-      : [{ tls: true, servername: node.dnsName, authority: `${node.dnsName}:${port}` }]),
-    { tls: false, authority: `${ip}:${port}` },
-  ];
-  for (const candidate of candidates) {
-    const upstream: Upstream = { host: ip, port, hop: true, ...candidate };
-    const hello = await getJson(upstream, HELLO_PATH);
-    if (hello?.kivotos !== undefined) {
-      return {
-        id,
-        name: String(hello.name ?? node.name),
-        os: String(hello.os ?? node.os),
-        upstream,
-      };
-    }
+async function probeHello(candidates: readonly Upstream[]): Promise<Probed> {
+  let reason: LinkReason | undefined;
+  for (const upstream of candidates) {
+    const answer = await getJson(upstream, HELLO_PATH, PROBE_TIMEOUT_MS);
+    if (answer.body?.kivotos !== undefined) return { upstream, hello: answer.body };
+    const failure = probeFailure(answer);
+    reason = reason === undefined ? failure : tellingReason(reason, failure);
   }
-  return undefined;
+  return { reason: reason ?? "network" };
 }
 
-/** @returns the parsed body, undefined on any failure. */
-function getJson(
-  upstream: Upstream,
-  pathname: string,
-): Promise<Record<string, unknown> | undefined> {
-  const { promise, resolve } = Promise.withResolvers<Record<string, unknown> | undefined>();
-  const options = {
-    host: upstream.host,
-    port: upstream.port,
-    path: pathname,
-    headers: { host: upstream.authority, accept: "application/json" },
-    timeout: 3_000,
+/** A tailnet entry, from what probing it found. */
+function tailnetSighting(
+  base: Omit<Sighting<Upstream>, "state">,
+  probed: Probed,
+): Sighting<Upstream> {
+  const { upstream, hello } = probed;
+  if (upstream === undefined || hello === undefined)
+    return { ...base, state: "unreachable", reason: probed.reason };
+  const sighting: Sighting<Upstream> = {
+    ...base,
+    os: base.os || (typeof hello.os === "string" ? hello.os : ""),
+    state: "online",
+    target: upstream,
   };
-  const req =
-    upstream.tls === true
-      ? https.get({ ...options, servername: upstream.servername })
-      : http.get(options);
-  req.on("response", (res) => {
-    const chunks: Buffer[] = [];
-    res.on("data", (chunk: Buffer) => chunks.push(chunk));
-    res.on("end", () =>
-      resolve(res.statusCode === 200 ? parseJson(Buffer.concat(chunks)) : undefined),
-    );
-    res.on("error", () => resolve(undefined));
-  });
-  req.on("timeout", () => req.destroy());
-  req.on("error", () => resolve(undefined));
-  return promise;
+  if (typeof hello.node === "string" && hello.node !== "") sighting.node = hello.node;
+  return sighting;
 }
 
-function parseJson(bytes: Buffer): Record<string, unknown> | undefined {
-  try {
-    return JSON.parse(bytes.toString("utf8")) as Record<string, unknown>;
-  } catch {
-    // A non-JSON 200 is some other service on the port: not a peer.
-    return undefined;
-  }
+/** @returns a tailnet node's sighting: its listener over HTTPS (MagicDNS name), else HTTP. */
+async function probeTailnetNode(
+  node: TailnetNode,
+  base: Omit<Sighting<Upstream>, "state">,
+  ip: string,
+  port: number,
+  trace: TraceLog,
+): Promise<Sighting<Upstream>> {
+  const plain: Upstream = { host: ip, port, hop: true, tls: false, authority: `${ip}:${port}` };
+  const candidates: Upstream[] =
+    node.dnsName === ""
+      ? [plain]
+      : [
+          {
+            host: ip,
+            port,
+            hop: true,
+            tls: true,
+            servername: node.dnsName,
+            authority: `${node.dnsName}:${port}`,
+          },
+          plain,
+        ];
+  const start = performance.now();
+  const probed = await probeHello(candidates);
+  trace.record("probe", {
+    node: node.name,
+    ok: probed.upstream !== undefined,
+    tls: probed.upstream?.tls === true,
+    reason: probed.reason,
+    ms: ms(performance.now() - start),
+  });
+  return tailnetSighting(base, probed);
 }
 
 /** Answer a dsh-side request through the connection fence; true when rejected. */
@@ -959,52 +1005,122 @@ function rejected(ctx: HostContext, req: IncomingMessage, res: ServerResponse): 
   return true;
 }
 
-/** Peer registry plus the per-peer webServer routes. */
+/** The machines this computer knows, their mounts, and the per-peer webServer routes. */
 class PeerRoutes {
   private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
   private readonly ctx: HostContext;
   private readonly trace: TraceLog;
   private readonly cache: MountCache;
   private readonly attention: AttentionHub;
-  self: { name: string; os: string; url?: string } = { name: os.hostname(), os: process.platform };
+  private readonly book: MachineBook<Upstream>;
+  /** `machines.json`: the book, kept across restarts. */
+  private readonly file: string;
+  /** Loading, then every write, in order. */
+  private saving: Promise<void> = Promise.resolve();
+  private saved = "";
+  self: SelfView = { name: os.hostname(), os: process.platform };
+  /** Whether this computer is on the tailnet, and its address there. */
+  tailnet: { joined: boolean; address?: string } = { joined: false };
+  /** Called when a request through a Tailscale route could not connect. */
+  onTailnetFailure: (() => void) | undefined;
 
-  constructor(ctx: HostContext, trace: TraceLog, cache: MountCache, attention: AttentionHub) {
+  constructor(
+    ctx: HostContext,
+    trace: TraceLog,
+    cache: MountCache,
+    attention: AttentionHub,
+    options: { file: string; retentionMs: number },
+  ) {
     this.ctx = ctx;
     this.trace = trace;
     this.cache = cache;
     this.attention = attention;
+    this.file = options.file;
+    this.book = new MachineBook(options.retentionMs);
   }
 
-  private readonly sources = new Map<string, Peer[]>();
+  /** Read the machines an earlier run knew; writes wait for it. */
+  load(): void {
+    this.saving = (async () => {
+      let text: string;
+      try {
+        text = await readFile(this.file, "utf8");
+      } catch {
+        // First run: nothing known yet.
+        return;
+      }
+      try {
+        const stored: unknown = JSON.parse(text);
+        if (typeof stored === "object" && stored !== null)
+          this.book.restore(Reflect.get(stored, "machines"));
+        this.saved = text;
+      } catch (error) {
+        this.ctx.logger.warn("kivotos: machines.json unreadable; starting over", error);
+      }
+    })();
+  }
+
+  /** Whether a tailnet entry has been a Kivotos machine before. */
+  knows(key: string): boolean {
+    return this.book.knows("tailscale", key);
+  }
 
   /**
-   * Replace the peers one link currently sees, remount the union, and let the
-   * cache warm the peers that are due.
-   * @param via - the link: "tailscale" or "relay".
+   * Replace what one link sees now, mount the machines that have a route,
+   * and let the cache warm the peers that are due.
+   * @param absent - how this link's remembered machines that it does not
+   *   report show; null forgets them (this computer left the relay network).
    */
-  update(via: string, peers: Peer[]): void {
-    this.sources.set(
-      via,
-      peers.map((peer) => ({ ...peer, via })),
-    );
-    this.reconcile([...this.sources.values()].flat());
+  update(via: Via, sightings: readonly Sighting<Upstream>[], absent: Absent | null): void {
+    const now = Date.now();
+    if (absent === null) this.book.forget(via);
+    else {
+      // A static peer may point at this computer itself.
+      const own = this.self.node;
+      const others = sightings.filter((sighting) => own === undefined || sighting.node !== own);
+      this.book.update(via, others, now, absent);
+    }
+    this.reconcile(this.book.machines(now));
     for (const { peer } of this.mounted.values()) void this.cache.warm(peer.id, peer.upstream);
+    this.save();
   }
 
-  private reconcile(peers: Peer[]): void {
-    const next = new Map(peers.map((peer) => [peer.id, peer]));
+  private reconcile(machines: BookMachine<Upstream>[]): void {
+    const next = new Map<string, Peer>();
+    for (const machine of machines) {
+      const { id, route, target } = machine;
+      if (route !== null && target !== undefined)
+        next.set(id, { id, name: machine.name, os: machine.os, upstream: target, via: route });
+    }
     for (const [id, entry] of this.mounted) {
       const peer = next.get(id);
-      if (peer !== undefined && sameUpstream(peer.upstream, entry.peer.upstream)) {
+      // A new route keeps the mount: same machine, same cache, same attention feed,
+      // which reads the upstream anew on its next connection.
+      if (peer !== undefined) {
         entry.peer = peer;
         continue;
       }
       entry.dispose();
       this.mounted.delete(id);
     }
-    for (const peer of peers) {
+    for (const peer of next.values()) {
       if (!this.mounted.has(peer.id)) this.mount(peer);
     }
+  }
+
+  /** Write the book when it changed; times to the minute, so a refresh alone rewrites nothing. */
+  private save(): void {
+    this.saving = this.saving
+      .then(() => this.write())
+      .catch((error: unknown) => this.ctx.logger.warn("kivotos: machines.json not saved", error));
+  }
+
+  private async write(): Promise<void> {
+    const text = JSON.stringify({ machines: this.book.entries() }, toTheMinute, 2);
+    if (text === this.saved) return;
+    this.saved = text;
+    await mkdir(path.dirname(this.file), { recursive: true });
+    await writeFile(this.file, text);
   }
 
   private mount(peer: Peer): void {
@@ -1038,10 +1154,14 @@ class PeerRoutes {
           prefix,
           html: (body) =>
             credentialedManifest(injectStorageNamespace(guardDesktopBoot(body, prefix), peer.id)),
-          onDone:
-            this.trace.level === "off"
-              ? undefined
-              : (stats) => this.trace.record("peer.http", { ...base, ...roundStats(stats) }),
+          onDone: (stats) => {
+            // No answer through the tailnet: look again now rather than at the next refresh,
+            // so the relay takes over within seconds.
+            if (stats.ttfbMs < 0 && stats.error !== undefined && entry.peer.via === "tailscale")
+              this.onTailnetFailure?.();
+            if (this.trace.level !== "off")
+              this.trace.record("peer.http", { ...base, ...roundStats(stats) });
+          },
         });
       },
     });
@@ -1088,13 +1208,15 @@ class PeerRoutes {
       path: PEERS_PATH,
       handler: (req, res) => {
         if (rejected(this.ctx, req, res)) return;
+        const machines = this.book.machines(Date.now()).map((machine) => infoOf(machine));
+        // `peers`, the mounted machines only, is what clients before `machines` read.
         const peers = [...this.mounted.values()].map(({ peer }) => ({
           id: peer.id,
           name: peer.name,
           os: peer.os,
           via: peer.via,
         }));
-        sendJson(res, 200, { self: this.self, peers });
+        sendJson(res, 200, { self: this.self, peers, machines });
       },
     });
   }
@@ -1105,15 +1227,12 @@ class PeerRoutes {
   }
 }
 
-function sameUpstream(a: Upstream, b: Upstream): boolean {
-  return (
-    a.host === b.host &&
-    a.port === b.port &&
-    a.tls === b.tls &&
-    a.authority === b.authority &&
-    a.relayNode === b.relayNode &&
-    a.agent === b.agent
-  );
+/** A machine as `/kivotos/peers` lists it: without where its route goes. */
+function infoOf(machine: BookMachine<Upstream>): MachineInfo {
+  const { id, route, links } = machine;
+  const info: MachineInfo = { id, name: machine.name, os: machine.os, route, links };
+  if (machine.node !== undefined) info.node = machine.node;
+  return info;
 }
 
 function staticUpstream(peer: StaticPeer): Upstream {
@@ -1128,56 +1247,106 @@ function staticUpstream(peer: StaticPeer): Upstream {
   return upstream;
 }
 
-/** @returns reachable peers, static first. */
-async function discover(
-  config: KivotosConfig,
-  status: TailnetStatus,
+/** JSON replacer for `machines.json`: last-seen times to the minute. */
+function toTheMinute(key: string, value: unknown): unknown {
+  return key === "lastSeen" && typeof value === "number" ? value - (value % 60_000) : value;
+}
+
+/** Whether an address is a Tailscale one (100.64.0.0/10 or fd7a:115c:a1e0::/48). */
+function tailnetAddress(host: string): boolean {
+  if (host.toLowerCase().startsWith("fd7a:115c:a1e0:")) return true;
+  const octets = host.split(".").map(Number);
+  return octets.length === 4 && octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127;
+}
+
+/** What one tailnet refresh saw. */
+interface TailnetSeen {
+  sightings: Sighting<Upstream>[];
+  absent: Absent;
+}
+
+/** @returns a static peer's sighting; off the tailnet, a tailnet address fails for that reason. */
+async function probeStatic(
+  peer: StaticPeer,
+  onTailnet: boolean,
   trace: TraceLog,
-): Promise<Peer[]> {
-  const peers: Peer[] = config.staticPeers.map((peer) => ({
+): Promise<Sighting<Upstream>> {
+  const start = performance.now();
+  const probed = await probeHello([staticUpstream(peer)]);
+  trace.record("probe", {
+    node: peer.id,
+    ok: probed.upstream !== undefined,
+    reason: probed.reason,
+    ms: ms(performance.now() - start),
+  });
+  if (!onTailnet && probed.reason !== undefined && tailnetAddress(peer.host))
+    probed.reason = "not-on-tailnet";
+  const base = {
+    key: `static:${peer.id}`,
     id: peer.id,
     name: peer.name,
     os: "",
-    upstream: staticUpstream(peer),
-  }));
-  if (!config.discover) return peers;
-  const taken = new Set(peers.map((peer) => peer.id));
-  const candidates = status.peers.filter(
-    (node) => node.online && node.userId === status.self.userId,
-  );
-  const found = await Promise.all(
-    candidates.map(async (node) => {
-      const start = performance.now();
-      const peer = await probe(node, config.port);
-      trace.record("probe", {
-        node: node.name,
-        ok: peer !== undefined,
-        tls: peer?.upstream.tls === true,
-        ms: ms(performance.now() - start),
-      });
-      return peer;
-    }),
-  );
-  for (const peer of found) {
-    if (peer === undefined || taken.has(peer.id)) continue;
-    taken.add(peer.id);
-    peers.push(peer);
-  }
-  return peers;
+    address: `${peer.host}:${peer.port}`,
+    pinned: true,
+  };
+  return tailnetSighting(base, probed);
 }
 
-function emptyStatus(): TailnetStatus {
-  const self = { id: "", name: "", dnsName: "", os: "", online: true, userId: 0, ips: [] };
-  return { self, peers: [], certDomains: [] };
+/**
+ * The tailnet side of the machine list: every static peer, and with
+ * discovery the same user's computers. An online node is probed; an offline
+ * one is reported only when it has been a Kivotos machine before.
+ * @param status - undefined when `tailscale status` failed.
+ * @param knows - whether a tailnet entry has been a Kivotos machine.
+ */
+async function discover(
+  config: KivotosConfig,
+  status: TailnetStatus | undefined,
+  knows: (key: string) => boolean,
+  trace: TraceLog,
+): Promise<TailnetSeen> {
+  const onTailnet = status?.running === true;
+  const probes = config.staticPeers.map((peer) => probeStatic(peer, onTailnet, trace));
+  for (const node of onTailnet && config.discover ? status.peers : []) {
+    const ip = node.ips.find((address) => !address.includes(":"));
+    if (ip === undefined || node.userId !== status?.self.userId || HANDHELD_OS.test(node.os))
+      continue;
+    const key = `tailnet:${node.id}`;
+    const base = {
+      key,
+      id: node.id.replace(/[^A-Za-z0-9_-]/g, "") || ip.replaceAll(".", "-"),
+      name: node.name,
+      os: node.os,
+      address: `${ip}:${config.port}`,
+    };
+    if (node.online) probes.push(probeTailnetNode(node, base, ip, config.port, trace));
+    else if (knows(key))
+      probes.push(Promise.resolve({ ...base, state: "offline", lastSeen: node.lastSeen }));
+  }
+  const absent: Absent = onTailnet
+    ? { state: "offline" }
+    : { state: "unreachable", reason: "not-on-tailnet" };
+  return { sightings: await Promise.all(probes), absent };
 }
 
 /**
  * Register the settings page's routes for the links.
  * @returns their disposer.
  */
-function registerLinkRoutes(ctx: HostContext, routes: PeerRoutes, relay: RelayHost): () => void {
+function registerLinkRoutes(
+  ctx: HostContext,
+  config: KivotosConfig,
+  routes: PeerRoutes,
+  relay: RelayHost,
+): () => void {
   const links = (): unknown => ({
-    tailscale: { url: routes.self.url ?? null, name: routes.self.name },
+    tailscale: {
+      url: routes.self.url ?? null,
+      name: routes.self.name,
+      joined: routes.tailnet.joined,
+      address: routes.tailnet.address ?? null,
+      listen: config.listen,
+    },
     relay: relay.view(),
   });
   const disposeLinks = ctx.webServer.register({
@@ -1334,21 +1503,25 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     waiting: config.notify,
     finished: config.notify && config.notifyFinished,
   });
-  const routes = new PeerRoutes(ctx, trace, cache, hub);
+  const routes = new PeerRoutes(ctx, trace, cache, hub, {
+    file: path.join(dshHome(), "kivotos", "machines.json"),
+    retentionMs: config.offlineDays * DAY_MS,
+  });
   const frontend = new Frontend(ctx, attention, trace, () => routes.self);
   const relay = new RelayHost({
     dir: path.join(dshHome(), "kivotos"),
     name: () => routes.self.name,
     refreshSeconds: config.refreshSeconds,
     serve: frontend,
-    publish: (peers) => routes.update("relay", peers),
+    publish: (sightings, absent) => routes.update("relay", sightings, absent),
     warn: (message, error) => ctx.logger.warn(message, error),
     trace,
   });
 
   ctx.effect(() => {
+    routes.load();
     const disposeList = routes.registerList();
-    const disposeLinks = registerLinkRoutes(ctx, routes, relay);
+    const disposeLinks = registerLinkRoutes(ctx, config, routes, relay);
     const disposeTrace = registerTraceClientRoute(ctx, trace);
     const disposeAttention = registerAttentionRoutes(ctx, hub);
     return () => {
@@ -1362,53 +1535,80 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   }, "kivotos: peer and link routes");
 
   ctx.effect(() => {
-    relay
-      .start()
-      .catch((error: unknown) => ctx.logger.warn("kivotos: relay link failed to start", error));
+    // The node identity exists from the first start, joined or not: the
+    // tailnet listener advertises it so the two links of a machine merge.
+    void (async () => {
+      try {
+        await relay.start();
+        routes.self.node = relay.view().node;
+      } catch (error) {
+        ctx.logger.warn("kivotos: relay link failed to start", error);
+      }
+    })();
     return () => relay.dispose();
   }, "kivotos: relay link");
 
   ctx.effect(() => {
     let stopped = false;
+    let running = false;
+    let lastRun = -Infinity;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let listener: Promise<{ url?: string; dispose: () => Promise<void> }> | undefined;
 
-    const refresh = async (): Promise<void> => {
-      try {
-        const status = await readStatus(config.tailscale);
-        if (stopped) return;
-        routes.self = { ...routes.self, name: status.self.name, os: status.self.os };
-        if (config.listen && listener === undefined) {
-          const starting = startListener(ctx, config, status, frontend, trace, () => {
-            routes.self.url = undefined;
-          });
-          listener = starting;
-          void (async () => {
-            try {
-              const { url } = await starting;
-              if (!stopped) routes.self.url = url;
-            } catch (error) {
-              ctx.logger.warn("kivotos: tailnet listener failed to start", error);
-              listener = undefined;
-            }
-          })();
+    const listen = (status: TailnetStatus): void => {
+      if (!config.listen || listener !== undefined) return;
+      const starting = startListener(ctx, config, status, frontend, trace, () => {
+        routes.self.url = undefined;
+      });
+      listener = starting;
+      void (async () => {
+        try {
+          const { url } = await starting;
+          if (!stopped) routes.self.url = url;
+        } catch (error) {
+          ctx.logger.warn("kivotos: tailnet listener failed to start", error);
+          listener = undefined;
         }
-        const peers = await discover(config, status, trace);
-        if (!stopped) routes.update("tailscale", peers);
+      })();
+    };
+
+    const refresh = async (): Promise<void> => {
+      running = true;
+      try {
+        let status: TailnetStatus | undefined;
+        try {
+          status = await readStatus(config.tailscale);
+        } catch (error) {
+          ctx.logger.warn("kivotos: tailnet status unavailable", error);
+        }
+        if (stopped) return;
+        if (status !== undefined) {
+          routes.self = { ...routes.self, name: status.self.name, os: status.self.os };
+          listen(status);
+        }
+        const address = status?.self.ips.find((ip) => !ip.includes(":"));
+        routes.tailnet = { joined: status?.running === true, address };
+        const seen = await discover(config, status, (key) => routes.knows(key), trace);
+        if (!stopped) routes.update("tailscale", seen.sightings, seen.absent);
       } catch (error) {
         ctx.logger.warn("kivotos: tailnet refresh failed", error);
-        if (!stopped && config.staticPeers.length > 0) {
-          const peers = await discover({ ...config, discover: false }, emptyStatus(), trace);
-          routes.update("tailscale", peers);
-        }
       } finally {
+        running = false;
+        lastRun = performance.now();
         if (!stopped) timer = setTimeout(() => void refresh(), config.refreshSeconds * 1000);
       }
     };
     void refresh();
+    // A mount's request found the tailnet route dead: probe now, not at the next refresh.
+    routes.onTailnetFailure = () => {
+      if (stopped || running || performance.now() - lastRun < RECHECK_MIN_MS) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void refresh(), 0);
+    };
 
     return async () => {
       stopped = true;
+      routes.onTailnetFailure = undefined;
       clearTimeout(timer);
       const started = await listener?.catch(() => undefined);
       await started?.dispose();

@@ -16,11 +16,15 @@ export interface TailnetNode {
   userId: number;
   /** Tailscale addresses, IPv4 first. */
   ips: string[];
+  /** When an offline node was last on the tailnet (ms since the epoch). */
+  lastSeen?: number;
 }
 
 /** The parts of `tailscale status --json` Kivotos reads. */
 export interface TailnetStatus {
   self: TailnetNode;
+  /** Tailscale runs and is signed in (`BackendState` "Running"). */
+  running: boolean;
   peers: TailnetNode[];
   /** Names `tailscale cert` can issue for. */
   certDomains: string[];
@@ -45,7 +49,7 @@ export function runTailscale(binary: string, args: string[], timeoutMs: number):
 function nodeOf(raw: Record<string, unknown>): TailnetNode {
   const ips = Array.isArray(raw.TailscaleIPs) ? raw.TailscaleIPs.map(String) : [];
   ips.sort((a, b) => Number(a.includes(":")) - Number(b.includes(":")));
-  return {
+  const node: TailnetNode = {
     id: String(raw.ID ?? raw.PublicKey ?? ""),
     name: String(raw.HostName ?? ""),
     dnsName: String(raw.DNSName ?? "").replace(/\.$/, ""),
@@ -54,6 +58,10 @@ function nodeOf(raw: Record<string, unknown>): TailnetNode {
     userId: Number(raw.UserID ?? 0),
     ips,
   };
+  // Online nodes and nodes never seen carry the zero time, year 1.
+  const lastSeen = Date.parse(String(raw.LastSeen ?? ""));
+  if (Number.isFinite(lastSeen) && lastSeen > 0) node.lastSeen = lastSeen;
+  return node;
 }
 
 /**
@@ -66,13 +74,14 @@ export async function readStatus(binary: string): Promise<TailnetStatus> {
     Self?: Record<string, unknown>;
     Peer?: Record<string, Record<string, unknown>>;
     CertDomains?: unknown;
+    BackendState?: unknown;
   };
   const self = nodeOf(raw.Self ?? {});
   // Self is always reachable from itself; status reports Online only for peers.
   self.online = true;
   const peers = Object.values(raw.Peer ?? {}).map((peer) => nodeOf(peer));
   const certDomains = Array.isArray(raw.CertDomains) ? raw.CertDomains.map(String) : [];
-  return { self, peers, certDomains };
+  return { self, running: raw.BackendState === "Running", peers, certDomains };
 }
 
 /**

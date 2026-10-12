@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class AttentionService : Service() {
   private val workers = ConcurrentHashMap<String, Thread>()
-  private val connected = ConcurrentHashMap.newKeySet<String>()
   private val main = Handler(Looper.getMainLooper())
   @Volatile private var stopping = false
 
@@ -58,6 +57,7 @@ class AttentionService : Service() {
     stopping = true
     workers.values.forEach { it.interrupt() }
     workers.clear()
+    connected.clear()
     super.onDestroy()
   }
 
@@ -133,8 +133,9 @@ class AttentionService : Service() {
   private fun stream(machine: Machine) {
     val (epoch, after) = AttentionState.cursor(this, machine.id)
     val query = "after=$after&epoch=" + java.net.URLEncoder.encode(epoch, "UTF-8")
-    // A relay machine is reached through its local door, which wants the door's cookie.
-    // A tailnet machine is followed directly: the stream needs nothing the door adds.
+    // A machine with a relay link is reached through its local door, which wants the
+    // door's cookie and falls back from the tailnet to the relay. A tailnet-only machine
+    // is followed directly: the stream needs nothing the door adds.
     val base = if (machine.viaRelay) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
     val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection
     if (machine.viaRelay) connection.setRequestProperty("Cookie", MachineProxy.cookie)
@@ -191,6 +192,10 @@ class AttentionService : Service() {
 
   companion object {
     private const val SERVICE_NOTIFICATION_ID = 7380
+
+    /** Machines whose event stream is connected now; the app's machine rows read it (Links). */
+    private val connected: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    val live: Set<String> get() = connected
 
     fun start(context: Context) {
       ContextCompat.startForegroundService(context, Intent(context, AttentionService::class.java))

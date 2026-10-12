@@ -1,16 +1,28 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PermissionsAndroid, Platform, useColorScheme, View } from "react-native";
+import { AppState, PermissionsAndroid, Platform, useColorScheme, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  addPhoneMachines,
+  applyPhoneProbe,
+  leavePhoneNetwork,
+  type PhoneProbe,
+} from "../kivotos/src/machines";
 import * as Attention from "./modules/kivotos-attention/src/KivotosAttentionModule";
 import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionModule";
 import { AttentionBanner } from "./src/AttentionBanner";
+import { LinksScreen } from "./src/LinksScreen";
 import { MachineList } from "./src/MachineList";
 import { MachineView, type MachineViewHandle } from "./src/MachineView";
-import { loadMachines, refreshRelayMachines, sameNetwork, saveMachines } from "./src/machines";
+import { loadMachines, saveMachines } from "./src/machines";
+import { PairScanner } from "./src/PairScanner";
 import { useStyles, type Palette } from "./src/theme";
 
 type NotificationState = "on" | "off" | "denied";
+/** The app's own screens, shown while no machine is open. */
+type Screen = "machines" | "links" | "scan";
+/** How often the machine list re-probes every link while it is on screen. */
+const PROBE_MS = 15_000;
 
 async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS !== "android" || Platform.Version < 33) return true;
@@ -29,6 +41,8 @@ export default function App() {
   const [notifications, setNotifications] = useState<NotificationState>("off");
   const [batteryRestricted, setBatteryRestricted] = useState(false);
   const [banner, setBanner] = useState<Attention.Attention | null>(null);
+  const [screen, setScreen] = useState<Screen>("machines");
+  const [probe, setProbe] = useState<PhoneProbe | null>(null);
   const view = useRef<MachineViewHandle>(null);
   const currentRef = useRef<Machine | null>(null);
   const machinesRef = useRef<Machine[]>([]);
@@ -64,17 +78,6 @@ export default function App() {
       if (pending !== null) {
         machinesRef.current = stored;
         openSession(pending.machineId, pending.sessionId);
-      }
-      // Computers that joined a relay network since the last launch.
-      const refreshed = await refreshRelayMachines(stored);
-      if (refreshed !== stored) {
-        const added = refreshed.filter((machine) => stored.every((old) => old.id !== machine.id));
-        const renamed = new Map(refreshed.map((machine) => [machine.id, machine]));
-        // Merge into the current list: the user may have changed it meanwhile.
-        persist([
-          ...machinesRef.current.map((machine) => renamed.get(machine.id) ?? machine),
-          ...added.filter((machine) => machinesRef.current.every((now) => now.id !== machine.id)),
-        ]);
       }
     };
     void restore();
@@ -117,23 +120,56 @@ export default function App() {
     setBanner((shown) => (shown !== null && shown.sessionId === sessionId ? null : shown));
   }, []);
 
+  /** Probe every link; the probe also brings the list new relay members, node ids and renames. */
+  const probeNow = useCallback(async () => {
+    let found: PhoneProbe;
+    try {
+      found = await Attention.probeLinks();
+    } catch {
+      // The native side never rejects on a link failure; this is the bridge itself.
+      return;
+    }
+    setProbe(found);
+    const next = applyPhoneProbe(machinesRef.current, found);
+    if (next !== machinesRef.current) persist(next);
+  }, [persist]);
+
+  // While the app's own screens are up: probe now, every PROBE_MS, and on return to the app.
+  useEffect(() => {
+    if (current !== null) return undefined;
+    void probeNow();
+    const timer = setInterval(() => void probeNow(), PROBE_MS);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void probeNow();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [current, machines.length, probeNow]);
+
+  /** Add machines; one already in the list (same node) gains the new link instead. */
   const addMachines = useCallback(
-    (added: Machine[]) => persist([...machinesRef.current, ...added]),
+    (added: Machine[]) => persist(addPhoneMachines(machinesRef.current, added)),
     [persist],
   );
-  /** Remove a machine; a relay machine takes its whole network with it. */
+  const leaveNetwork = useCallback(
+    (key: string) => persist(leavePhoneNetwork(machinesRef.current, key)),
+    [persist],
+  );
+  /** Remove a machine; one a relay network reaches leaves the network (the computer's choice too). */
   const removeMachine = useCallback(
     (id: string) => {
       const removed = machinesRef.current.find((machine) => machine.id === id);
       if (removed === undefined) return;
-      persist(
-        machinesRef.current.filter(
-          (machine) => machine.id !== id && !sameNetwork(removed, machine),
-        ),
-      );
+      if (removed.relay !== undefined) leaveNetwork(removed.relay.key);
+      else persist(machinesRef.current.filter((machine) => machine.id !== id));
     },
-    [persist],
+    [leaveNetwork, persist],
   );
+  const showLinks = useCallback(() => setScreen("links"), []);
+  const showMachines = useCallback(() => setScreen("machines"), []);
+  const showScanner = useCallback(() => setScreen("scan"), []);
   const openMachine = useCallback((machine: Machine) => {
     setInitialSession(null);
     setCurrent(machine);
@@ -162,9 +198,28 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-        {current === null ? (
+        {current === null && screen === "links" ? (
+          <LinksScreen
+            machines={machines}
+            probe={probe}
+            onAdd={addMachines}
+            onLeave={leaveNetwork}
+            onScan={showScanner}
+            onBack={showMachines}
+          />
+        ) : null}
+        {current === null && screen === "scan" ? (
+          <PairScanner
+            machines={machines}
+            onAdd={addMachines}
+            onClose={showLinks}
+            onManual={showLinks}
+          />
+        ) : null}
+        {current === null && screen === "machines" ? (
           <MachineList
             machines={machines}
+            probe={probe}
             notifications={notifications}
             batteryRestricted={batteryRestricted}
             onAdd={addMachines}
@@ -172,8 +227,10 @@ export default function App() {
             onOpen={openMachine}
             onToggleNotifications={onToggleNotifications}
             onFixBattery={fixBattery}
+            onLinks={showLinks}
           />
-        ) : (
+        ) : null}
+        {current === null ? null : (
           <MachineView
             key={current.id}
             ref={view}

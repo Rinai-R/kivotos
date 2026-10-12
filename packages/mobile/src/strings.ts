@@ -1,8 +1,14 @@
 /** UI strings of the app's own screens (everything else is dsh's UI). */
+import {
+  agoOf,
+  statusOf,
+  type MachineLink,
+  type PhoneMachineProbe,
+} from "../../kivotos/src/machines";
 import { zh } from "./machines";
 
 const en = {
-  tagline: "Every dsh on your tailnet, in your pocket",
+  tagline: "Every dsh you connect, in your pocket",
   sectionMachines: "Machines",
   sectionSettings: "Settings",
   emptyTitle: "Connect your first computer",
@@ -38,9 +44,59 @@ const en = {
   relayDenied: "The relay does not know this network. Register it on the relay server first.",
   relayUnreachable: "Cannot reach the relay server. Check its address and your connection.",
   relayEmpty: "No computer of this network is online. Start dsh with Kivotos on one and try again.",
-  viaRelay: "Through relay",
+  checking: "Checking…",
+  "via.tailscale": "Tailscale",
+  "via.relay": "Relay",
+  "state.online": "Online",
+  "state.offline": "Offline",
+  "state.unreachable": "Unreachable",
+  "state.denied": "Refused by the relay",
+  "reason.no-listener": "No Kivotos listener",
+  "reason.not-kivotos": "Another service answers",
+  "reason.forbidden": "Refused this device",
+  "reason.timeout": "Timed out",
+  "reason.tls": "TLS error",
+  "reason.network": "Connection failed",
+  "reason.not-on-tailnet": "Tailscale is not connected on this phone",
+  "reason.relay-connecting": "Connecting to the relay",
+  "reason.relay-unreachable": "Relay unreachable",
+  "ago.now": "just now",
+  "ago.minutes": "{count} min ago",
+  "ago.hours": "{count} h ago",
+  "ago.days": "{count} d ago",
+  "status.via": "Via {via}",
+  "status.fallback": "Via {via} · {down}: {reason}",
+  "status.offline": "Offline",
+  "status.offlineSince": "Offline · last seen {ago}",
+  "status.unreachable": "Unreachable: {reason}",
+  streamDown: "Notifications not connected",
+  connections: "Connections",
+  connectionsMeta: "Tailscale · Own relay",
+  linksTailscale: "Tailscale",
+  linksTailscaleNone: "No machine added by address",
+  linksTailscaleCount: "{count} of {total} reachable over Tailscale",
+  linksTailscaleDown:
+    "Tailscale is not connected on this phone. Open the Tailscale app and connect.",
+  linksTailscaleHint:
+    "Machines added by pairing code or address are reached over the tailnet, through the computer's Kivotos listener.",
+  linksRelay: "Own relay",
+  linksRelayIntro:
+    "Connect through a relay server you run, without Tailscale. On a computer, open Settings → Remote access → Own relay to get the invite.",
+  linksRelayAddress: "Relay",
+  linksRelayNetwork: "Network",
+  linksStatus: "Status",
+  linksRelayMachines: "Machines online",
+  "relayState.connecting": "Connecting…",
+  "relayState.online": "Connected",
+  "relayState.denied": "The relay does not know this network",
+  "relayState.unreachable": "Cannot reach the relay",
+  linksInvitePlaceholder: "kivotos://join?…",
+  linksJoin: "Join",
+  linksScan: "Scan invite code",
+  linksLeave: "Leave network",
   leaveConfirm: "Leave this network?",
-  leaveDetail: "This removes every computer of the network from the list.",
+  leaveDetail:
+    "Computers only this network reaches leave the list; the others keep their Tailscale address.",
   leave: "Leave",
   notifications: "Notifications",
   notificationsOn: "Approvals, questions and finished tasks",
@@ -55,7 +111,7 @@ const en = {
 };
 
 const zhText: typeof en = {
-  tagline: "随身使用 tailnet 上的每一个 dsh",
+  tagline: "随身使用你连接的每一个 dsh",
   sectionMachines: "机器",
   sectionSettings: "设置",
   emptyTitle: "连接第一台电脑",
@@ -88,9 +144,56 @@ const zhText: typeof en = {
   relayDenied: "中继不认识这个网络。请先在中继服务器上登记。",
   relayUnreachable: "无法连接中继服务器。请检查地址和网络。",
   relayEmpty: "这个网络里没有在线的电脑。请先在一台电脑上运行装有 Kivotos 的 dsh。",
-  viaRelay: "经由中继",
+  checking: "正在检查…",
+  "via.tailscale": "Tailscale",
+  "via.relay": "中继",
+  "state.online": "在线",
+  "state.offline": "离线",
+  "state.unreachable": "无法连接",
+  "state.denied": "中继拒绝了这个网络",
+  "reason.no-listener": "没有 Kivotos 监听",
+  "reason.not-kivotos": "端口上不是 Kivotos",
+  "reason.forbidden": "拒绝了本设备",
+  "reason.timeout": "连接超时",
+  "reason.tls": "TLS 错误",
+  "reason.network": "连接失败",
+  "reason.not-on-tailnet": "这台手机未连接 Tailscale",
+  "reason.relay-connecting": "正在连接中继",
+  "reason.relay-unreachable": "无法连接中继",
+  "ago.now": "刚刚",
+  "ago.minutes": "{count} 分钟前",
+  "ago.hours": "{count} 小时前",
+  "ago.days": "{count} 天前",
+  "status.via": "经由 {via}",
+  "status.fallback": "经由 {via} · {down}：{reason}",
+  "status.offline": "离线",
+  "status.offlineSince": "离线 · 最后在线 {ago}",
+  "status.unreachable": "无法连接：{reason}",
+  streamDown: "通知未连接",
+  connections: "连接",
+  connectionsMeta: "Tailscale · 自建中继",
+  linksTailscale: "Tailscale",
+  linksTailscaleNone: "没有按地址添加的机器",
+  linksTailscaleCount: "{total} 台中有 {count} 台可经 Tailscale 连接",
+  linksTailscaleDown: "这台手机未连接 Tailscale。请打开 Tailscale 应用并连接。",
+  linksTailscaleHint: "用配对码或地址添加的机器经 tailnet 连接，通过电脑上的 Kivotos 监听。",
+  linksRelay: "自建中继",
+  linksRelayIntro:
+    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 设置 → 远程连接 → 自建中继 获取邀请。",
+  linksRelayAddress: "中继",
+  linksRelayNetwork: "网络",
+  linksStatus: "状态",
+  linksRelayMachines: "在线机器",
+  "relayState.connecting": "正在连接…",
+  "relayState.online": "已连接",
+  "relayState.denied": "中继不认识这个网络",
+  "relayState.unreachable": "无法连接中继",
+  linksInvitePlaceholder: "kivotos://join?…",
+  linksJoin: "加入",
+  linksScan: "扫描邀请码",
+  linksLeave: "退出网络",
   leaveConfirm: "退出这个网络？",
-  leaveDetail: "这会把该网络的所有电脑从列表中移除。",
+  leaveDetail: "只经由这个网络连接的电脑会从列表中移除，其它电脑保留 Tailscale 地址。",
   leave: "退出",
   notifications: "通知",
   notificationsOn: "审批、提问和任务完成时提醒你",
@@ -109,6 +212,55 @@ export type Key = keyof typeof en;
 export function t(key: Key, params: Record<string, string> = {}): string {
   const template = (zh ? zhText : en)[key];
   return template.replace(/\{(\w+)\}/g, (match, name: string) => params[name] ?? match);
+}
+
+function agoText(time: number, now: number): string {
+  const ago = agoOf(time, now);
+  return ago.unit === "now" ? t("ago.now") : t(`ago.${ago.unit}`, { count: String(ago.count) });
+}
+
+/** One link's state: why it fails, else its state. */
+function linkState(link: MachineLink): string {
+  return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
+}
+
+/**
+ * A machine row's status line, worded like the computer's switcher
+ * (packages/kivotos/src/settings.tsx `statusText`), plus its notification stream.
+ */
+export function statusLine(probe: PhoneMachineProbe | undefined, now: number): string {
+  if (probe === undefined) return t("checking");
+  const status = statusOf(probe);
+  let line: string;
+  switch (status.kind) {
+    case "online": {
+      const via = t(`via.${status.via}`);
+      line =
+        status.down === undefined
+          ? t("status.via", { via })
+          : t("status.fallback", {
+              via,
+              down: t(`via.${status.down.via}`),
+              reason: linkState(status.down),
+            });
+      break;
+    }
+    case "offline":
+      line =
+        status.lastSeen === undefined
+          ? t("status.offline")
+          : t("status.offlineSince", { ago: agoText(status.lastSeen, now) });
+      break;
+    case "unreachable":
+      line = t("status.unreachable", { reason: linkState(status.link) });
+      break;
+    case "denied":
+      line = t("state.denied");
+      break;
+  }
+  return status.kind === "online" && probe.stream === "down"
+    ? `${line} · ${t("streamDown")}`
+    : line;
 }
 
 /** The message for a failed attempt to add machines (`resolveMachines`). */
