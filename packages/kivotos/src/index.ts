@@ -64,7 +64,7 @@ const MANIFEST_TO =
 const PEER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
 const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
-/** Where the phone page posts its own load timings (see client.tsx). */
+/** Where a page posts its own load timings (see client.tsx); see {@link registerTraceClientRoute}. */
 const TRACE_CLIENT_PATH = "/kivotos/trace/client";
 /** Largest client timing report accepted. */
 const TRACE_CLIENT_MAX_BYTES = 256 * 1024;
@@ -240,6 +240,36 @@ export function injectStorageNamespace(html: string, peerId: string): string {
   // `<` is escaped so the id cannot close the script element, whatever the caller validated.
   const prefix = JSON.stringify(`kivotos:${peerId}:`).replaceAll("<", "\\u003c");
   const script = `<script>(()=>{const s=window.localStorage,p=${prefix},own=()=>{const k=[];for(let i=0;i<s.length;i++){const n=s.key(i);if(n!==null&&n.startsWith(p))k.push(n.slice(p.length))}return k};const v={getItem:k=>s.getItem(p+k),setItem:(k,x)=>s.setItem(p+k,String(x)),removeItem:k=>s.removeItem(p+k),key:i=>own()[i]??null,clear:()=>{for(const k of own())s.removeItem(p+k)},get length(){return own().length}};Object.defineProperty(window,"localStorage",{configurable:true,get:()=>v})})()</script>`;
+  return injectHead(html, script);
+}
+
+/**
+ * Keep the desktop app's own boot out of a mounted peer page.
+ *
+ * The dsh desktop shell (0.2.0-rc.2) exposes `dshDesktopBoot` to every page of
+ * its `dsh-app://app` origin, and dsh's web entry, finding it, fetches the boot
+ * rows of the local Host and applies them to the page: the local
+ * `__ModuleLoader__` registration facade replaces the page's, and the
+ * transport points the page's WebSocket at the local Host. On a peer's page
+ * that races the peer's own boot. Bundles that execute after the replacement
+ * register with the local facade, the page's module system never sees them,
+ * and the window dies with "web boot: N entries did not activate"; when the
+ * boot wins instead, the page's streams belong to the wrong machine.
+ *
+ * The guard runs before every other page script. It takes the desktop
+ * handshake itself, keeps only its Host origin and rebases the WebSocket under
+ * this mount, so the streams reach the peer through it. It holds the page's
+ * boot until the handshake settles, and refuses the web entry's own transport,
+ * which stops the entry before it applies the local rows. Without
+ * `dshDesktopBoot` (browser, phone) it does nothing.
+ * @param html - peer index html.
+ * @param prefix - the mount's path prefix, e.g. `/kivotos/peer/<id>`.
+ * @returns html with the guard first in its head.
+ */
+export function guardDesktopBoot(html: string, prefix: string): string {
+  // `<` is escaped so the prefix cannot close the script element.
+  const mount = JSON.stringify(`${prefix}/`).replaceAll("<", "\\u003c");
+  const script = `<script>(()=>{const d=globalThis.dshDesktopBoot;if(typeof d!=="object"||d===null||typeof d.ready!=="function")return;const m=${mount},b=Promise.withResolvers();let t=globalThis.__DSH_TRANSPORT__;Object.defineProperty(globalThis,"__DSH_TRANSPORT__",{configurable:true,enumerable:true,get:()=>t,set(n){if(n!==t&&typeof n==="object"&&n!==null&&"streamBaseUrl" in n)throw new Error("kivotos: a mounted machine's page keeps its own boot");t=n}});globalThis.__DSH_BOOT_READY__={promise:b.promise,resolve(){},reject(){}};d.ready().then(r=>{t={...t,ownsHost:true,streamBaseUrl:new URL(m,r.streamBaseUrl).href};b.resolve()},b.reject)})()</script>`;
   return injectHead(html, script);
 }
 
@@ -954,7 +984,8 @@ class PeerRoutes {
         forwardHttp(req, res, entry.peer.upstream, {
           path: rest,
           prefix,
-          html: (body) => credentialedManifest(injectStorageNamespace(body, peer.id)),
+          html: (body) =>
+            credentialedManifest(injectStorageNamespace(guardDesktopBoot(body, prefix), peer.id)),
           onDone:
             this.trace.level === "off"
               ? undefined
@@ -1136,6 +1167,35 @@ function registerLinkRoutes(ctx: HostContext, routes: PeerRoutes, relay: RelayHo
 }
 
 /**
+ * Accept the load-timing reports of mounted pages. The client module posts to
+ * the absolute {@link TRACE_CLIENT_PATH}: a page the tailnet listener served
+ * reaches the listener's own handler, but a peer page mounted in this dsh (the
+ * desktop app, a browser on this computer) posts to this webServer instead.
+ * The report's `page` names the mount.
+ * @returns the route's disposer.
+ */
+function registerTraceClientRoute(ctx: HostContext, trace: TraceLog): () => void {
+  return ctx.webServer.register({
+    kind: "exact",
+    path: TRACE_CLIENT_PATH,
+    handler: async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== "POST") {
+        res.writeHead(405, { allow: "POST" });
+        res.end();
+        return;
+      }
+      const report = await readJsonBody(req, TRACE_CLIENT_MAX_BYTES);
+      if (report !== undefined) {
+        trace.record("client", { id: trace.id(), method: req.method, via: "webServer", report });
+      }
+      res.writeHead(204);
+      res.end();
+    },
+  });
+}
+
+/**
  * Plugin body: the viewport tap, the links (tailnet listener, relay), and the
  * peer routes. The links are independent: a computer can be in a tailnet and
  * in a relay network at once, and is reachable through either.
@@ -1177,7 +1237,9 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.effect(() => {
     const disposeList = routes.registerList();
     const disposeLinks = registerLinkRoutes(ctx, routes, relay);
+    const disposeTrace = registerTraceClientRoute(ctx, trace);
     return () => {
+      disposeTrace();
       disposeLinks();
       disposeList();
       routes.dispose();
