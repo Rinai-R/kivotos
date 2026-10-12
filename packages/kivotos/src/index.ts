@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
+import { AttentionHub } from "./attention-hub.ts";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
 import { HASHED_ASSET, markImmutable, MountCache } from "./cache.ts";
 import type { HostContext } from "./dsh.ts";
@@ -54,6 +55,10 @@ const LINKS_PATH = "/kivotos/links";
 const RELAY_PATH = "/kivotos/relay";
 /** Largest body accepted on {@link RELAY_PATH}. */
 const RELAY_BODY_MAX_BYTES = 4096;
+/** The other machines' attention, merged for this Host's pages (attention-hub.ts). */
+const ATTENTION_PATH = "/kivotos/attention";
+/** A page says it opened a machine: its finished turns are no longer news. */
+const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
 const MUX_PATH = "/api/remote.mux";
 const OWNS_HOST =
   "<script>globalThis.__DSH_TRANSPORT__=Object.assign(globalThis.__DSH_TRANSPORT__||{},{ownsHost:true})</script>";
@@ -111,6 +116,10 @@ export interface KivotosConfig {
   cacheMegabytes: number;
   /** Prefill the mount cache with a peer's boot resources when it is mounted. */
   cacheWarm: boolean;
+  /** System notifications on this Host's pages for other machines' approvals and questions. */
+  notify: boolean;
+  /** Also notify finished and failed turns of other machines. */
+  notifyFinished: boolean;
 }
 
 interface ConfigIssue {
@@ -135,6 +144,8 @@ const DEFAULTS: KivotosConfig = {
   // least recently used go.
   cacheMegabytes: 256,
   cacheWarm: true,
+  notify: true,
+  notifyFinished: true,
 };
 
 function staticPeersOf(
@@ -177,7 +188,14 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
     issues.push({ message, path: key.split(".") });
   };
   const out: KivotosConfig = { ...DEFAULTS };
-  for (const key of ["listen", "discover", "allowSelf", "cacheWarm"] as const) {
+  for (const key of [
+    "listen",
+    "discover",
+    "allowSelf",
+    "cacheWarm",
+    "notify",
+    "notifyFinished",
+  ] as const) {
     const given = input[key];
     if (given === undefined) continue;
     if (typeof given === "boolean") out[key] = given;
@@ -245,6 +263,11 @@ export function injectOwnsHost(html: string): string {
  * served from the host page's origin, and dsh persists client stores
  * (current Session, layout, drafts) in localStorage by fixed keys, so
  * without a namespace two machines' UIs overwrite each other's state.
+ *
+ * A navigation to `#kivotos-session=<id>` also makes that Session the
+ * current one before dsh restores it, then drops the fragment: this is how a
+ * page on another machine opens this one on a Session (client.tsx), since
+ * from there it can reach only its own namespace.
  * @param html - peer index html.
  * @param peerId - URL-safe peer id.
  * @returns html with the namespace installed before any app script.
@@ -252,7 +275,7 @@ export function injectOwnsHost(html: string): string {
 export function injectStorageNamespace(html: string, peerId: string): string {
   // `<` is escaped so the id cannot close the script element, whatever the caller validated.
   const prefix = JSON.stringify(`kivotos:${peerId}:`).replaceAll("<", "\\u003c");
-  const script = `<script>(()=>{const s=window.localStorage,p=${prefix},own=()=>{const k=[];for(let i=0;i<s.length;i++){const n=s.key(i);if(n!==null&&n.startsWith(p))k.push(n.slice(p.length))}return k};const v={getItem:k=>s.getItem(p+k),setItem:(k,x)=>s.setItem(p+k,String(x)),removeItem:k=>s.removeItem(p+k),key:i=>own()[i]??null,clear:()=>{for(const k of own())s.removeItem(p+k)},get length(){return own().length}};Object.defineProperty(window,"localStorage",{configurable:true,get:()=>v})})()</script>`;
+  const script = `<script>(()=>{const s=window.localStorage,p=${prefix},own=()=>{const k=[];for(let i=0;i<s.length;i++){const n=s.key(i);if(n!==null&&n.startsWith(p))k.push(n.slice(p.length))}return k};const v={getItem:k=>s.getItem(p+k),setItem:(k,x)=>s.setItem(p+k,String(x)),removeItem:k=>s.removeItem(p+k),key:i=>own()[i]??null,clear:()=>{for(const k of own())s.removeItem(p+k)},get length(){return own().length}};Object.defineProperty(window,"localStorage",{configurable:true,get:()=>v});const o=/^#kivotos-session=([^&]+)$/.exec(location.hash);if(o!==null){try{s.setItem(p+"dsh.sessions.current",JSON.stringify({sessionId:decodeURIComponent(o[1])}))}catch{}history.replaceState(history.state,"",location.pathname+location.search)}})()</script>`;
   return injectHead(html, script);
 }
 
@@ -807,8 +830,10 @@ async function startListener(
 
 /**
  * Serve the attention stream as Server-Sent Events: frames after `afterId`
- * first, then live frames, with heartbeat comments. Runs only behind the
- * tailnet listener's admission.
+ * first, then a `live` event carrying the epoch, then live frames, with
+ * heartbeat comments. The marker tells a reader which frames are history (a
+ * Host following its peers, `attention-hub.ts`); the app parses only frame
+ * data and skips it. Runs only behind a link's admission.
  */
 function streamAttention(
   req: IncomingMessage,
@@ -829,6 +854,7 @@ function streamAttention(
     res.write(`id: ${frame.id}\nevent: attention\ndata: ${JSON.stringify(frame)}\n\n`);
   };
   for (const frame of attention.since(Number.isFinite(afterId) ? afterId : 0)) send(frame);
+  res.write(`event: live\ndata: ${JSON.stringify({ epoch: attention.epoch })}\n\n`);
   const unsubscribe = attention.subscribe(send);
   const heartbeat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
   let stopped = false;
@@ -939,12 +965,14 @@ class PeerRoutes {
   private readonly ctx: HostContext;
   private readonly trace: TraceLog;
   private readonly cache: MountCache;
+  private readonly attention: AttentionHub;
   self: { name: string; os: string; url?: string } = { name: os.hostname(), os: process.platform };
 
-  constructor(ctx: HostContext, trace: TraceLog, cache: MountCache) {
+  constructor(ctx: HostContext, trace: TraceLog, cache: MountCache, attention: AttentionHub) {
     this.ctx = ctx;
     this.trace = trace;
     this.cache = cache;
+    this.attention = attention;
   }
 
   private readonly sources = new Map<string, Peer[]>();
@@ -1046,9 +1074,11 @@ class PeerRoutes {
       disposeUpgrade();
       disposeHttp();
       this.cache.unmounted(peer.id);
+      this.attention.unfollow(peer.id);
     };
     this.mounted.set(peer.id, entry);
     this.cache.mounted(peer.id);
+    this.attention.follow(() => entry.peer);
   }
 
   /** @returns disposer of the peers route. */
@@ -1222,6 +1252,46 @@ function registerTraceClientRoute(ctx: HostContext, trace: TraceLog): () => void
 }
 
 /**
+ * Serve the other machines' attention to this Host's pages: the merged
+ * stream, and the page's note that it opened a machine. Absolute paths on
+ * this webServer, like {@link PEERS_PATH}: a peer page mounted here reads this
+ * Host's board, never one through the mount, so nothing chains.
+ * @returns the routes' disposer.
+ */
+function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => void {
+  const disposeStream = ctx.webServer.register({
+    kind: "exact",
+    path: ATTENTION_PATH,
+    handler: (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      hub.serve(req, res);
+    },
+  });
+  const disposeSeen = ctx.webServer.register({
+    kind: "exact",
+    path: ATTENTION_SEEN_PATH,
+    handler: async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== "POST") {
+        res.writeHead(405, { allow: "POST" });
+        res.end();
+        return;
+      }
+      const body = await readJsonBody(req, 1024);
+      const peer: unknown =
+        typeof body === "object" && body !== null ? Reflect.get(body, "peer") : undefined;
+      if (typeof peer === "string") hub.seen(peer);
+      res.writeHead(204);
+      res.end();
+    },
+  });
+  return () => {
+    disposeSeen();
+    disposeStream();
+  };
+}
+
+/**
  * Plugin body: the viewport tap, the links (tailnet listener, relay), and the
  * peer routes. The links are independent: a computer can be in a tailnet and
  * in a relay network at once, and is reachable through either.
@@ -1260,7 +1330,11 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   }, "kivotos: mount cache");
 
   // Constructing these registers nothing; the effects below do.
-  const routes = new PeerRoutes(ctx, trace, cache);
+  const hub = new AttentionHub(trace, {
+    waiting: config.notify,
+    finished: config.notify && config.notifyFinished,
+  });
+  const routes = new PeerRoutes(ctx, trace, cache, hub);
   const frontend = new Frontend(ctx, attention, trace, () => routes.self);
   const relay = new RelayHost({
     dir: path.join(dshHome(), "kivotos"),
@@ -1276,11 +1350,14 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     const disposeList = routes.registerList();
     const disposeLinks = registerLinkRoutes(ctx, routes, relay);
     const disposeTrace = registerTraceClientRoute(ctx, trace);
+    const disposeAttention = registerAttentionRoutes(ctx, hub);
     return () => {
+      disposeAttention();
       disposeTrace();
       disposeLinks();
       disposeList();
       routes.dispose();
+      hub.close();
     };
   }, "kivotos: peer and link routes");
 
