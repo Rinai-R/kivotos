@@ -15,8 +15,10 @@
 // The classic JSX transform compiles to React.createElement; the bundle takes
 // react from dsh's module require, so this is the instance dsh renders with.
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
+import type { AttentionNotice, AttentionState, PeerAttention } from "./attention-hub.ts";
+import type { AttentionFrame } from "./attention.ts";
 import {
   LinksSection,
   QrImage,
@@ -25,6 +27,7 @@ import {
   SETTINGS_ZH,
   type Translate,
 } from "./settings.tsx";
+import { SseReader } from "./sse.ts";
 import { tracePath } from "./trace-path.ts";
 
 /** The slice of the dsh 0.2.0-rc.2 Client context Kivotos uses. */
@@ -72,6 +75,15 @@ const ZH = {
   "machines.open": "打开 {name}",
   "machines.tailscale": "Tailscale",
   "machines.relay": "中继",
+  "machines.labelWaiting": "机器，{count} 项待处理",
+  "machines.labelFinished": "机器，有任务已结束",
+  "machines.openWaiting": "打开 {name}，{count} 项待处理",
+  "machines.openFinished": "打开 {name}，有任务已结束",
+  "attention.approval": "{name}：需要批准",
+  "attention.question": "{name}：有问题待回答",
+  "attention.done": "{name}：任务已完成",
+  "attention.failed": "{name}：任务失败",
+  "attention.untitled": "未命名会话",
   "pair.action": "配对手机",
   "pair.unavailable": "此机器的远程连接尚未就绪",
   "pair.title": "配对手机",
@@ -91,6 +103,15 @@ const EN: Record<keyof typeof ZH, string> = {
   "machines.open": "Open {name}",
   "machines.tailscale": "Tailscale",
   "machines.relay": "Relay",
+  "machines.labelWaiting": "Machines, {count} waiting",
+  "machines.labelFinished": "Machines, a task finished",
+  "machines.openWaiting": "Open {name}, {count} waiting",
+  "machines.openFinished": "Open {name}, a task finished",
+  "attention.approval": "{name}: approval needed",
+  "attention.question": "{name}: question waiting",
+  "attention.done": "{name}: task finished",
+  "attention.failed": "{name}: task failed",
+  "attention.untitled": "Untitled session",
   "pair.action": "Pair phone",
   "pair.unavailable": "This machine's remote listener is not ready",
   "pair.title": "Pair phone",
@@ -113,7 +134,7 @@ const CSS = `
 .kivotos-machines{position:relative;display:flex;width:100%;margin:8px 0 0}
 .kivotos-machines-trigger{display:inline-flex;align-items:center;gap:8px;width:calc(100% + 4px);height:42px;margin:0 -2px;padding:0 10px 0 8px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;cursor:pointer;overflow:hidden}
 .kivotos-machines-trigger:hover,.kivotos-machines-trigger[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover)}
-.kivotos-machines-trigger[data-narrow]{justify-content:center;width:40px;padding:0;margin:0}
+.kivotos-machines-trigger[data-narrow]{position:relative;justify-content:center;width:40px;padding:0;margin:0}
 .kivotos-machines-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kivotos-machines-count{flex:none;margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:12px;font-variant-numeric:tabular-nums}
 .kivotos-machines-list{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;box-sizing:border-box;width:max(100%,240px);max-height:min(60vh,420px);overflow-y:auto;margin:0;padding:6px;list-style:none;border:0;border-radius:var(--dsw-radius-md);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);box-shadow:var(--dsw-elevation-panel)}
@@ -127,6 +148,11 @@ const CSS = `
 .kivotos-machines-separator .kivotos-machines-note{display:block}
 .kivotos-machines-item:disabled{color:var(--dsw-alias-label-tertiary);cursor:not-allowed}
 .kivotos-machines-item:disabled:hover{background:transparent}
+.kivotos-attention-count{flex:none;box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 16%,transparent);color:var(--dsw-alias-state-warn-primary);font-size:11px;font-weight:600;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
+.kivotos-attention-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-brand-primary-new-colorprimary-new-color)}
+.kivotos-attention-dot[data-tone="failed"]{background:var(--dsw-alias-state-error-primary)}
+.kivotos-attention-dot[data-tone="waiting"]{background:var(--dsw-alias-state-warn-primary)}
+.kivotos-machines-trigger[data-narrow] .kivotos-attention-dot{position:absolute;top:8px;right:8px;width:7px;height:7px}
 .kivotos-pair{box-sizing:border-box;width:min(92vw,380px);max-height:90dvh;overflow:auto;margin:auto;padding:24px;border:1px solid var(--dsw-alias-interactive-bg-hover);border-radius:var(--dsw-radius-md);background:var(--dsw-specific-menu);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-panel);font:inherit}
 .kivotos-pair::backdrop{background:var(--dsw-alias-bg-mask-1)}
 .kivotos-pair-title{margin:0 0 12px;font-size:18px}
@@ -206,6 +232,162 @@ function useSidebarCollapsed(): boolean {
  * it rewrites this localStorage key whenever the selection changes.
  */
 const CURRENT_SESSION_KEY = "dsh.sessions.current";
+
+/** The serving host's merged stream of the other machines' attention (attention-hub.ts). */
+const ATTENTION_PATH = "/kivotos/attention";
+const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
+/** Read by the namespace script of a mounted page (index.ts injectStorageNamespace). */
+const SESSION_FRAGMENT = "#kivotos-session=";
+const ATTENTION_RETRY_MIN_MS = 1_000;
+const ATTENTION_RETRY_MAX_MS = 60_000;
+const NO_ATTENTION: AttentionState = { notify: { waiting: false, finished: false }, peers: [] };
+
+/** The latest `state` event, shared by every switcher on the page. */
+let attention = NO_ATTENTION;
+const attentionListeners = new Set<() => void>();
+
+function subscribeAttention(listener: () => void): () => void {
+  attentionListeners.add(listener);
+  return () => attentionListeners.delete(listener);
+}
+
+function setAttention(next: AttentionState): void {
+  attention = next;
+  for (const listener of attentionListeners) listener();
+}
+
+/** @returns the Session dsh shows on this page, "" when none. */
+function currentSession(): string {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(CURRENT_SESSION_KEY) ?? "{}");
+    const id: unknown =
+      typeof value === "object" && value !== null ? Reflect.get(value, "sessionId") : undefined;
+    return typeof id === "string" ? id : "";
+  } catch {
+    // An unreadable selection means none is open.
+    return "";
+  }
+}
+
+/**
+ * Open a mounted machine on one Session. This page's localStorage is its own
+ * machine's namespace only, so another machine gets the Session in the URL
+ * fragment, which its namespace script stores before dsh starts.
+ */
+function openSession(peer: string, sessionId: string): void {
+  if (peer === currentPeer()) {
+    window.localStorage.setItem(CURRENT_SESSION_KEY, JSON.stringify({ sessionId }));
+    window.location.reload();
+    return;
+  }
+  window.location.assign(
+    `/kivotos/peer/${encodeURIComponent(peer)}/${SESSION_FRAGMENT}${encodeURIComponent(sessionId)}`,
+  );
+}
+
+/**
+ * Show one frame that is news as a system notification, unless the window
+ * is in front (the switcher shows it there) or its Session is on screen in a
+ * visible window. One tag per wait or turn: every tab and every mount of the
+ * machine shows the same notification once.
+ */
+function notifyFrame(
+  { peer, frame }: AttentionNotice,
+  shown: Map<string, Notification>,
+  t: Translate,
+): void {
+  const tag = `kivotos:${frame.sessionId}:${frame.key}`;
+  if (frame.kind === "resolved") {
+    shown.get(tag)?.close();
+    shown.delete(tag);
+    return;
+  }
+  const waiting = frame.kind === "approval" || frame.kind === "question";
+  if (!(waiting ? attention.notify.waiting : attention.notify.finished)) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  if (document.hasFocus()) return;
+  const onScreen =
+    document.visibilityState === "visible" &&
+    peer === currentPeer() &&
+    frame.sessionId === currentSession();
+  if (onScreen) return;
+  const name = attention.peers.find((row) => row.id === peer)?.name ?? peer;
+  const body = [frame.title || t("attention.untitled"), frame.detail].filter(Boolean).join("\n");
+  const notification = new Notification(t(`attention.${frame.kind}`, { name }), { body, tag });
+  notification.addEventListener("click", () => {
+    window.focus();
+    notification.close();
+    openSession(peer, frame.sessionId);
+  });
+  notification.addEventListener("close", () => {
+    if (shown.get(tag) === notification) shown.delete(tag);
+  });
+  shown.set(tag, notification);
+}
+
+/**
+ * Hold the serving host's attention stream open for this page, with backoff
+ * after a failure. `fetch` rather than `EventSource`: the desktop window's
+ * `dsh-app://` scheme is registered for the Fetch API and streaming only.
+ * @returns the cleanup: closes the stream and the page's notifications.
+ */
+function followAttention(t: Translate): () => void {
+  const abort = new AbortController();
+  const shown = new Map<string, Notification>();
+  const page = currentPeer();
+  let retryMs = ATTENTION_RETRY_MIN_MS;
+  let timer: number | undefined;
+  let seenSent = false;
+
+  const onState = (next: AttentionState): void => {
+    setAttention(next);
+    // This page is that machine: its finished turns are seen.
+    const finished = next.peers.some((row) => row.id === page && row.finished.length > 0);
+    if (!finished) seenSent = false;
+    if (!finished || seenSent) return;
+    seenSent = true;
+    void fetch(ATTENTION_SEEN_PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ peer: page }),
+      signal: abort.signal,
+    }).catch(() => undefined);
+  };
+
+  const connect = async (): Promise<void> => {
+    try {
+      const res = await fetch(ATTENTION_PATH, {
+        headers: { accept: "text/event-stream" },
+        cache: "no-store",
+        signal: abort.signal,
+      });
+      if (!res.ok || res.body === null) throw new Error(String(res.status));
+      retryMs = ATTENTION_RETRY_MIN_MS;
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      const sse = new SseReader();
+      for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+        for (const event of sse.push(chunk.value)) {
+          if (event.event === "state") onState(JSON.parse(event.data) as AttentionState);
+          else if (event.event === "notice")
+            notifyFrame(JSON.parse(event.data) as AttentionNotice, shown, t);
+        }
+      }
+    } catch {
+      // A lost stream (host restart, sleep) is retried below.
+    }
+    if (abort.signal.aborted) return;
+    timer = window.setTimeout(() => void connect(), retryMs);
+    retryMs = Math.min(retryMs * 2, ATTENTION_RETRY_MAX_MS);
+  };
+  void connect();
+
+  return () => {
+    abort.abort();
+    window.clearTimeout(timer);
+    for (const notification of shown.values()) notification.close();
+    setAttention(NO_ATTENTION);
+  };
+}
 
 /**
  * On a phone the drawer covers the conversation, so opening a Session from
@@ -348,20 +530,61 @@ function useMachines(open: boolean): Machines {
   return data;
 }
 
+/** The dot of finished turns: red when one of them failed. */
+function finishedTone(frames: readonly AttentionFrame[]): "done" | "failed" | undefined {
+  if (frames.length === 0) return undefined;
+  return frames.some((frame) => frame.kind === "failed") ? "failed" : "done";
+}
+
+/** A machine's finished-turn dot and waiting count (decorative: labels carry the text). */
+function AttentionMarks({
+  waiting,
+  tone,
+}: {
+  waiting: number;
+  tone: "done" | "failed" | undefined;
+}): ReactNode {
+  return (
+    <>
+      {tone === undefined ? null : (
+        <span className="kivotos-attention-dot" data-tone={tone} aria-hidden />
+      )}
+      {waiting > 0 ? (
+        <span className="kivotos-attention-count" aria-hidden>
+          {String(waiting)}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 interface MachineRowProps {
   /** Peer id, or null for the serving host. */
   id: string | null;
   name: string;
   meta: string;
   current: boolean;
-  label: string;
+  /** What the machine waits for and finished; undefined for the serving host. */
+  attention: PeerAttention | undefined;
+  t: Translate;
 }
 
-function MachineRow({ id, name, meta, current, label }: MachineRowProps): ReactNode {
+function MachineRow({ id, name, meta, current, attention: row, t }: MachineRowProps): ReactNode {
+  const waiting = row?.pending.length ?? 0;
+  const tone = finishedTone(row?.finished ?? []);
+  // The oldest wait, else the latest finished turn.
+  const target = row?.pending[0]?.sessionId ?? row?.finished.at(-1)?.sessionId;
+  let label = t("machines.open", { name });
+  if (waiting > 0) label = t("machines.openWaiting", { name, count: waiting });
+  else if (tone !== undefined) label = t("machines.openFinished", { name });
   const onClick = useCallback(() => {
+    if (id !== null && target !== undefined && !(current && target === currentSession())) {
+      openSession(id, target);
+      return;
+    }
     if (current) return;
     window.location.assign(id === null ? "/" : `/kivotos/peer/${encodeURIComponent(id)}/`);
-  }, [current, id]);
+  }, [current, id, target]);
   return (
     <li>
       <button
@@ -373,6 +596,7 @@ function MachineRow({ id, name, meta, current, label }: MachineRowProps): ReactN
       >
         <MachineGlyph />
         <span className="kivotos-machines-name">{name}</span>
+        <AttentionMarks waiting={waiting} tone={tone} />
         <span className="kivotos-machines-meta">{meta}</span>
       </button>
     </li>
@@ -454,6 +678,53 @@ function PairEntry({
   );
 }
 
+/** The board as the switcher shows it. */
+interface AttentionSummary {
+  rows: Map<string, PeerAttention>;
+  /** Distinct waits across machines. */
+  waiting: number;
+  tone: "done" | "failed" | undefined;
+  /** The closed trigger's accessible name. */
+  label: string;
+}
+
+function useAttentionSummary(t: Translate): AttentionSummary {
+  const board = useSyncExternalStore(subscribeAttention, () => attention);
+  return useMemo(() => {
+    // One machine can be mounted twice (two links); its waits count once.
+    const waits = new Set(
+      board.peers.flatMap((row) => row.pending.map((frame) => `${frame.sessionId}\n${frame.key}`)),
+    );
+    const tone = finishedTone(board.peers.flatMap((row) => row.finished));
+    let label = t("machines.label");
+    if (waits.size > 0) label = t("machines.labelWaiting", { count: waits.size });
+    else if (tone !== undefined) label = t("machines.labelFinished");
+    const rows = new Map(board.peers.map((row) => [row.id, row]));
+    return { rows, waiting: waits.size, tone, label };
+  }, [board, t]);
+}
+
+/** The closed trigger's marks: dot and count when wide, one dot when narrow. */
+function TriggerMarks({
+  wide,
+  waiting,
+  tone,
+}: {
+  wide: boolean;
+  waiting: number;
+  tone: "done" | "failed" | undefined;
+}): ReactNode {
+  if (wide) return <AttentionMarks waiting={waiting} tone={tone} />;
+  if (waiting === 0 && tone === undefined) return null;
+  return (
+    <span
+      className="kivotos-attention-dot"
+      data-tone={waiting > 0 ? "waiting" : tone}
+      aria-hidden
+    />
+  );
+}
+
 /** Machine switcher in the sidebar foot. */
 function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -464,7 +735,18 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   // A phone is the thing being paired: it has no use for its own pairing code.
   const phone = useMedia(PHONE);
   const peer = currentPeer();
-  const toggle = useCallback(() => setOpen((value) => !value), []);
+  const summary = useAttentionSummary(t);
+  const toggle = useCallback(() => {
+    setOpen((value) => !value);
+    // Browsers ask for notifications only from a user gesture; this is the feature's own.
+    if (
+      attention.notify.waiting &&
+      attention.peers.length > 0 &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default"
+    )
+      void Notification.requestPermission();
+  }, []);
   const closePair = useCallback(() => {
     setPairUrl(null);
     trigger.current?.focus();
@@ -511,13 +793,14 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
         className="kivotos-machines-trigger"
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={t("machines.label")}
+        aria-label={summary.label}
         title={wide ? undefined : currentName}
         data-narrow={wide ? undefined : ""}
         onClick={toggle}
       >
         <MachineGlyph />
         {wide ? <span className="kivotos-machines-label">{currentName}</span> : null}
+        <TriggerMarks wide={wide} waiting={summary.waiting} tone={summary.tone} />
         {wide && machines.state === "ready" ? (
           <span className="kivotos-machines-count">{String(machines.peers.length + 1)}</span>
         ) : null}
@@ -529,7 +812,8 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             name={selfName}
             meta={peer === null ? t("machines.current") : t("machines.local")}
             current={peer === null}
-            label={t("machines.open", { name: selfName })}
+            attention={undefined}
+            t={t}
           />
           {machines.peers.map((row) => (
             <MachineRow
@@ -542,7 +826,8 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
                   : t(row.via === "relay" ? "machines.relay" : "machines.tailscale")
               }
               current={row.id === peer}
-              label={t("machines.open", { name: row.name })}
+              attention={summary.rows.get(row.id)}
+              t={t}
             />
           ))}
           {note === null ? null : <li className="kivotos-machines-note">{note}</li>}
@@ -724,6 +1009,8 @@ export function apply(ctx: ClientContext): void {
   if (Reflect.get(globalThis, "__KIVOTOS_TRACE__") === true) {
     ctx.effect(reportLoadTiming, "kivotos: load timing report");
   }
+  // The other machines' waits and finished turns: switcher badges and system notifications.
+  ctx.effect(() => followAttention(t), "kivotos: attention");
   // One stable function for every render, injected as a slot prop.
   const injected = { toggleSidebar: (): void => ctx.layout.toggleSidebar() };
   const props = (): typeof injected => injected;

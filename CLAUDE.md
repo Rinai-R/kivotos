@@ -28,6 +28,8 @@ Kivotos has no UI of its own for sessions. It adds four things:
 - `packages/kivotos/src/tailscale.ts`: `tailscale` CLI wrapper (`status --json`, `whois --json`, `cert`).
 - `packages/kivotos/src/dsh.ts`: the slice of the dsh Host API Kivotos uses (`webServer`, `connection`, `logger`, `on`, optional `sessionProjections`), typed locally.
 - `packages/kivotos/src/attention.ts`: `AttentionTracker`, which folds every Session's log (`approval/asked`, `approval/decided`, `ask_user_question` calls and answers, `turn/end`) into attention frames for `/kivotos/events`.
+- `packages/kivotos/src/attention-hub.ts`: `AttentionHub` and `AttentionBoard`, the other machines' attention gathered on this Host for its own pages. See "Desktop attention" below.
+- `packages/kivotos/src/sse.ts`: `SseReader`, the Server-Sent Events parser both the hub and the client module use (no Node imports).
 - `packages/kivotos/src/client.tsx`: client module (machine switcher, pairing QR, drawer toggle, phone stylesheet and backdrop).
 - `packages/kivotos/scripts/build.mjs`: esbuild build. `dist/index.js` is one ESM file for Node; `dist/client.js` is wrapped in `window.__ModuleLoader__.load` with `react` taken from dsh's module `require`.
 - `packages/kivotos/locale/en.json`, `packages/kivotos/locale/zh.json`: locale dictionaries.
@@ -162,6 +164,17 @@ Re-verify all of the above on every dsh upgrade. Keep the exception confined to 
 
 A machine is reachable through independent links: the tailnet listener and a relay network. Both admit a caller their own way and then hand it to the same `Frontend` (`index.ts`), which serves Kivotos' routes and forwards the rest to the loopback dsh. `PeerRoutes.update(via, peers)` keeps one peer list per link and mounts the union. Adding a link means: admit, call `Frontend`, publish peers; nothing else changes.
 
+## Desktop attention
+
+A computer shows the other machines' approvals, questions and finished or failed turns (#12). The phone gets these from each machine's `/kivotos/events`; a computer gets them from the Host it is served by.
+
+- Route: `AttentionHub` (`src/attention-hub.ts`) holds one `/kivotos/events` subscription per mounted peer, through the peer's upstream (tailnet listener or relay session, with the hop header, no new credential). It folds the frames into `AttentionBoard` and serves the result on this Host's webServer as `/kivotos/attention` (SSE: a `state` event now and after each change, a `notice` event per frame that is news). `/kivotos/attention/seen` (POST `{peer}`) clears a machine's finished turns. Both are absolute paths like `/kivotos/peers`: a mounted page reads the serving Host's board, never one through a mount, so nothing chains. One connection per page, not one per machine.
+- `/kivotos/events` sends an `event: live` (data `{epoch}`) after the replayed frames on every connection, reconnects included. The hub treats frames before it as history: they update the board (an open wait still shows) but raise no notification. The app parses only `data:` of frames and skips it.
+- Dedupe: a wait is identified by Session id plus key, unique across machines; two mounts of one machine report it once, and a `resolved` from any mount settles it for good (a late copy cannot reopen it). Turns are told once by kind, Session id and key. A new peer epoch drops the waits that peer alone reported.
+- This Host's own Sessions are not on the board: dsh shows them on its own page, and the issue left it open; the board covers only other machines.
+- Client (`client.tsx`, `followAttention`): reads `/kivotos/attention` with `fetch` (the desktop's `dsh-app://` scheme is registered for Fetch and streaming). The machine switcher shows a count badge per machine with waits, a dot for finished (red when one failed), and on the closed trigger the distinct wait count (a single dot when narrow). A row with waits opens that machine on its oldest wait (else the latest finished turn): `/kivotos/peer/<id>/#kivotos-session=<id>`, which `injectStorageNamespace` stores as `dsh.sessions.current` in the peer's namespace before dsh starts. Opening a machine's page marks its finished turns seen.
+- System notifications: Web Notification API, one tag per wait or turn, only when the window is not focused and never for the Session on screen; `resolved` closes it. Permission is requested on a click of the switcher. Config: `notify` (approvals and questions, default `true`) and `notifyFinished` (finished and failed turns, default `true`). The desktop app (0.2.0-rc.2 `lib/main.js`) leaves every permission but `media` to `callback(true)`, so `Notification` is allowed for `dsh-app://`; not verified in the running app.
+
 ## Mount cache
 
 Opening a peer loads its whole dsh client over the link (about 6 MB in dsh 0.2.0-rc.2, 5.3 MB of it one gzip plugin batch). `MountCache` (`src/cache.ts`) keeps what can never change at its URL on the serving dsh, under `$DSH_HOME/kivotos/cache/<peer id>/`, and answers it from disk to every client, the desktop window included (its `dsh-app://` pages bypass Chromium's HTTP cache, so only a serving-side cache helps it).
@@ -196,7 +209,7 @@ These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure
   4. `tailscale whois` user equals this node's user, else `403`. Tagged devices and non-tailnet addresses have no user.
 - The listener binds only the Tailscale address (`listenHost` or the node's Tailscale IPv4), never `0.0.0.0` or a LAN address.
 - The loopback login cookie never reaches the browser. `forwardHeaders` drops the browser's `Origin`, `Referer`, `Cookie`, `Host`, and `Sec-Fetch-*`; `forwardHttp` and `forwardUpgrade` strip `Set-Cookie` from upstream responses.
-- Every dsh-side route (`/kivotos/peer/<id>/`, `/kivotos/peer/<id>/api/remote.mux`, `/kivotos/peers`, `/kivotos/links`, `/kivotos/relay`, `/kivotos/trace/client`) checks `ctx.connection.requestRejection` before doing anything else.
+- Every dsh-side route (`/kivotos/peer/<id>/`, `/kivotos/peer/<id>/api/remote.mux`, `/kivotos/peers`, `/kivotos/links`, `/kivotos/relay`, `/kivotos/trace/client`, `/kivotos/attention`, `/kivotos/attention/seen`) checks `ctx.connection.requestRejection` before doing anything else.
 - Hop guard: peer mounts set `x-kivotos-hop` on forwarded requests and answer `508` to requests that already carry it. Hops never chain.
 - The mount cache answers only after the mount's `requestRejection` check, and stores only responses that are identical for every caller (rules in "Mount cache"): never one with `Set-Cookie` or a `Vary` beyond `Accept-Encoding`. Trace records never hold a query string, only `tracePath`'s fingerprint.
 - `injectStorageNamespace` and `guardDesktopBoot` escape the peer id or mount prefix so it cannot close the injected script.
