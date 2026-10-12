@@ -45,13 +45,14 @@ dsh plugin --profile web add kivotos
 
 ### 中继
 
-在一台有公网地址的服务器上运行中继：
+在一台有公网地址的服务器上用 Docker Compose 运行中继：
 
 ```bash
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
+curl -O https://raw.githubusercontent.com/Rinai-R/kivotos/main/packages/relay/docker-compose.yml
+docker compose up -d
 ```
 
-在第一台电脑上打开 **设置 → 远程连接 → 自建中继**，填写中继地址并创建网络，再按页面显示的命令在中继上登记。其它电脑和手机用邀请链接或二维码加入。
+在第一台电脑上打开 **设置 → 远程连接 → 自建中继**，填写中继地址并创建网络，再在中继上执行 `docker compose exec relay` 加页面显示的命令完成登记。其它电脑和手机用邀请链接或二维码加入。
 
 拿到邀请链接的人，或登录了你 Tailscale 账号的人，都能完全控制你的机器。
 

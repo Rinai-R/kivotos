@@ -45,13 +45,14 @@ Install the APK from the [releases page](https://github.com/Rinai-R/kivotos/rele
 
 ### Relay
 
-Run the relay on a server with a public address:
+Run the relay with Docker Compose on a server with a public address:
 
 ```bash
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
+curl -O https://raw.githubusercontent.com/Rinai-R/kivotos/main/packages/relay/docker-compose.yml
+docker compose up -d
 ```
 
-On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay with the command the page shows. Other computers and phones join with the invite link or its QR code.
+On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay by running the command the page shows after `docker compose exec relay`. Other computers and phones join with the invite link or its QR code.
 
 Anyone with the invite link, or signed in to your Tailscale account, has full control of your machines.
 

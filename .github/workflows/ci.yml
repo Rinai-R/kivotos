@@ -109,6 +109,10 @@ jobs:
           docker stop relay
           docker logs relay
 
+      # The README tells servers to download this file and run it as is.
+      - name: Check the compose file
+        run: docker compose -f docker-compose.yml config --quiet
+
   # Pull requests only build the image; pushes to main and v* tags publish it to GHCR.
   # Needing `check` keeps a tag that fails the version or changelog checks from publishing.
   relay-image:
