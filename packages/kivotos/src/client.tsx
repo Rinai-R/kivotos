@@ -25,6 +25,7 @@ import {
   SETTINGS_ZH,
   type Translate,
 } from "./settings.tsx";
+import { tracePath } from "./trace-path.ts";
 
 /** The slice of the dsh 0.2.0-rc.2 Client context Kivotos uses. */
 interface ClientContext {
@@ -619,7 +620,7 @@ function marked(name: string): boolean {
 
 /** A resource timing entry, reduced to what explains a slow load. */
 interface ResourceReport {
-  /** Path without query. */
+  /** Path with a fingerprint in place of the query (`tracePath`). */
   path: string;
   type: string;
   startMs: number;
@@ -632,8 +633,9 @@ interface ResourceReport {
 }
 
 function resourceReport(entry: PerformanceResourceTiming): ResourceReport {
+  const url = new URL(entry.name, window.location.href);
   return {
-    path: new URL(entry.name, window.location.href).pathname.slice(0, 160),
+    path: tracePath(url.pathname.slice(0, 160) + url.search),
     type: entry.initiatorType,
     startMs: Math.round(entry.startTime),
     durationMs: Math.round(entry.duration),

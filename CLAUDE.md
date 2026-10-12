@@ -19,7 +19,9 @@ The repository previously hosted a fork of Paseo. That code is gone; do not rein
 
 - `packages/kivotos/src/index.ts`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.
 - `packages/kivotos/src/proxy.ts`: HTTP and WebSocket forwarding helpers, header filtering, hop marking, `Location` rewriting.
-- `packages/kivotos/src/trace.ts`: trace log (`TraceLog`, daily JSONL under `$DSH_HOME/kivotos/logs/`, 7-day retention, 50 MB/day) and `WsFrameReader`, a passive WebSocket frame-header parser for `trace: frames`. Every trace record drops the query string (`tracePath`): it can carry a login token.
+- `packages/kivotos/src/cache.ts`: `MountCache`, the serving-side disk cache of peer mounts, and its warming from a peer's boot graph. See "Mount cache" below.
+- `packages/kivotos/src/trace.ts`: trace log (`TraceLog`, daily JSONL under `$DSH_HOME/kivotos/logs/`, 7-day retention, 50 MB/day) and `WsFrameReader`, a passive WebSocket frame-header parser for `trace: frames`.
+- `packages/kivotos/src/trace-path.ts`: `tracePath`, which every trace record and the page's load report use for request targets. It never writes the query (it can carry a login token), only a fingerprint: dsh's `rev` value, the query length and a 32-bit FNV-1a hash (`/plugins/?{rev=… len=… h=…}`). No Node imports: `client.tsx` bundles it.
 - `packages/kivotos/src/federation.ts`: a relay network as a member sees it: the values derived from the federation key, invite links, the registration, and the member-to-member proof. Must stay in step with `packages/relay/wire/wire.go` and the app's `Network.kt`.
 - `packages/kivotos/src/relay.ts`: member side of the relay protocol: WebSocket byte streams, `secureDial` / `secureAccept` (TLS 1.3 with both certificates, node id pinned, proofs both ways), `RelayLink` (control connection with reconnect), `relayAgent`.
 - `packages/kivotos/src/relay-host.ts`: `RelayHost`: stored identity and membership (`$DSH_HOME/kivotos/identity.json`, `relay.json`, mode 0600), sessions served to the `Frontend`, relay peers published to `PeerRoutes`.
@@ -158,6 +160,19 @@ Re-verify all of the above on every dsh upgrade. Keep the exception confined to 
 
 A machine is reachable through independent links: the tailnet listener and a relay network. Both admit a caller their own way and then hand it to the same `Frontend` (`index.ts`), which serves Kivotos' routes and forwards the rest to the loopback dsh. `PeerRoutes.update(via, peers)` keeps one peer list per link and mounts the union. Adding a link means: admit, call `Frontend`, publish peers; nothing else changes.
 
+## Mount cache
+
+Opening a peer loads its whole dsh client over the link (about 6 MB in dsh 0.2.0-rc.2, 5.3 MB of it one gzip plugin batch). `MountCache` (`src/cache.ts`) keeps what can never change at its URL on the serving dsh, under `$DSH_HOME/kivotos/cache/<peer id>/`, and answers it from disk to every client, the desktop window included (its `dsh-app://` pages bypass Chromium's HTTP cache, so only a serving-side cache helps it).
+
+- Config: `cacheMegabytes` (default 256, `0` turns the cache off and deletes the directory; least recently used entries go past the cap) and `cacheWarm` (default `true`).
+- Stored only when every condition holds: `GET`, no `Range`, not a navigation (`Accept` without `text/html`), the client accepts gzip, a peer id that is one path segment; answered `200` without `Set-Cookie`, `Vary` at most `Accept-Encoding`, and `cache-control` with `immutable` and without `no-store`/`no-cache`/`private`. dsh marks its `plugins/??…&rev=…` batches so; Vite assets (`HASHED_ASSET`: `/assets/…/<name>-<8-char hash>.<ext>`) carry no cache headers, and the mount adds `public, max-age=31536000, immutable` to them on every `200` without `cache-control`, cached or not.
+- One encoding variant: cacheable requests from gzip clients go upstream with `accept-encoding: gzip` exactly, so all of them share one entry; other clients bypass the cache.
+- An entry is `<name>.body` (bytes as received) plus `<name>.json` (status, replayed headers, size); `name` hashes peer, encoding and full path with query. Bodies stream to the client while they are teed into temp files; an entry is committed (fsync, rename, `.json` last) only when the whole body reached the client and matches any `content-length`. `open()` deletes everything that is not a complete entry. Concurrent misses for one entry fetch once (`flights`); the others wait and are served from disk.
+- A peer's directory is deleted ten minutes after it stops being mounted; directories from an earlier run get the same grace at startup.
+- dsh revisions its plugin batches on every launch, so batch entries help only while the peer's dsh keeps running; content-hashed assets survive until dsh is upgraded. Identical batch URLs never exist across machines, which is why there is no shared cross-peer URL.
+- Warming: when a peer is mounted, and then at most every ten minutes on `PeerRoutes.update`, the cache fetches the peer's `/`, reads `globalThis["__DSH_BOOT__"]` (`WebBootGraph`, rendered by dsh's `webserver/injections.ts`) and the `./assets/` links, and prefetches the batches and hashed assets two at a time. An unchanged graph `rev` skips the prefetch. Failures only reach the trace (`peer.warm`, `peer.prefetch`).
+- Trace: `peer.http` records carry `cache: hit | miss | bypass` (`miss` = fetched and stored).
+
 ## Security invariants
 
 These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure parts; run `npm test` after touching `src/index.ts` or `src/proxy.ts`.
@@ -171,6 +186,7 @@ These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure
 - The loopback login cookie never reaches the browser. `forwardHeaders` drops the browser's `Origin`, `Referer`, `Cookie`, `Host`, and `Sec-Fetch-*`; `forwardHttp` and `forwardUpgrade` strip `Set-Cookie` from upstream responses.
 - Every dsh-side route (`/kivotos/peer/<id>/`, `/kivotos/peer/<id>/api/remote.mux`, `/kivotos/peers`, `/kivotos/links`, `/kivotos/relay`, `/kivotos/trace/client`) checks `ctx.connection.requestRejection` before doing anything else.
 - Hop guard: peer mounts set `x-kivotos-hop` on forwarded requests and answer `508` to requests that already carry it. Hops never chain.
+- The mount cache answers only after the mount's `requestRejection` check, and stores only responses that are identical for every caller (rules in "Mount cache"): never one with `Set-Cookie` or a `Vary` beyond `Accept-Encoding`. Trace records never hold a query string, only `tracePath`'s fingerprint.
 - `injectStorageNamespace` and `guardDesktopBoot` escape the peer id or mount prefix so it cannot close the injected script.
 - Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
 - Relay sessions: nothing is served or sent before `secureAccept` / `secureDial` returns. The dialing side pins the target's node id; both sides check a proof that binds the federation key to both certificates of that session. `test/relay.test.ts` covers outsiders and a relay in the middle.

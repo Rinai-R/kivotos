@@ -5,7 +5,8 @@
  * It records how the tailnet listener serves the phone (and peer mounts):
  * admission, time to first byte, duration and size of every HTTP exchange,
  * every WebSocket and, at the `frames` level, every WebSocket frame. Paths are
- * logged without their query string so no credential ever reaches the file.
+ * logged with a fingerprint in place of their query string (`tracePath` in
+ * `trace-path.ts`) so no credential ever reaches the file.
  */
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir, readdir, unlink } from "node:fs/promises";
@@ -114,16 +115,6 @@ export class TraceLog {
 function dayOf(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/**
- * Path of a request URL without its query string.
- * @param url - request target, e.g. `/api/x?token=...`.
- * @returns pathname only.
- */
-export function tracePath(url: string): string {
-  const at = url.indexOf("?");
-  return at === -1 ? url : url.slice(0, at);
 }
 
 /** One WebSocket frame header as seen on the wire. */
