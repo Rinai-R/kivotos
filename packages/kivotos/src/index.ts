@@ -19,6 +19,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
+import { MountCache } from "./cache.ts";
 import type { HostContext } from "./dsh.ts";
 import {
   forwardHttp,
@@ -33,7 +34,8 @@ import {
 } from "./proxy.ts";
 import { RelayHost } from "./relay-host.ts";
 import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
-import { TraceLog, tracePath, type TraceLevel } from "./trace.ts";
+import { tracePath } from "./trace-path.ts";
+import { TraceLog, type TraceLevel } from "./trace.ts";
 
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
@@ -105,6 +107,10 @@ export interface KivotosConfig {
   refreshSeconds: number;
   /** Trace log: off, every HTTP exchange and WebSocket, or also every WebSocket frame. */
   trace: TraceLevel;
+  /** Size cap of the peer mount cache (`$DSH_HOME/kivotos/cache/`); 0 turns it off. */
+  cacheMegabytes: number;
+  /** Prefill the mount cache with a peer's boot resources when it is mounted. */
+  cacheWarm: boolean;
 }
 
 interface ConfigIssue {
@@ -123,6 +129,12 @@ const DEFAULTS: KivotosConfig = {
   tailscale: "tailscale",
   refreshSeconds: 30,
   trace: "requests",
+  // One dsh 0.2.0-rc.2 page load stores about 6 MB (gzip); every launch of a
+  // peer's dsh revisions its plugin batches anew. 256 MB holds some 40 such
+  // sets, a few launches of every peer in a household tailnet, before the
+  // least recently used go.
+  cacheMegabytes: 256,
+  cacheWarm: true,
 };
 
 function staticPeersOf(
@@ -165,7 +177,7 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
     issues.push({ message, path: key.split(".") });
   };
   const out: KivotosConfig = { ...DEFAULTS };
-  for (const key of ["listen", "discover", "allowSelf"] as const) {
+  for (const key of ["listen", "discover", "allowSelf", "cacheWarm"] as const) {
     const given = input[key];
     if (given === undefined) continue;
     if (typeof given === "boolean") out[key] = given;
@@ -180,6 +192,7 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
   const ranges = [
     ["port", 1, 65535],
     ["refreshSeconds", 5, 3600],
+    ["cacheMegabytes", 0, 10240],
   ] as const;
   for (const [key, min, max] of ranges) {
     const given = input[key];
@@ -918,17 +931,20 @@ class PeerRoutes {
   private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
   private readonly ctx: HostContext;
   private readonly trace: TraceLog;
+  private readonly cache: MountCache;
   self: { name: string; os: string; url?: string } = { name: os.hostname(), os: process.platform };
 
-  constructor(ctx: HostContext, trace: TraceLog) {
+  constructor(ctx: HostContext, trace: TraceLog, cache: MountCache) {
     this.ctx = ctx;
     this.trace = trace;
+    this.cache = cache;
   }
 
   private readonly sources = new Map<string, Peer[]>();
 
   /**
-   * Replace the peers one link currently sees and remount the union.
+   * Replace the peers one link currently sees, remount the union, and let the
+   * cache warm the peers that are due.
    * @param via - the link: "tailscale" or "relay".
    */
   update(via: string, peers: Peer[]): void {
@@ -937,6 +953,7 @@ class PeerRoutes {
       peers.map((peer) => ({ ...peer, via })),
     );
     this.reconcile([...this.sources.values()].flat());
+    for (const { peer } of this.mounted.values()) void this.cache.warm(peer.id, peer.upstream);
   }
 
   private reconcile(peers: Peer[]): void {
@@ -981,7 +998,7 @@ class PeerRoutes {
           method: req.method,
           path: tracePath(rest),
         };
-        forwardHttp(req, res, entry.peer.upstream, {
+        this.cache.forward(req, res, peer.id, entry.peer.upstream, {
           path: rest,
           prefix,
           html: (body) =>
@@ -1021,8 +1038,10 @@ class PeerRoutes {
     entry.dispose = () => {
       disposeUpgrade();
       disposeHttp();
+      this.cache.unmounted(peer.id);
     };
     this.mounted.set(peer.id, entry);
+    this.cache.mounted(peer.id);
   }
 
   /** @returns disposer of the peers route. */
@@ -1221,8 +1240,20 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   ctx.on("session/event", (session, event) => attention.observe(session, event));
   ctx.on("session/disposed", (session) => attention.forget(session.id));
 
+  const cache = new MountCache({
+    dir: path.join(dshHome(), "kivotos", "cache"),
+    maxBytes: config.cacheMegabytes * 1024 * 1024,
+    warm: config.cacheWarm,
+    trace,
+    warn: (message, error) => ctx.logger.warn(message, error),
+  });
+  ctx.effect(() => {
+    void cache.open();
+    return () => cache.close();
+  }, "kivotos: mount cache");
+
   // Constructing these registers nothing; the effects below do.
-  const routes = new PeerRoutes(ctx, trace);
+  const routes = new PeerRoutes(ctx, trace, cache);
   const frontend = new Frontend(ctx, attention, trace, () => routes.self);
   const relay = new RelayHost({
     dir: path.join(dshHome(), "kivotos"),

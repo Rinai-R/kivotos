@@ -58,9 +58,31 @@ export interface ForwardOptions {
   prefix: string;
   /** Rewrites an uncompressed text/html body; such responses are buffered, all others stream. */
   html?: (html: string) => string;
+  /** Sent upstream instead of the client's `accept-encoding` (navigations handed to `html` excepted). */
+  acceptEncoding?: string;
+  /**
+   * Sees every streamed response (not those handed to `html`) before its
+   * headers go out: may edit `headers`, which the client receives, and may
+   * return a tap that gets a copy of the body.
+   */
+  response?: (upstream: IncomingMessage, headers: OutgoingHttpHeaders) => BodyTap | undefined;
   /** Called once when the exchange ends, however it ends. */
   onDone?: (stats: HttpStats) => void;
 }
+
+/** Copy of a streamed response body (see {@link ForwardOptions.response}). */
+export interface BodyTap {
+  /** One body chunk, as received from the upstream. */
+  data(chunk: Buffer): void;
+  /**
+   * Called once when the exchange ends.
+   * @param complete - the upstream sent the whole body and the client received all of it.
+   */
+  done(complete: boolean): void;
+}
+
+/** How the mount cache answered: from disk, fetched and stored, or not cacheable. */
+export type CacheOutcome = "hit" | "miss" | "bypass";
 
 /** How one forwarded HTTP exchange went. */
 export interface HttpStats {
@@ -82,6 +104,8 @@ export interface HttpStats {
   aborted: boolean;
   /** Upstream connection error, when there was one. */
   error?: string;
+  /** Mount cache outcome; only on peer mount exchanges. */
+  cache?: CacheOutcome;
 }
 
 /** Observer of one forwarded WebSocket. */
@@ -142,7 +166,8 @@ export function mountLocation(location: string, prefix: string): string {
   return `${prefix}${location}`;
 }
 
-function request(upstream: Upstream, options: RequestOptions): ClientRequest {
+/** Open a request to `upstream`, over its agent when it has one. */
+export function upstreamRequest(upstream: Upstream, options: RequestOptions): ClientRequest {
   const base = { ...options, host: upstream.host, port: upstream.port, agent: upstream.agent };
   return upstream.tls === true
     ? https.request({ ...base, servername: upstream.servername ?? upstream.host })
@@ -156,7 +181,7 @@ function request(upstream: Upstream, options: RequestOptions): ClientRequest {
  * @param req - incoming request.
  * @param res - outgoing response.
  * @param upstream - target.
- * @param options - path, mount prefix, optional HTML rewrite.
+ * @param options - path, mount prefix, optional HTML rewrite and response hook.
  */
 export function forwardHttp(
   req: IncomingMessage,
@@ -179,8 +204,10 @@ export function forwardHttp(
   // HTML rewriting needs identity bytes; only navigations can carry the index page.
   if (options.html !== undefined && String(req.headers.accept ?? "").includes("text/html")) {
     delete headers["accept-encoding"];
+  } else if (options.acceptEncoding !== undefined) {
+    headers["accept-encoding"] = options.acceptEncoding;
   }
-  const up = request(upstream, { method: req.method, path: options.path, headers });
+  const up = upstreamRequest(upstream, { method: req.method, path: options.path, headers });
   up.on("response", (ur) => {
     const status = ur.statusCode ?? 502;
     stats.status = status;
@@ -207,11 +234,18 @@ export function forwardHttp(
       ur.on("error", () => res.destroy());
       return;
     }
-    if (options.onDone !== undefined) {
+    const tap = options.response?.(ur, out);
+    if (options.onDone !== undefined || tap !== undefined) {
       ur.on("data", (chunk: Buffer) => {
         stats.bytesDown += chunk.length;
+        tap?.data(chunk);
       });
     }
+    if (tap !== undefined) res.on("close", () => tap.done(res.writableFinished && ur.complete));
+    // A body cut short upstream must not look complete to the client.
+    ur.on("close", () => {
+      if (!ur.complete) res.destroy();
+    });
     res.writeHead(status, ur.statusMessage, out);
     ur.pipe(res);
   });
@@ -279,7 +313,7 @@ export function forwardUpgrade(
   };
   const headers = forwardHeaders(req.headers, upstream);
   headers.connection = "Upgrade";
-  const up = request(upstream, { method: req.method, path, headers });
+  const up = upstreamRequest(upstream, { method: req.method, path, headers });
   up.on("upgrade", (ur, us, uhead) => {
     stats.status = ur.statusCode ?? 101;
     stats.handshakeMs = performance.now() - start;

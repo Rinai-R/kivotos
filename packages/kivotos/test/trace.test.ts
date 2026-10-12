@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { forwardHttp, type HttpStats } from "../src/proxy.ts";
-import { TraceLog, tracePath, WsFrameReader, type WsFrame } from "../src/trace.ts";
+import { tracePath } from "../src/trace-path.ts";
+import { TraceLog, WsFrameReader, type WsFrame } from "../src/trace.ts";
 
 /** A WebSocket frame header for `length` payload bytes, optionally masked. */
 function header(opcode: number, length: number, masked: boolean): Buffer {
@@ -42,10 +43,20 @@ test("WsFrameReader reads every frame however the stream is chunked", () => {
   }
 });
 
-test("tracePath never keeps the query string", () => {
+test("tracePath fingerprints the query and never keeps it", () => {
   // The query can carry a login token; it must not reach the trace file.
-  assert.equal(tracePath("/?token=secret"), "/");
-  assert.equal(tracePath("/api/remote.mux?session=a&token=b"), "/api/remote.mux");
+  const traced = tracePath("/api/remote.mux?session=a1b2&token=s3cr3t");
+  assert.ok(traced.startsWith("/api/remote.mux?{"), traced);
+  for (const part of ["session", "a1b2", "token", "s3cr3t"]) {
+    assert.ok(!traced.includes(part), `${traced} leaks ${part}`);
+  }
+  // dsh batches differ only in their query: the fingerprint must keep them apart.
+  const batch = tracePath("/plugins/??a/client.js,b/client.js&rev=1f2e3d4c5b6a");
+  const other = tracePath("/plugins/??a/client.js,c/client.js&rev=1f2e3d4c5b6a");
+  assert.ok(batch.includes("rev=1f2e3d4c5b6a"), batch);
+  assert.ok(!batch.includes("client.js"), batch);
+  assert.notEqual(batch, other);
+  assert.equal(tracePath("/plugins/??a/client.js,b/client.js&rev=1f2e3d4c5b6a"), batch);
   assert.equal(tracePath("/assets/app.js"), "/assets/app.js");
 });
 
