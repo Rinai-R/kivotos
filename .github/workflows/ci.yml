@@ -146,6 +146,15 @@ jobs:
             type=sha,enable=${{ github.ref_type != 'tag' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+          # The defaults come from the repository: its description is the plugin's and GitHub reports no license.
+          labels: |
+            org.opencontainers.image.title=kivotos-relay
+            org.opencontainers.image.description=Kivotos relay server: joins the machines of a network and forwards their end-to-end encrypted streams.
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=kivotos-relay
+            org.opencontainers.image.description=Kivotos relay server: joins the machines of a network and forwards their end-to-end encrypted streams.
+            org.opencontainers.image.licenses=Apache-2.0
 
       # What `kivotos-relay --version` prints: the tag without its `v`, else the short commit.
       - name: Relay version
