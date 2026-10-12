@@ -1,80 +1,58 @@
-# Security
+# Security policy
 
-Kivotos is a DeepSeek Harness (dsh) plugin that lets one dsh open and drive the full UI of other dsh instances on the same tailnet. This document describes what it trusts, what it checks, and how to report a vulnerability.
+## Reporting a vulnerability
 
-## Trust model
-
-**Anyone signed in to your tailnet account has full control of every dsh running Kivotos on that tailnet.** That is the same as sitting at the computer: they can run commands, read and write files, use the terminal, and approve tool calls. Tailscale identity is the only check. There is no token, no password, and no second factor.
-
-- A request is admitted only when `tailscale whois` attributes its source address to the same tailnet user that owns the node running Kivotos. Other users of a shared tailnet and devices shared into your tailnet from other accounts are rejected.
-- Tagged devices have no owning user and are rejected.
-- Do not share your tailnet account. Anyone who can sign in to it is trusted completely.
-
-## What the tailnet listener checks
-
-Every dsh running Kivotos opens a second HTTP listener (default port `7380`). dsh itself stays on loopback. The listener binds only this node's Tailscale address (`listenHost`, default: the node's Tailscale IPv4). It does not bind `0.0.0.0` or any LAN address.
-
-Each HTTP request and each WebSocket upgrade passes these checks in order. The first failure ends the request with `kivotos: not admitted`.
-
-1. `Host` must name this node: its bind address, one of its Tailscale IPs, or its MagicDNS name. Otherwise `421`. This defends against DNS rebinding.
-2. The request must not be cross-site: `Sec-Fetch-Site: cross-site` is refused, and an `Origin` header, when present, must equal the request authority. `Origin: null` is refused. Otherwise `403`. This applies to WebSocket handshakes as well, because a WebSocket handshake is not subject to CORS and the forwarded hop no longer carries the browser's `Origin`, so the loopback dsh cannot apply its own check.
-3. The source address must not be one of this node's own Tailscale IPs unless `allowSelf: true`. Otherwise `403`. `allowSelf` defaults to `false` and is meant only for a lab setup on one machine.
-4. `tailscale whois` of the source address must report the same user as this node. Addresses outside the tailnet and tagged devices have no user. Otherwise `403`. Results are cached per address for 60 seconds.
-
-Admitted requests are forwarded to the loopback dsh. The browser's `Origin`, `Referer`, `Cookie`, and `Sec-Fetch-*` headers are not forwarded.
-
-## The dsh side
-
-### Peer mounts
-
-On the serving dsh, each discovered peer is mounted at `/kivotos/peer/<id>/` (an HTTP prefix route and the gateway WebSocket `/kivotos/peer/<id>/api/remote.mux`). The machine list at `/kivotos/peers` is served the same way. All of these sit behind dsh's own connection fence (`ctx.connection.requestRejection`): the dsh login cookie and dsh's Host and Origin checks. A request without a valid dsh login is rejected with dsh's status (for example `401`) before anything is forwarded to the peer.
-
-### Loopback login cookie
-
-To forward admitted requests, the tailnet listener needs a dsh login cookie for the loopback dsh. Kivotos obtains it in-process through dsh's token exchange (`ctx.connection.authenticatedUrl`).
-
-- The cookie is held in the dsh process and attached only to requests sent to the loopback dsh.
-- It is never sent to the browser: `Set-Cookie` is removed from every forwarded HTTP response and WebSocket upgrade response.
-- It is refreshed every 12 hours, and immediately after the loopback dsh answers `401`.
-
-## Peer pages
-
-A peer's index HTML is rewritten as it passes through the mount:
-
-- `__DSH_TRANSPORT__.ownsHost = true` is injected (by the peer's tailnet listener). Without it, dsh would treat the page as a remote viewer and settings that persist on the host would not work. The page is the operator's own dsh, reached by the operator, so this is accurate.
-- A per-peer `localStorage` namespace (`kivotos:<id>:`) is injected. All peer UIs are served from the serving host's origin and would otherwise read and overwrite each other's client state. The peer id is escaped so it cannot break out of the injected script.
-- The web manifest link is made credentialed so the manifest request passes the dsh fence.
-
-Hops never chain. A peer mount marks every request it forwards with `x-kivotos-hop`, and a mount refuses any request that already carries the mark with `508`. A path such as `/kivotos/peer/b/kivotos/peer/a/` therefore does not reach a third machine, and A to B to A loops are impossible. The machine list always comes from the serving host.
-
-## Attention stream
-
-The tailnet listener also serves `/kivotos/events` (Server-Sent Events) and `/kivotos/events/pending` for the Android app's notifications. They are derived from every Session's log on that machine and carry, per event: the Session id and title, the approval request id and its reason (for example the command to approve), the first question of an `ask_user_question` call, and the error message of a failed turn.
-
-- Both endpoints sit behind the same admission as the rest of the listener (Host, same-site, own address, same tailnet user). They are not reachable through dsh's loopback port.
-- They only read. Answering an approval or a question still happens in dsh's own UI.
-- The Host keeps the last 200 events in memory and nothing on disk. A restart starts a new stream (`epoch`).
-
-## Transport
-
-- Traffic between tailnet devices is encrypted by WireGuard, including plain HTTP to the tailnet listener.
-- A page loaded over plain HTTP is not a secure context in the browser. Some browser APIs, such as clipboard access, may be unavailable.
-- With `tls: auto` (default), the listener uses HTTPS when the tailnet has HTTPS certificates enabled. Kivotos then issues the certificate with `tailscale cert` into `$DSH_HOME/kivotos/tls/` (directory mode `0700`). `tls: on` requires certificates and fails to start the listener without them; `tls: off` always uses HTTP. See [Enabling HTTPS](https://tailscale.com/kb/1153/enabling-https).
-- Kivotos never runs `tailscale serve` and never changes Tailscale configuration. It only reads `tailscale status`, runs `tailscale whois`, and, for HTTPS, runs `tailscale cert`.
-
-## Recommendations
-
-- Secure the tailnet account: use a strong sign-in method with multi-factor authentication at your identity provider, and do not share the account.
-- Follow Tailscale's guidance on device approval and key expiry so that a new or stale device cannot silently join your tailnet with your identity.
-- Remove devices you no longer use from the tailnet.
-- Set `listen: false` on machines that should open other machines but never be opened.
-- Leave `allowSelf` at `false` outside a lab.
-- Enable HTTPS certificates for the tailnet if you use Kivotos from a browser that needs a secure context.
-
-## Reporting vulnerabilities
-
-Report vulnerabilities privately through a GitHub security advisory:
+Please report privately through a GitHub security advisory, not in a public issue:
 
 https://github.com/Rinai-R/kivotos/security/advisories/new
 
-Do not open public issues for security problems.
+Include the version, how the machines are connected (tailnet, relay, or both), and the steps that reproduce the problem.
+
+## Who is trusted
+
+Kivotos gives the people it admits the same power as sitting at the computer: running commands, reading and writing files, and approving tool calls in dsh. There is no extra password or second factor. It admits:
+
+- **Over Tailscale**: devices signed in to the same Tailscale user as the machine. Other users of a shared tailnet, devices shared in from other accounts, and tagged devices are refused.
+- **Over a relay**: devices holding the network's invite link. The link carries the network key, so treat it like a password. To retire a leaked one, create a new network and remove the old one from the relay with `kivotos-relay network remove <network-id>`.
+
+Protect the Tailscale account (strong sign-in, multi-factor authentication, device approval) and remove devices you no longer use.
+
+## Tailnet listener
+
+Each machine running Kivotos opens a second HTTP listener (port `7380` by default) on its Tailscale address only, never on `0.0.0.0` or a LAN address; dsh itself stays on loopback. Every request and WebSocket upgrade must pass, in this order:
+
+1. `Host` names this machine (its listener address, a Tailscale IP or its MagicDNS name), against DNS rebinding. Else `421`.
+2. The request is same-site: no `Sec-Fetch-Site: cross-site`, and an `Origin`, when sent, equals the request authority (`Origin: null` is refused). This covers WebSocket handshakes, which CORS does not. Else `403`.
+3. The source is not this machine's own address, unless `allowSelf` is set (lab use only). Else `403`.
+4. `tailscale whois` attributes the source to this machine's user. Else `403`.
+
+Admitted requests reach the loopback dsh with a login cookie Kivotos obtains in-process. The browser's `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*` headers are dropped on the way in, and `Set-Cookie` on the way out, so the cookie never reaches a browser.
+
+Traffic between tailnet devices is encrypted by WireGuard. With `tls: auto` the listener also serves HTTPS when the tailnet has certificates enabled (`tailscale cert`). Kivotos never changes Tailscale's configuration.
+
+## Relay
+
+The relay pairs connections and copies bytes; it is not trusted with the traffic.
+
+- Machines in a network talk TLS 1.3 to each other through the relay. Each side pins the other's node id (the hash of its certificate) and proves knowledge of the network key with a value bound to both certificates of that session, so a relay that answers with its own certificates is refused.
+- The network key, the proof key and the node keys never leave the members. The relay learns only the network id and a relay token, and stores the token as a salted SHA-256.
+- The relay does see which machines are online, their names, and when and how much they send. Served over plain HTTP, the relay token is visible on the network too: put the relay behind a TLS reverse proxy or give it its own certificate. A stolen token lets someone connect to the relay as the network, but not read the traffic or pass a member's proof.
+- Only networks the operator registered are served, failed attempts are rate-limited per address, and the admin API is a Unix socket readable by its owner only.
+
+On Android the node key lives in the Android Keystore and cannot be exported.
+
+## Opening other machines
+
+The machine switcher mounts each other machine under `/kivotos/peer/<id>/` on the serving dsh. Every Kivotos route there is behind dsh's own login and origin checks before anything is forwarded. A mounted page gets its own `localStorage` namespace and keeps its own boot in the desktop app, and a mount refuses requests another mount forwarded, so hops never chain.
+
+The serving dsh caches only responses that are the same for everyone and never change at their URL (`immutable`, without `Set-Cookie`, never a page), under `$DSH_HOME/kivotos/cache/`.
+
+## Notifications
+
+`/kivotos/events` tells the phone app when a session needs an approval, asks a question or finishes, including the session title and the text of the request. It is served only by the tailnet listener and over the relay, behind the checks above, is read-only, and keeps the last 200 events in memory only.
+
+## Hardening
+
+- Set `listen: false` on machines that should open others but never be opened.
+- Leave `allowSelf` off outside a lab.
+- Enable HTTPS certificates for the tailnet if you use Kivotos from a browser that needs a secure context.

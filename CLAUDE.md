@@ -13,8 +13,6 @@ Kivotos has no UI of its own for sessions. It adds four things:
 3. A phone layout (slide-in sidebar drawer, backdrop, drawer toggle, safe-area insets, full-screen Settings). It applies below 768px width when the page runs in the Kivotos app, which appends `Kivotos` to its WebView User-Agent, or, for a phone's own browser, when `(pointer: coarse)` matches. A narrowed desktop window must keep dsh's own layout.
 4. An Android app (`packages/mobile/`) that shows each machine's dsh UI in a WebView and posts system notifications when a session needs an approval, asks a question, or finishes.
 
-The repository previously hosted a fork of Paseo. That code is gone; do not reintroduce it or reference it.
-
 ## Repository map
 
 - `packages/kivotos/src/index.ts`: host plugin. `Config` (Standard Schema validation and defaults), tailnet listener and its admission, loopback login session, peer mounts, discovery, index rewrites.

@@ -1,14 +1,15 @@
+# Git hooks (https://lefthook.dev). `npm install` sets them up.
 pre-commit:
   parallel: true
-  jobs:
-    - name: format
+  commands:
+    format:
       glob: "*.{css,js,json,jsonc,jsx,md,ts,tsx,yaml,yml}"
       exclude:
         - "package-lock.json"
         - "**/package-lock.json"
       run: npm run format:check:files -- {staged_files}
-    - name: lint
+    lint:
       glob: "*.{js,jsx,ts,tsx}"
       run: npm run lint -- {staged_files}
-    - name: typecheck
+    typecheck:
       run: npm run typecheck

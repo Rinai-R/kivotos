@@ -1,93 +1,73 @@
 name: Bug report
-description: Something in the Kivotos plugin is broken or doesn't behave the way it should.
-title: "bug: "
+description: Report something in Kivotos that is broken.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Issues are only for bugs. Feature ideas and questions go in [GitHub Discussions](https://github.com/Rinai-R/kivotos/discussions).
-
-        Security problems must not be reported here. Use [private vulnerability reporting](https://github.com/Rinai-R/kivotos/security/advisories/new).
-
-        Before opening, please search existing issues and try to reproduce on the latest commit. For layout bugs, attach a screenshot.
+        This form is for bugs. Report security problems privately: https://github.com/Rinai-R/kivotos/security/advisories/new
 
   - type: textarea
-    id: description
+    id: problem
     attributes:
-      label: What's broken
-      description: What happened, and what did you expect instead?
-      placeholder: |
-        I opened another machine from the machine switcher, expected its sessions, got Z.
+      label: Problem
+      description: What you did, what you expected, and what happened instead.
     validations:
       required: true
 
   - type: textarea
-    id: repro
+    id: steps
     attributes:
-      label: Steps to reproduce
-      description: The shortest sequence that triggers the bug. If you can't reproduce on demand, say so.
-      placeholder: |
-        1. Open http://100.x.y.z:7380/ on the phone
-        2. Open the drawer
-        3. Tap X
+      label: How to reproduce
+      description: The shortest steps that show it. Say so if it happens only sometimes.
     validations:
       required: true
 
   - type: dropdown
-    id: surface
+    id: where
     attributes:
-      label: Where did this happen
+      label: Where
+      multiple: true
       options:
-        - Computer, this machine's dsh
-        - Computer, another machine through the switcher
-        - Phone browser
-        - Tailnet listener / discovery (no UI)
-        - Other
+        - Desktop app
+        - dsh in a browser
+        - Another machine opened from the machine switcher
+        - Android app
+        - Relay server
+        - Notifications
+    validations:
+      required: true
+
+  - type: dropdown
+    id: link
+    attributes:
+      label: Connection
+      multiple: true
+      options:
+        - Tailscale
+        - Own relay
     validations:
       required: true
 
   - type: input
-    id: kivotos-version
+    id: versions
     attributes:
-      label: Kivotos commit or version
-      description: "`git rev-parse --short HEAD` in your clone, or the version in packages/kivotos/package.json."
+      label: Versions
+      description: Kivotos, DeepSeek Harness, Android app or relay image, and the operating systems involved.
+      placeholder: "Kivotos 0.1.5, dsh 0.2.0-rc.2 desktop, macOS 15, Android 15"
     validations:
       required: true
-
-  - type: input
-    id: dsh-version
-    attributes:
-      label: DeepSeek Harness version
-      description: "`dsh --version`. Kivotos targets 0.2.0-rc.2."
-    validations:
-      required: true
-
-  - type: input
-    id: environment
-    attributes:
-      label: OS, browser, Tailscale version
-      placeholder: "macOS 15.2 + Chrome 141, Android 15 + Chrome, Tailscale 1.104.1"
-    validations:
-      required: true
-
-  - type: textarea
-    id: config
-    attributes:
-      label: Kivotos config
-      description: The `kivotos` entry from `dsh --profile <profile> --dump-config`, if you changed anything.
-      render: yaml
 
   - type: textarea
     id: logs
     attributes:
       label: Logs
       description: |
-        dsh's terminal output around the time of the bug (lines starting with `kivotos:` matter most) and the browser console. Paste raw output, not a summary. Remove tokens from any `?token=` URL.
+        Useful sources: `$DSH_HOME/kivotos/logs/trace-<date>.jsonl` around the time of the problem, dsh's output (lines starting with `kivotos:`), crash reports of the desktop app under `~/Library/Logs/DeepSeek Harness/`, and `adb logcat` for the app. Remove any `?token=` from URLs.
       render: text
 
   - type: textarea
     id: screenshots
     attributes:
       label: Screenshots
-      description: Required for layout bugs. Include the viewport size and whether the theme was light or dark.
+      description: For anything visual.

@@ -3,16 +3,9 @@ Copyright (c) 2026 Rinai
 
 Licensed under the Apache License, Version 2.0. See the LICENSE file.
 
-The repository history contains earlier work derived from Paseo
-(https://github.com/getpaseo/paseo), Copyright (c) 2025-present Mohamed Boudra,
-licensed under the Apache License, Version 2.0. That work is no longer part of
-the current tree.
-
-Kivotos is a plugin for DeepSeek Harness, Copyright (c) 2026 DeepSeek, licensed
-under the MIT License. Kivotos contains no DeepSeek Harness code, except that
-the phone layout's drawer-toggle styling is adapted from DeepSeek Harness's
-HeaderLeadingControls component, used under the MIT License, whose notice is
-reproduced below:
+The phone layout's drawer-toggle styling is adapted from the
+HeaderLeadingControls component of DeepSeek Harness, used under the MIT
+License:
 
     MIT License
 
