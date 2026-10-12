@@ -36,9 +36,22 @@ class AttentionService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    goForeground()
+    // Refused as a foreground service: goForeground already stopped it.
+    if (!goForeground()) return START_NOT_STICKY
     reconcile()
     return START_STICKY
+  }
+
+  /**
+   * Android 15+ calls this when a time-limited type (dataSync, 6 hours per day) runs
+   * out. The service runs as specialUse there, which has no limit, so this is a guard:
+   * stop cleanly instead of being killed for overstaying. The streams resume the next
+   * time the app or the boot receiver starts the service.
+   */
+  override fun onTimeout(startId: Int, fgsType: Int) {
+    stopping = true
+    stopForeground(STOP_FOREGROUND_REMOVE)
+    stopSelf()
   }
 
   override fun onDestroy() {
@@ -48,10 +61,29 @@ class AttentionService : Service() {
     super.onDestroy()
   }
 
-  private fun goForeground() {
+  /** Returns false, having stopped the service, when the system refuses the foreground start. */
+  private fun goForeground(): Boolean {
     val notification = Notifier.serviceNotification(this, connected.size, AttentionState.machines(this).size)
-    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
-    ServiceCompat.startForeground(this, SERVICE_NOTIFICATION_ID, notification, type)
+    // Android 15 caps dataSync at 6 hours per day and forbids starting it from
+    // BOOT_COMPLETED; specialUse (API 34+) has neither restriction. Below 14 there
+    // is no such cap and dataSync is the honest type.
+    val type = when {
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+      else -> 0
+    }
+    return try {
+      ServiceCompat.startForeground(this, SERVICE_NOTIFICATION_ID, notification, type)
+      true
+    } catch (_: Exception) {
+      // ForegroundServiceStartNotAllowedException and friends: never crash the app
+      // over a notification.
+      stopping = true
+      stopSelf()
+      false
+    }
   }
 
   private fun refreshServiceNotification() {
