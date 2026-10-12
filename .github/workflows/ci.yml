@@ -110,9 +110,10 @@ jobs:
           docker logs relay
 
   # Pull requests only build the image; pushes to main and v* tags publish it to GHCR.
+  # Needing `check` keeps a tag that fails the version or changelog checks from publishing.
   relay-image:
     name: relay image
-    needs: relay
+    needs: [check, relay]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
