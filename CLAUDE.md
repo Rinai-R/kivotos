@@ -149,7 +149,8 @@ Re-verify all of the above on every dsh upgrade. Keep the exception confined to 
 - The `desktop` profile is reserved: the regular `dsh` CLI refuses it. Install with the app's own CLI while the app is fully quit: `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add <spec>`.
 - Only one running profile may carry Kivotos: every instance binds port 7380 on the Tailscale address.
 - The Electron window builds its `index.html` itself and applies only `webserver/index-inject` rows, not `tapIndex` transforms. The phone path is unaffected: pages served through the tailnet listener come from the host's own frontend.
-- Not yet verified: opening a peer from the machine switcher inside the Electron window. The window is served from `dsh-app://app` with the local host's `streamBaseUrl`, so a mounted peer's WebSocket may not reach the peer.
+- A peer opened from the machine switcher inside the Electron window is a page of `dsh-app://app`, so the desktop preload exposes `dshDesktopBoot` to it, and dsh's web entry would apply the local Host's boot rows (registration facade, graph, `__DSH_TRANSPORT__` with the local `streamBaseUrl`) on top of the peer's own. That races the peer's boot and killed the window with `web boot: N entries did not activate` (#3). `guardDesktopBoot` (`index.ts`), injected first into every mounted page, takes the desktop handshake itself, rebases `streamBaseUrl` under the mount so the WebSocket reaches the peer through it, holds `__DSH_BOOT_READY__` until then, and refuses the entry's own transport so the local rows are never applied. It depends on dsh 0.2.0-rc.2's `apps/web/src/main.ts` order (transport first, then `applyIndexInjections`); re-verify on upgrade. `test/desktop-boot.test.ts` replays that sequence.
+- Mounted pages post their load timings to the absolute `/kivotos/trace/client`, which reaches this machine's webServer rather than the tailnet listener; `registerTraceClientRoute` records them as `client` events with `via: "webServer"`.
 
 ## Links
 
@@ -166,9 +167,9 @@ These must never regress. `packages/kivotos/test/fences.test.ts` covers the pure
   4. `tailscale whois` user equals this node's user, else `403`. Tagged devices and non-tailnet addresses have no user.
 - The listener binds only the Tailscale address (`listenHost` or the node's Tailscale IPv4), never `0.0.0.0` or a LAN address.
 - The loopback login cookie never reaches the browser. `forwardHeaders` drops the browser's `Origin`, `Referer`, `Cookie`, `Host`, and `Sec-Fetch-*`; `forwardHttp` and `forwardUpgrade` strip `Set-Cookie` from upstream responses.
-- Every dsh-side route (`/kivotos/peer/<id>/`, `/kivotos/peer/<id>/api/remote.mux`, `/kivotos/peers`) checks `ctx.connection.requestRejection` before doing anything else.
+- Every dsh-side route (`/kivotos/peer/<id>/`, `/kivotos/peer/<id>/api/remote.mux`, `/kivotos/peers`, `/kivotos/links`, `/kivotos/relay`, `/kivotos/trace/client`) checks `ctx.connection.requestRejection` before doing anything else.
 - Hop guard: peer mounts set `x-kivotos-hop` on forwarded requests and answer `508` to requests that already carry it. Hops never chain.
-- `injectStorageNamespace` escapes the peer id so it cannot close the injected script.
+- `injectStorageNamespace` and `guardDesktopBoot` escape the peer id or mount prefix so it cannot close the injected script.
 - Kivotos never runs `tailscale serve` and never changes Tailscale configuration.
 - Relay sessions: nothing is served or sent before `secureAccept` / `secureDial` returns. The dialing side pins the target's node id; both sides check a proof that binds the federation key to both certificates of that session. `test/relay.test.ts` covers outsiders and a relay in the middle.
 - The federation key, the peer proof key and the node's private key never go to the relay; only the network id and relay token do.
