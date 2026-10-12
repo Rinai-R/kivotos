@@ -48,8 +48,7 @@ dsh plugin --profile web add kivotos
 在一台有公网地址的服务器上运行中继：
 
 ```bash
-docker build -t kivotos-relay packages/relay
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data kivotos-relay
+docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
 ```
 
 在第一台电脑上打开 **设置 → 远程连接 → 自建中继**，填写中继地址并创建网络，再按页面显示的命令在中继上登记。其它电脑和手机用邀请链接或二维码加入。

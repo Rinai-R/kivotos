@@ -48,8 +48,7 @@ dsh を再起動すると、ほかのマシンはサイドバー下部の **Mach
 公開アドレスを持つサーバーでリレーを実行します。
 
 ```bash
-docker build -t kivotos-relay packages/relay
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data kivotos-relay
+docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
 ```
 
 最初のコンピューターで **Settings → Remote access → Own relay** を開き、リレーのアドレスを入力してネットワークを作成し、ページに表示されるコマンドでリレーに登録します。ほかのコンピューターとスマートフォンは招待リンクまたは QR コードで参加します。

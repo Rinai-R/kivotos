@@ -48,8 +48,7 @@ Install the APK from the [releases page](https://github.com/Rinai-R/kivotos/rele
 Run the relay on a server with a public address:
 
 ```bash
-docker build -t kivotos-relay packages/relay
-docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data kivotos-relay
+docker run -d --name kivotos-relay -p 7443:7443 -v kivotos-relay:/data ghcr.io/rinai-r/kivotos-relay:latest
 ```
 
 On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay with the command the page shows. Other computers and phones join with the invite link or its QR code.
