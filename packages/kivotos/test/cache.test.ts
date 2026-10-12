@@ -92,7 +92,8 @@ async function lab(
   await cache.open();
   cache.mounted(PEER);
   const finished: HttpStats[] = [];
-  let wake = (): void => undefined;
+  // Every pending stats() call waits here; a finished exchange wakes them all.
+  const waiters: (() => void)[] = [];
   let arrived = 0;
   const front = await serve((req, res) => {
     arrived += 1;
@@ -101,14 +102,14 @@ async function lab(
       prefix: "",
       onDone: (stats) => {
         finished.push(stats);
-        wake();
+        for (const wake of waiters.splice(0)) wake();
       },
     });
   });
   const stats = async (): Promise<HttpStats> => {
     while (finished.length === 0) {
       const next = Promise.withResolvers<void>();
-      wake = next.resolve;
+      waiters.push(next.resolve);
       await next.promise;
     }
     return finished.shift() as HttpStats;
