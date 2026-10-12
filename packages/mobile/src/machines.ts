@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocales } from "expo-localization";
+import { addPhoneMachines } from "../../kivotos/src/machines";
 import {
   relayJoin,
-  relayPeers,
   type Machine,
   type RelayAddress,
   type RelayPeer,
@@ -48,6 +48,8 @@ export function normalizeUrl(input: string): string | null {
 export interface Hello {
   name: string;
   os: string;
+  /** Its node id, which ties it to the same computer in a relay network (newer Kivotos). */
+  node?: string;
 }
 
 /**
@@ -63,13 +65,20 @@ export async function hello(url: string): Promise<Hello> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as Partial<Hello> & { kivotos?: string };
     if (body.kivotos === undefined) throw new Error("not-kivotos");
-    return { name: String(body.name ?? url), os: String(body.os ?? "") };
+    const who: Hello = { name: String(body.name ?? url), os: String(body.os ?? "") };
+    if (typeof body.node === "string" && body.node !== "") who.node = body.node;
+    return who;
   } finally {
     clearTimeout(timer);
   }
 }
 
 const INVITE = /^kivotos:\/\/join\?/;
+
+/** Whether text is a relay invite link. */
+export function isInvite(text: string): boolean {
+  return INVITE.test(text.trim());
+}
 
 function relayMachine(address: Omit<RelayAddress, "node">, peer: RelayPeer): Machine {
   return {
@@ -80,18 +89,14 @@ function relayMachine(address: Omit<RelayAddress, "node">, peer: RelayPeer): Mac
   };
 }
 
-/** Whether two machines are computers of the same relay network. */
-export function sameNetwork(a: Machine, b: Machine): boolean {
-  return a.relay !== undefined && a.relay.key === b.relay?.key;
-}
-
 /**
  * Turn what was scanned or typed into the machines to add.
  * - A relay invite (`kivotos://join?...`): every computer of that network
  *   that is online.
  * - A pairing code or an address: that one computer, over the tailnet.
+ * A computer already in the list gains the new link instead of a second row.
  * @param typed - the text came from the keyboard, so a bare address is accepted.
- * @returns machines not in `known`; throws an Error whose message `errorKey` maps.
+ * @returns the machines to add (`addPhoneMachines`); throws an Error whose message `errorKey` maps.
  */
 export async function resolveMachines(
   text: string,
@@ -100,9 +105,8 @@ export async function resolveMachines(
 ): Promise<Machine[]> {
   const input = text.trim();
   const fresh = (machines: Machine[]): Machine[] => {
-    const added = machines.filter((machine) => known.every((other) => other.id !== machine.id));
-    if (added.length === 0) throw new Error("duplicate");
-    return added;
+    if (addPhoneMachines(known, machines) === known) throw new Error("duplicate");
+    return machines;
   };
   if (INVITE.test(input)) {
     let joined: Awaited<ReturnType<typeof relayJoin>>;
@@ -121,39 +125,9 @@ export async function resolveMachines(
   const url = typed ? normalizeUrl(input) : parsePairingUrl(input);
   if (url === null) throw new Error(typed ? "invalid" : "scan-invalid");
   const who = await hello(url);
-  return fresh([{ id: url, name: who.name, url }]);
-}
-
-/**
- * Add the computers that came online in the relay networks already joined,
- * and pick up renames. Networks that cannot be reached are left as they are.
- * @returns the updated list, or `machines` itself when nothing changed.
- */
-export async function refreshRelayMachines(machines: Machine[]): Promise<Machine[]> {
-  const networks = new Map<string, Omit<RelayAddress, "node">>();
-  for (const machine of machines) {
-    if (machine.relay !== undefined) networks.set(machine.relay.key, machine.relay);
-  }
-  const online = await Promise.all(
-    [...networks.values()].map(async (address) => {
-      try {
-        const peers = await relayPeers(address.endpoint, address.key);
-        return peers.map((peer) => relayMachine(address, peer));
-      } catch {
-        return [];
-      }
-    }),
-  );
-  const next = [...machines];
-  let changed = false;
-  for (const machine of online.flat()) {
-    const index = next.findIndex((other) => other.id === machine.id);
-    if (index < 0) next.push(machine);
-    else if (next[index].name === machine.name) continue;
-    else next[index] = machine;
-    changed = true;
-  }
-  return changed ? next : machines;
+  const machine: Machine = { id: url, name: who.name, url };
+  if (who.node !== undefined) machine.node = who.node;
+  return fresh([machine]);
 }
 
 export const zh = getLocales()[0]?.languageCode === "zh";

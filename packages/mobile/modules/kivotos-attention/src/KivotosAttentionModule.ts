@@ -1,4 +1,5 @@
 import { NativeModule, requireNativeModule } from "expo";
+import type { PhoneProbe } from "../../../../kivotos/src/machines";
 
 /** A machine the attention service follows. */
 export interface Machine {
@@ -6,7 +7,9 @@ export interface Machine {
   name: string;
   /** Base URL of the machine's Kivotos tailnet listener, e.g. http://100.64.0.1:7380; "" for a relay machine. */
   url: string;
-  /** Set when the machine is reached through a relay instead. */
+  /** Kivotos node id, when known: from `/kivotos/hello`, or the relay's node. */
+  node?: string;
+  /** Set when a relay network the phone joined reaches the machine (with or without `url`). */
   relay?: RelayAddress;
 }
 
@@ -53,8 +56,8 @@ type Events = {
 declare class KivotosAttentionModule extends NativeModule<Events> {
   setMachines(json: string): void;
   relayJoin(invite: string): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }>;
-  relayPeers(endpoint: string, key: string): Promise<RelayPeer[]>;
   machineOpen(json: string): string;
+  probeLinks(): Promise<string>;
   setEnabled(enabled: boolean): void;
   isEnabled(): boolean;
   setOnScreen(machineId: string, sessionId: string): void;
@@ -72,8 +75,9 @@ export const setMachines = (machines: Machine[]): void =>
 export const relayJoin = (
   invite: string,
 ): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }> => native.relayJoin(invite);
-export const relayPeers = (endpoint: string, key: string): Promise<RelayPeer[]> =>
-  native.relayPeers(endpoint, key);
+/** Probe every machine's links: route and state per link, relay networks, stream state. */
+export const probeLinks = async (): Promise<PhoneProbe> =>
+  JSON.parse(await native.probeLinks()) as PhoneProbe;
 /** @returns the local base URL through which a machine's dsh loads (its door, which caches). */
 export const machineOpen = (machine: Machine): string =>
   native.machineOpen(JSON.stringify(machine));

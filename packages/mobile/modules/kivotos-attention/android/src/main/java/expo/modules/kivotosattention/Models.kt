@@ -32,9 +32,10 @@ data class AttentionFrame(
 }
 
 /**
- * A machine whose events the service follows. It is reached either directly
- * at [url] (its tailnet listener) or, when [relay] is set, through a relay as
- * node [node] of the network with federation key [key].
+ * A machine whose events the service follows. It is reached directly at
+ * [url] (its tailnet listener), through a relay as node [node] of the network
+ * with federation key [key] when [relay] is set, or both: one computer the
+ * phone knows by both links (packages/kivotos/src/machines.ts).
  */
 data class Machine(
   val id: String,
@@ -45,6 +46,7 @@ data class Machine(
   val node: String = "",
 ) {
   val viaRelay: Boolean get() = relay.isNotEmpty()
+  val viaTailnet: Boolean get() = url.isNotEmpty()
 
   fun toJson(): JSONObject {
     val json = JSONObject().put("id", id).put("name", name).put("url", url)

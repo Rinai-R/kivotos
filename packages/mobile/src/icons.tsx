@@ -89,3 +89,31 @@ export function KeyboardGlyph({ size = 18, color }: GlyphProps) {
     </Svg>
   );
 }
+
+/** Two chain links: the Connections screen. */
+export function LinkGlyph({ size = 20, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M8.5 11.5a3 3 0 004.24 0l2.5-2.5a3 3 0 00-4.24-4.24l-.75.75M11.5 8.5a3 3 0 00-4.24 0l-2.5 2.5a3 3 0 004.24 4.24l.75-.75"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+export function BackGlyph({ size = 20, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M12.5 4.5L7 10l5.5 5.5"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

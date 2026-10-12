@@ -19,12 +19,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactNode } from "react";
 import type { AttentionNotice, AttentionState, PeerAttention } from "./attention-hub.ts";
 import type { AttentionFrame } from "./attention.ts";
+import { statusOf, type MachineInfo } from "./machines.ts";
 import {
   LinksSection,
+  machineListOf,
   QrImage,
   SETTINGS_CSS,
   SETTINGS_EN,
   SETTINGS_ZH,
+  statusText,
+  type MachineList,
   type Translate,
 } from "./settings.tsx";
 import { SseReader } from "./sse.ts";
@@ -73,8 +77,7 @@ const ZH = {
   "machines.empty": "未发现其它机器",
   "machines.failed": "无法读取机器列表",
   "machines.open": "打开 {name}",
-  "machines.tailscale": "Tailscale",
-  "machines.relay": "中继",
+  "machines.unavailable": "{name}：{status}",
   "machines.labelWaiting": "机器，{count} 项待处理",
   "machines.labelFinished": "机器，有任务已结束",
   "machines.openWaiting": "打开 {name}，{count} 项待处理",
@@ -101,8 +104,7 @@ const EN: Record<keyof typeof ZH, string> = {
   "machines.empty": "No other machines found",
   "machines.failed": "Could not load machines",
   "machines.open": "Open {name}",
-  "machines.tailscale": "Tailscale",
-  "machines.relay": "Relay",
+  "machines.unavailable": "{name}: {status}",
   "machines.labelWaiting": "Machines, {count} waiting",
   "machines.labelFinished": "Machines, a task finished",
   "machines.openWaiting": "Open {name}, {count} waiting",
@@ -141,7 +143,9 @@ const CSS = `
 .kivotos-machines-item{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;text-align:left;cursor:pointer}
 .kivotos-machines-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-machines-item[aria-current="true"]{background:var(--dsw-alias-interactive-bg-hover);cursor:default}
-.kivotos-machines-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kivotos-machines-text{display:flex;flex:1;flex-direction:column;min-width:0}
+.kivotos-machines-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kivotos-machines-status{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}
 .kivotos-machines-meta{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px}
 .kivotos-machines-note{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:13px}
 .kivotos-machines-separator{border-top:1px solid var(--dsw-alias-interactive-bg-hover);margin-top:4px;padding-top:4px}
@@ -483,23 +487,11 @@ function QrGlyph(): ReactNode {
   );
 }
 
-interface Machine {
-  id: string;
-  name: string;
-  os: string;
-  /** The link the serving host reaches it through. */
-  via?: "tailscale" | "relay";
-}
-
-interface Machines {
+interface Machines extends MachineList {
   state: "loading" | "ready" | "failed";
-  /** The serving host. */
-  self: { name: string; os: string; url?: string } | null;
-  /** Peers it mounts. */
-  peers: Machine[];
 }
 
-const LOADING: Machines = { state: "loading", self: null, peers: [] };
+const LOADING: Machines = { state: "loading", self: { name: "", os: "" }, machines: [] };
 
 /**
  * Load the serving host's machine list.
@@ -517,11 +509,9 @@ function useMachines(open: boolean): Machines {
     // peer, so hops never chain.
     fetch("/kivotos/peers", { signal: abort.signal, headers: { accept: "application/json" } })
       .then((res) =>
-        res.ok
-          ? (res.json() as Promise<Omit<Machines, "state">>)
-          : Promise.reject(new Error(String(res.status))),
+        res.ok ? (res.json() as Promise<unknown>) : Promise.reject(new Error(String(res.status))),
       )
-      .then((body) => setData({ state: "ready", self: body.self, peers: body.peers }))
+      .then((body) => setData({ state: "ready", ...machineListOf(body) }))
       .catch(() => {
         if (!abort.signal.aborted) setData((prev) => ({ ...prev, state: "failed" }));
       });
@@ -562,20 +552,30 @@ interface MachineRowProps {
   /** Peer id, or null for the serving host. */
   id: string | null;
   name: string;
+  /** The tag at the end: "Current", the route, or nothing. */
   meta: string;
+  /** How the machine is reached, in full: the tooltip. */
+  title: string | undefined;
+  /** The same next to the tag: the second line, when `note`. */
+  status: string | undefined;
+  note: boolean;
+  /** No link reaches it: shown, dimmed, but not openable. */
+  unavailable: boolean;
   current: boolean;
   /** What the machine waits for and finished; undefined for the serving host. */
   attention: PeerAttention | undefined;
   t: Translate;
 }
 
-function MachineRow({ id, name, meta, current, attention: row, t }: MachineRowProps): ReactNode {
+function MachineRow(props: MachineRowProps): ReactNode {
+  const { id, name, meta, status, current, unavailable, attention: row, t } = props;
   const waiting = row?.pending.length ?? 0;
   const tone = finishedTone(row?.finished ?? []);
   // The oldest wait, else the latest finished turn.
   const target = row?.pending[0]?.sessionId ?? row?.finished.at(-1)?.sessionId;
   let label = t("machines.open", { name });
-  if (waiting > 0) label = t("machines.openWaiting", { name, count: waiting });
+  if (unavailable) label = t("machines.unavailable", { name, status: props.title });
+  else if (waiting > 0) label = t("machines.openWaiting", { name, count: waiting });
   else if (tone !== undefined) label = t("machines.openFinished", { name });
   const onClick = useCallback(() => {
     if (id !== null && target !== undefined && !(current && target === currentSession())) {
@@ -592,14 +592,55 @@ function MachineRow({ id, name, meta, current, attention: row, t }: MachineRowPr
         className="kivotos-machines-item"
         aria-current={current ? "true" : undefined}
         aria-label={label}
+        title={props.title}
+        disabled={unavailable}
         onClick={onClick}
       >
         <MachineGlyph />
-        <span className="kivotos-machines-name">{name}</span>
+        <span className="kivotos-machines-text">
+          <span className="kivotos-machines-name">{name}</span>
+          {props.note && status !== undefined ? (
+            <span className="kivotos-machines-status">{status}</span>
+          ) : null}
+        </span>
         <AttentionMarks waiting={waiting} tone={tone} />
-        <span className="kivotos-machines-meta">{meta}</span>
+        {meta === "" ? null : <span className="kivotos-machines-meta">{meta}</span>}
       </button>
     </li>
+  );
+}
+
+/** A peer's row in the switcher: its route as the tag, a second line when it is not plain. */
+function PeerRow({
+  machine,
+  current,
+  attention: row,
+  now,
+  t,
+}: {
+  machine: MachineInfo;
+  current: boolean;
+  attention: PeerAttention | undefined;
+  now: number;
+  t: Translate;
+}): ReactNode {
+  const status = statusOf(machine);
+  let meta = "";
+  if (current) meta = t("machines.current");
+  else if (machine.route !== null) meta = t(`via.${machine.route}`);
+  return (
+    <MachineRow
+      id={machine.id}
+      name={machine.name}
+      meta={meta}
+      title={statusText(t, machine, now)}
+      status={statusText(t, machine, now, true)}
+      note={status.kind !== "online" || status.down !== undefined}
+      unavailable={machine.route === null && !current}
+      current={current}
+      attention={row}
+      t={t}
+    />
   );
 }
 
@@ -752,11 +793,11 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
     trigger.current?.focus();
   }, []);
   const showPair = useCallback(() => {
-    const url = machines.self?.url;
+    const url = machines.self.url;
     if (url === undefined) return;
     setOpen(false);
     setPairUrl(url);
-  }, [machines.self?.url]);
+  }, [machines.self.url]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -776,14 +817,16 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
 
   const currentName = useMemo(() => {
     if (peer === null) return t("machines.local");
-    return machines.peers.find((row) => row.id === peer)?.name ?? peer;
-  }, [machines.peers, peer, t]);
+    return machines.machines.find((row) => row.id === peer)?.name ?? peer;
+  }, [machines.machines, peer, t]);
 
-  const selfName = machines.self?.name || t("machines.local");
+  const selfName = machines.self.name || t("machines.local");
   let note: string | null = null;
   if (machines.state === "failed") note = t("machines.failed");
-  else if (machines.state === "ready" && machines.peers.length === 0) note = t("machines.empty");
-  const pairReady = machines.state === "ready" && Boolean(machines.self?.url);
+  else if (machines.state === "ready" && machines.machines.length === 0) note = t("machines.empty");
+  const pairReady = machines.state === "ready" && Boolean(machines.self.url);
+  // Rendered on open and on every list read, which keeps "last seen" current enough.
+  const now = Date.now();
 
   return (
     <div ref={root} className="kivotos-machines">
@@ -802,7 +845,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
         {wide ? <span className="kivotos-machines-label">{currentName}</span> : null}
         <TriggerMarks wide={wide} waiting={summary.waiting} tone={summary.tone} />
         {wide && machines.state === "ready" ? (
-          <span className="kivotos-machines-count">{String(machines.peers.length + 1)}</span>
+          <span className="kivotos-machines-count">{String(machines.machines.length + 1)}</span>
         ) : null}
       </button>
       {open ? (
@@ -811,22 +854,21 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             id={null}
             name={selfName}
             meta={peer === null ? t("machines.current") : t("machines.local")}
+            title={undefined}
+            status={undefined}
+            note={false}
+            unavailable={false}
             current={peer === null}
             attention={undefined}
             t={t}
           />
-          {machines.peers.map((row) => (
-            <MachineRow
+          {machines.machines.map((row) => (
+            <PeerRow
               key={row.id}
-              id={row.id}
-              name={row.name}
-              meta={
-                row.id === peer
-                  ? t("machines.current")
-                  : t(row.via === "relay" ? "machines.relay" : "machines.tailscale")
-              }
+              machine={row}
               current={row.id === peer}
               attention={summary.rows.get(row.id)}
+              now={now}
               t={t}
             />
           ))}

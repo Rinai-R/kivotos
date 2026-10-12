@@ -17,8 +17,9 @@ import {
   registrationOf,
   type Network,
 } from "./federation.ts";
-import type { Upstream } from "./proxy.ts";
-import { relayAgent, RelayLink, type LinkStatus } from "./relay.ts";
+import { machineIdOf, probeFailure, type Absent, type Sighting } from "./machine-book.ts";
+import { getJson, type Upstream } from "./proxy.ts";
+import { relayAgent, RelayLink, type LinkStatus, type RelayPeer } from "./relay.ts";
 import type { TraceLog } from "./trace.ts";
 import { createIdentity, loadIdentity, type Identity } from "./x509.ts";
 
@@ -26,6 +27,17 @@ import { createIdentity, loadIdentity, type Identity } from "./x509.ts";
 const RELAY_AUTHORITY = "relay.kivotos.invalid";
 /** First look for peers this soon after connecting, before the regular interval. */
 const FIRST_REFRESH_MS = 1_500;
+/** Longest wait for a member's `/kivotos/hello` through the relay. */
+const PROBE_TIMEOUT_MS = 5_000;
+
+/** How the members not online now show while this computer's own relay link is down. */
+function absentOf(state: Exclude<LinkStatus["state"], "online">): Absent {
+  if (state === "denied") return { state: "denied" };
+  return {
+    state: "unreachable",
+    reason: state === "connecting" ? "relay-connecting" : "relay-unreachable",
+  };
+}
 
 /** A relay session's caller, in the shape the dsh frontend traces. */
 interface Caller {
@@ -33,14 +45,6 @@ interface Caller {
   node: string;
   admitMs: number;
   cached: boolean;
-}
-
-/** A node of the network this computer can open. */
-export interface RelayMount {
-  id: string;
-  name: string;
-  os: string;
-  upstream: Upstream;
 }
 
 /** What the settings page shows about the relay link. */
@@ -71,8 +75,12 @@ export interface RelayHostOptions {
     request(req: IncomingMessage, res: ServerResponse, who: Caller): Promise<void>;
     upgrade(req: IncomingMessage, socket: Duplex, head: Buffer, who: Caller): Promise<void>;
   };
-  /** Replace the relay peers mounted in dsh. */
-  publish: (peers: RelayMount[]) => void;
+  /**
+   * Replace the relay network's machines in this computer's list.
+   * @param absent - how remembered members not online now show; null: forget
+   *   them all (this computer left the network).
+   */
+  publish: (sightings: Sighting<Upstream>[], absent: Absent | null) => void;
   warn: (message: string, error: unknown) => void;
   trace: TraceLog;
 }
@@ -174,7 +182,8 @@ export class RelayHost {
     this.timer = setTimeout(() => void this.refresh(), FIRST_REFRESH_MS);
   }
 
-  private disconnect(): void {
+  /** @param forget - this computer left the network: its members leave the machine list. */
+  private disconnect(forget: boolean): void {
     clearTimeout(this.timer);
     this.link?.stop();
     this.link = undefined;
@@ -183,7 +192,7 @@ export class RelayHost {
     for (const socket of this.sessions) socket.destroy();
     for (const agent of this.agents.values()) agent.destroy();
     this.agents.clear();
-    this.options.publish([]);
+    if (forget) this.options.publish([], null);
   }
 
   /** A member opened a secured session to this computer: speak HTTP on it. */
@@ -200,12 +209,19 @@ export class RelayHost {
     this.server.emit("connection", socket);
   }
 
-  /** Ask the relay who is online and mount them; reschedules itself. */
+  /** Ask the relay who is online, say hello to each, and publish them; reschedules itself. */
   private async refresh(): Promise<void> {
     const link = this.link;
-    if (link === undefined) return;
+    const network = this.network;
+    if (link === undefined || network === undefined) return;
     try {
-      const peers = link.status.state === "online" ? await link.peers() : [];
+      const state = link.status.state;
+      if (state !== "online") {
+        this.peerCount = 0;
+        this.options.publish([], absentOf(state));
+        return;
+      }
+      const peers = await link.peers();
       if (this.link !== link) return;
       const online = new Set(peers.map((peer) => peer.node));
       for (const [node, agent] of this.agents) {
@@ -214,35 +230,56 @@ export class RelayHost {
         this.agents.delete(node);
       }
       this.peerCount = peers.length;
-      this.options.publish(
-        peers.map((peer) => {
-          let agent = this.agents.get(peer.node);
-          if (agent === undefined) {
-            agent = relayAgent(link, peer.node);
-            this.agents.set(peer.node, agent);
-          }
-          return {
-            id: `relay-${peer.node.slice(0, 16)}`,
-            name: peer.name || peer.node.slice(0, 8),
-            os: "",
-            upstream: {
-              host: RELAY_AUTHORITY,
-              port: 80,
-              authority: RELAY_AUTHORITY,
-              hop: true,
-              agent,
-              relayNode: peer.node,
-            },
-          };
-        }),
-      );
+      const sightings = await Promise.all(peers.map((peer) => this.probe(link, network, peer)));
+      if (this.link === link) this.options.publish(sightings, { state: "offline" });
     } catch (error) {
       this.options.warn("kivotos: relay peer refresh failed", error);
+      if (this.link === link) this.options.publish([], absentOf("unreachable"));
     } finally {
       if (this.link === link) {
         this.timer = setTimeout(() => void this.refresh(), this.options.refreshSeconds * 1000);
       }
     }
+  }
+
+  /** A member online in the relay: reachable when its Kivotos answers through a secured session. */
+  private async probe(
+    link: RelayLink,
+    network: Network,
+    peer: RelayPeer,
+  ): Promise<Sighting<Upstream>> {
+    let agent = this.agents.get(peer.node);
+    if (agent === undefined) {
+      agent = relayAgent(link, peer.node);
+      this.agents.set(peer.node, agent);
+    }
+    const upstream: Upstream = {
+      host: RELAY_AUTHORITY,
+      port: 80,
+      authority: RELAY_AUTHORITY,
+      hop: true,
+      agent,
+      relayNode: peer.node,
+    };
+    const answer = await getJson(upstream, "/kivotos/hello", PROBE_TIMEOUT_MS);
+    const hello = answer.body?.kivotos === undefined ? undefined : answer.body;
+    const sighting: Sighting<Upstream> = {
+      key: `relay:${peer.node}`,
+      id: machineIdOf(peer.node),
+      node: peer.node,
+      name: typeof hello?.name === "string" && hello.name !== "" ? hello.name : peer.name,
+      os: typeof hello?.os === "string" ? hello.os : "",
+      address: network.relay,
+      state: hello === undefined ? "unreachable" : "online",
+    };
+    if (hello === undefined) sighting.reason = probeFailure(answer);
+    else sighting.target = upstream;
+    this.options.trace.record("relay.probe", {
+      node: peer.node,
+      ok: hello !== undefined,
+      reason: sighting.reason,
+    });
+    return sighting;
   }
 
   view(): RelayView {
@@ -264,7 +301,7 @@ export class RelayHost {
 
   private async rejoin(network: Network): Promise<void> {
     await writePrivate(this.networkFile, { relay: network.relay, secret: network.secret });
-    this.disconnect();
+    this.disconnect(true);
     this.connect(network);
   }
 
@@ -281,11 +318,12 @@ export class RelayHost {
   /** Leave the network and forget its key. */
   async leave(): Promise<void> {
     await rm(this.networkFile, { force: true });
-    this.disconnect();
+    this.disconnect(true);
   }
 
   dispose(): void {
     this.disposed = true;
-    this.disconnect();
+    // Unloading keeps the members in machines.json for the next start.
+    this.disconnect(false);
   }
 }

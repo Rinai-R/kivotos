@@ -12,22 +12,26 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { PhoneMachineProbe, PhoneProbe } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import {
   BellGlyph,
   ChevronGlyph,
   KeyboardGlyph,
   KivotosMark,
+  LinkGlyph,
   MonitorGlyph,
   QrGlyph,
 } from "./icons";
 import { resolveMachines } from "./machines";
 import { PairScanner } from "./PairScanner";
-import { errorKey, t, type Key } from "./strings";
+import { errorKey, statusLine, t, type Key } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 interface Props {
   machines: Machine[];
+  /** The latest probe of every link; null until the first one finished. */
+  probe: PhoneProbe | null;
   notifications: "on" | "off" | "denied";
   batteryRestricted: boolean;
   onAdd: (machines: Machine[]) => void;
@@ -35,18 +39,21 @@ interface Props {
   onOpen: (machine: Machine) => void;
   onToggleNotifications: () => void;
   onFixBattery: () => void;
+  onLinks: () => void;
 }
 
 const EDGES = ["top", "bottom"] as const;
 
 interface RowProps {
   machine: Machine;
+  /** What the last probe found; undefined until then. */
+  probe: PhoneMachineProbe | undefined;
   last: boolean;
   onOpen: (machine: Machine) => void;
   onRemove: (machine: Machine) => void;
 }
 
-function MachineRow({ machine, last, onOpen, onRemove }: RowProps) {
+function MachineRow({ machine, probe, last, onOpen, onRemove }: RowProps) {
   const styles = useStyles(createStyles);
   const colors = useColors();
   const open = useCallback(() => onOpen(machine), [machine, onOpen]);
@@ -55,11 +62,10 @@ function MachineRow({ machine, last, onOpen, onRemove }: RowProps) {
     ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
     [styles],
   );
-  // Show the host part only: the scheme and default port are noise on a phone.
-  const address =
-    machine.relay === undefined
-      ? machine.url.replace(/^https?:\/\//, "").replace(/:7380$/, "")
-      : t("viaRelay");
+  // One line for how the phone reaches it, in the computer's words; a machine
+  // no link reaches is dimmed and says why.
+  const status = statusLine(probe, Date.now());
+  const reachable = probe === undefined || probe.route !== null;
   return (
     <Pressable
       onPress={open}
@@ -73,11 +79,11 @@ function MachineRow({ machine, last, onOpen, onRemove }: RowProps) {
       </View>
       <View style={last ? styles.rowBodyLast : styles.rowBody}>
         <View style={styles.rowText}>
-          <Text style={styles.rowName} numberOfLines={1}>
+          <Text style={reachable ? styles.rowName : styles.rowNameDim} numberOfLines={1}>
             {machine.name}
           </Text>
-          <Text style={styles.rowMeta} numberOfLines={1}>
-            {address}
+          <Text style={styles.rowMeta} numberOfLines={2}>
+            {status}
           </Text>
         </View>
         <ChevronGlyph color={colors.textTertiary} />
@@ -121,6 +127,10 @@ export function MachineList(props: Props) {
   const [manual, setManual] = useState(false);
   const mounted = useRef(true);
   const { machines, onAdd, onRemove, onOpen } = props;
+  const probes = useMemo(
+    () => new Map((props.probe?.machines ?? []).map((entry) => [entry.id, entry])),
+    [props.probe],
+  );
   useEffect(
     () => () => {
       mounted.current = false;
@@ -180,6 +190,10 @@ export function MachineList(props: Props) {
   );
 
   const trackColor = useMemo(() => ({ false: colors.pressed, true: colors.link }), [colors]);
+  const rowStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
+    [styles],
+  );
   const primaryStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => (pressed ? styles.primaryPressed : styles.primary),
     [styles],
@@ -226,6 +240,7 @@ export function MachineList(props: Props) {
               <MachineRow
                 key={machine.id}
                 machine={machine}
+                probe={probes.get(machine.id)}
                 last={index === machines.length - 1}
                 onOpen={onOpen}
                 onRemove={confirmRemove}
@@ -291,6 +306,23 @@ export function MachineList(props: Props) {
 
         <Text style={styles.section}>{t("sectionSettings")}</Text>
         <View style={styles.group}>
+          <Pressable
+            onPress={props.onLinks}
+            style={rowStyle}
+            accessibilityRole="button"
+            accessibilityLabel={t("connections")}
+          >
+            <View style={styles.tile}>
+              <LinkGlyph color={colors.text} />
+            </View>
+            <View style={styles.rowBody}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowName}>{t("connections")}</Text>
+                <Text style={styles.rowMeta}>{t("connectionsMeta")}</Text>
+              </View>
+              <ChevronGlyph color={colors.textTertiary} />
+            </View>
+          </Pressable>
           <Pressable onPress={props.onToggleNotifications} style={styles.row}>
             <View style={styles.tile}>
               <BellGlyph color={colors.text} />
@@ -396,6 +428,7 @@ function createStyles(c: Palette) {
     rowBodyLast: rowBody,
     rowText: { flex: 1, paddingVertical: 12 },
     rowName: { fontSize: 16, fontWeight: "500", color: c.text },
+    rowNameDim: { fontSize: 16, fontWeight: "500", color: c.textTertiary },
     rowMeta: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.textTertiary },
     tile: {
       width: 36,

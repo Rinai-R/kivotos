@@ -174,6 +174,57 @@ export function upstreamRequest(upstream: Upstream, options: RequestOptions): Cl
     : http.request(base);
 }
 
+/** What a small JSON GET returned. */
+export interface JsonAnswer {
+  /** HTTP status; absent when no answer came. */
+  status?: number;
+  /** The body, when the status was 200 and the body a JSON object. */
+  body?: Record<string, unknown>;
+  /** Node.js error code when the connection failed (`ETIMEDOUT` for the timeout). */
+  code?: string;
+}
+
+/**
+ * GET a small JSON document from `upstream` (a peer's `/kivotos/hello`).
+ * @returns how it went; never rejects.
+ */
+export function getJson(upstream: Upstream, path: string, timeoutMs: number): Promise<JsonAnswer> {
+  const { promise, resolve } = Promise.withResolvers<JsonAnswer>();
+  const req = upstreamRequest(upstream, {
+    method: "GET",
+    path,
+    headers: { host: upstream.authority, accept: "application/json" },
+  });
+  req.setTimeout(timeoutMs, () =>
+    req.destroy(Object.assign(new Error("timed out"), { code: "ETIMEDOUT" })),
+  );
+  req.on("response", (res) => {
+    const status = res.statusCode ?? 0;
+    const chunks: Buffer[] = [];
+    res.on("data", (chunk: Buffer) => chunks.push(chunk));
+    res.on("end", () => {
+      const body = status === 200 ? jsonObject(Buffer.concat(chunks)) : undefined;
+      resolve(body === undefined ? { status } : { status, body });
+    });
+    res.on("error", () => resolve({ status }));
+  });
+  req.on("error", (error: NodeJS.ErrnoException) => resolve({ code: error.code ?? "" }));
+  req.end();
+  return promise;
+}
+
+function jsonObject(bytes: Buffer): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(bytes.toString("utf8"));
+    return typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    // A non-JSON 200 is some other service on the port: not Kivotos.
+    return undefined;
+  }
+}
+
 /**
  * Forward one HTTP exchange to `upstream`. Responses stream (dsh HMR is an
  * EventSource) except uncompressed HTML handed to `options.html`. Upstream

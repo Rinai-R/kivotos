@@ -26,8 +26,10 @@ import javax.net.ssl.SSLSocketFactory
 /**
  * Local doors to the machines. Each machine gets a loopback HTTP address the
  * WebView loads it from; every connection to it gets its own connection to the
- * machine: a secured relay session for a relay machine, or TCP (TLS for an
- * `https` listener) to its tailnet listener. Requests are read one by one so
+ * machine: TCP (TLS for an `https` listener) to its tailnet listener, or a
+ * secured relay session. A machine with both links goes over the tailnet
+ * first and through the relay when the listener cannot be reached ([Links]),
+ * behind the same door, so the page keeps its origin whichever link carries it. Requests are read one by one so
  * the immutable ones can be answered from [HttpCache]; everything else, and
  * every byte after a protocol switch (`/api/remote.mux`), streams through
  * unbuffered.
@@ -50,6 +52,8 @@ object MachineProxy {
   /** A kept-alive WebView connection idle this long is closed. */
   private const val KEEPALIVE_MS = 5 * 60_000
   private const val CONNECT_TIMEOUT_MS = 10_000
+  /** A listener that does not answer this soon, when a relay can take over, is given up on. */
+  private const val FALLBACK_CONNECT_TIMEOUT_MS = 4_000
   /**
    * A machine connection idle this long is replaced before the next request:
    * the listener and the relay sessions are Node servers, which close idle
@@ -68,7 +72,7 @@ object MachineProxy {
 
   private class Door(val server: ServerSocket, val machine: Machine, val network: Network?) {
     val origin = "http://127.0.0.1:${server.localPort}"
-    private val uri: URI? = if (network == null) URI(machine.url.trimEnd('/')) else null
+    val uri: URI? = if (machine.viaTailnet) URI(machine.url.trimEnd('/')) else null
     val tls = uri?.scheme.equals("https", ignoreCase = true)
     val host: String = uri?.host.orEmpty()
     val port: Int = uri?.port?.takeIf { it > 0 } ?: if (tls) 443 else 80
@@ -85,7 +89,13 @@ object MachineProxy {
   }
 
   /** One connection to a machine. */
-  private class Upstream(val input: InputStream, val output: OutputStream, private val closer: Closeable) : Closeable {
+  private class Upstream(
+    val input: InputStream,
+    val output: OutputStream,
+    private val closer: Closeable,
+    /** Goes to the tailnet listener, which wants its own Host and Origin. */
+    val tailnet: Boolean,
+  ) : Closeable {
     var idleSince = SystemClock.elapsedRealtime()
     override fun close() {
       try {
@@ -105,7 +115,12 @@ object MachineProxy {
   @Synchronized
   fun url(context: Context, machine: Machine): String {
     HttpCache.init(context.cacheDir)
-    val door = doors[machine.id] ?: listen(machine).also { doors[machine.id] = it }
+    val known = doors[machine.id]
+    if (known != null && known.machine.copy(name = machine.name) == machine) return known.origin
+    // A link was added or left (one machine reached two ways): the same port, new upstreams.
+    known?.close()
+    val door = listen(machine)
+    doors[machine.id] = door
     return door.origin
   }
 
@@ -134,8 +149,9 @@ object MachineProxy {
     val network = if (machine.viaRelay) Network.of(machine.relay, machine.key) else null
     val loopback = InetAddress.getByName("127.0.0.1")
     // The same port every time keeps the page's origin, and with it dsh's
-    // localStorage for this computer, across app restarts.
-    val seed = if (machine.viaRelay) machine.node else machine.url
+    // localStorage for this computer, across app restarts. The id never changes
+    // for a machine (a URL, or `relay:<node>`); a link added later keeps the port.
+    val seed = machine.id.removePrefix("relay:")
     val preferred = PORT_BASE + Math.floorMod(seed.hashCode(), PORT_SPAN)
     var server: ServerSocket? = null
     for (step in 0 until 32) {
@@ -162,15 +178,35 @@ object MachineProxy {
     }
   }
 
+  /** Connect to the machine over its preferred link, then the other one. */
   private fun dial(door: Door): Upstream {
-    val network = door.network
-    if (network != null) {
-      val session = RelayClient.dial(network, door.machine.node)
-      return Upstream(BufferedInputStream(session.input), BufferedOutputStream(session.output, 32 * 1024), session)
+    val machine = door.machine
+    val order = if (Links.prefersRelay(machine)) listOf(false, true) else listOf(true, false)
+    var failure: Exception? = null
+    for (tailnet in order) {
+      if (if (tailnet) door.uri == null else door.network == null) continue
+      try {
+        val upstream = if (tailnet) dialTailnet(door) else dialRelay(door)
+        Links.dialed(machine, tailnet, ok = true)
+        return upstream
+      } catch (error: Exception) {
+        Links.dialed(machine, tailnet, ok = false)
+        failure = error
+      }
     }
+    throw failure ?: IOException("no link to ${machine.name}")
+  }
+
+  private fun dialRelay(door: Door): Upstream {
+    val session = RelayClient.dial(requireNotNull(door.network), door.machine.node)
+    return Upstream(BufferedInputStream(session.input), BufferedOutputStream(session.output, 32 * 1024), session, tailnet = false)
+  }
+
+  private fun dialTailnet(door: Door): Upstream {
     val plain = Socket()
     try {
-      plain.connect(InetSocketAddress(door.host, door.port), CONNECT_TIMEOUT_MS)
+      val timeout = if (door.network == null) CONNECT_TIMEOUT_MS else FALLBACK_CONNECT_TIMEOUT_MS
+      plain.connect(InetSocketAddress(door.host, door.port), timeout)
       plain.tcpNoDelay = true
       val socket = if (door.tls) {
         val secure = (SSLSocketFactory.getDefault() as SSLSocketFactory).createSocket(plain, door.host, door.port, true) as SSLSocket
@@ -182,7 +218,7 @@ object MachineProxy {
       } else {
         plain
       }
-      return Upstream(BufferedInputStream(socket.getInputStream()), BufferedOutputStream(socket.getOutputStream(), 32 * 1024), socket)
+      return Upstream(BufferedInputStream(socket.getInputStream()), BufferedOutputStream(socket.getOutputStream(), 32 * 1024), socket, tailnet = true)
     } catch (failure: Exception) {
       close(plain)
       throw failure
@@ -221,6 +257,7 @@ object MachineProxy {
             return
           }
           upstream = opened
+          address(door, head, opened)
           tunnel(head, fromClient, toClient, opened, client)
           return
         }
@@ -295,6 +332,7 @@ object MachineProxy {
         refuse(toClient, "502 Bad Gateway")
         return false
       }
+      address(door, head, up)
       up.output.write(head.bytes())
       copyBody(fromClient, up.output, Framing.ofRequest(head))
       up.output.flush()
@@ -356,20 +394,21 @@ object MachineProxy {
   }
 
   /**
-   * Drop the door's cookie and, for a tailnet machine, name the listener in
-   * Host and Origin.
+   * Drop the door's cookie.
    * @return false for a request a page of another origin made.
    */
   private fun rewrite(door: Door, head: HttpHead): Boolean {
     val cookies = head["cookie"]?.split(';')?.map { it.trim() }?.filter { it.isNotEmpty() && it != cookie }
     if (cookies.isNullOrEmpty()) head.remove("cookie") else head["cookie"] = cookies.joinToString("; ")
     val origin = head["origin"]
-    if (origin != null && origin != door.origin) return false
-    if (door.network == null) {
-      head["host"] = door.authority
-      if (origin != null) head["origin"] = door.upstreamOrigin
-    }
-    return true
+    return origin == null || origin == door.origin
+  }
+
+  /** Over the tailnet, name the listener in Host and Origin; a relay session takes the request as it is. */
+  private fun address(door: Door, head: HttpHead, up: Upstream) {
+    if (!up.tailnet) return
+    head["host"] = door.authority
+    if (head["origin"] != null) head["origin"] = door.upstreamOrigin
   }
 
   private fun admitted(head: HttpHead): Boolean =
