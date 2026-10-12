@@ -134,16 +134,21 @@ class AttentionService : Service() {
     val (epoch, after) = AttentionState.cursor(this, machine.id)
     val query = "after=$after&epoch=" + java.net.URLEncoder.encode(epoch, "UTF-8")
     // A relay machine is reached through its local door, which wants the door's cookie.
-    val base = if (machine.viaRelay) RelayProxy.open(machine) else machine.url.trimEnd('/')
+    // A tailnet machine is followed directly: the stream needs nothing the door adds.
+    val base = if (machine.viaRelay) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
     val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection
-    if (machine.viaRelay) connection.setRequestProperty("Cookie", RelayProxy.cookie)
+    if (machine.viaRelay) connection.setRequestProperty("Cookie", MachineProxy.cookie)
     connection.connectTimeout = 10_000
     // The listener sends a comment every 25 s; silence beyond this means a dead link.
     connection.readTimeout = 70_000
     connection.setRequestProperty("Accept", "text/event-stream")
     try {
       if (connection.responseCode != 200) throw IllegalStateException("HTTP ${connection.responseCode}")
-      if (connected.add(machine.id)) refreshServiceNotification()
+      if (connected.add(machine.id)) {
+        refreshServiceNotification()
+        // Reachable again: its dsh may have restarted with new plugin batches.
+        Prefetch.request(this, machine)
+      }
       BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
         val data = StringBuilder()
         while (!Thread.currentThread().isInterrupted) {

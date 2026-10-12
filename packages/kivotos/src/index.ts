@@ -19,7 +19,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
-import { MountCache } from "./cache.ts";
+import { HASHED_ASSET, markImmutable, MountCache } from "./cache.ts";
 import type { HostContext } from "./dsh.ts";
 import {
   forwardHttp,
@@ -568,7 +568,7 @@ interface Caller {
  * everything else forwarded to the loopback dsh. The tailnet listener and the
  * relay link share it; each admits the caller its own way before calling in.
  */
-class Frontend {
+export class Frontend {
   private readonly session: LoopbackSession;
   private readonly ctx: HostContext;
   private readonly attention: AttentionTracker;
@@ -646,9 +646,16 @@ class Frontend {
     res.on("finish", () => {
       if (res.statusCode === 401) session.invalidate();
     });
+    // Content-hashed Vite assets come without caching headers; marked immutable
+    // here as on peer mounts, the phone's and the browser's caches keep them.
+    const hashed = HASHED_ASSET.test(parsed.pathname);
     forwardHttp(req, res, this.upstream(cookie), {
       path: url,
       prefix: "",
+      response: (ur, headers) => {
+        markImmutable(hashed, ur, headers);
+        return undefined;
+      },
       // Pages served here get the flag that makes the client module report its timings.
       html:
         trace.level === "off"

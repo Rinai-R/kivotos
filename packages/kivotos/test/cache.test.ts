@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
+import { AttentionTracker } from "../src/attention.ts";
 import { MountCache } from "../src/cache.ts";
+import type { HostContext } from "../src/dsh.ts";
+import { Frontend } from "../src/index.ts";
 import type { HttpStats, Upstream } from "../src/proxy.ts";
 import { TraceLog } from "../src/trace.ts";
 
@@ -395,6 +398,55 @@ test("content-hashed assets without caching headers are served immutable and sto
     }
   } finally {
     await mount.close();
+  }
+});
+
+test("the tailnet frontend serves content-hashed assets immutable", async () => {
+  const dsh = await serve((req, res) => {
+    if (req.url === "/?token=t") {
+      res.writeHead(200, { "set-cookie": "dsh=login; Path=/" });
+      res.end();
+      return;
+    }
+    const status = req.headers.cookie === "dsh=login" && req.url !== "/assets/gone-5SrrfWpU.js";
+    res.writeHead(status ? 200 : 404, { "content-type": "text/javascript" });
+    res.end("asset");
+  });
+  const ctx: HostContext = {
+    webServer: {
+      port: dsh.port,
+      register: () => () => undefined,
+      registerUpgrade: () => () => undefined,
+      tapIndex: () => () => undefined,
+    },
+    connection: {
+      requestRejection: () => undefined,
+      authenticatedUrl: (base) => `${base}?token=t`,
+    },
+    logger: { info: () => undefined, warn: () => undefined },
+    effect: () => undefined,
+    get: () => undefined,
+    on: () => () => undefined,
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "kivotos-frontend-"));
+  const frontend = new Frontend(ctx, new AttentionTracker(), new TraceLog(dir, "off"), () => ({
+    name: "lab",
+    os: "test",
+  }));
+  const listener = await serve((req, res) => {
+    void frontend.request(req, res, { ip: "100.64.0.2", node: "", admitMs: 0, cached: false });
+  });
+  try {
+    const hashed = await get(listener.port, "/assets/index-5SrrfWpU.js", {});
+    assert.equal(hashed.status, 200);
+    assert.equal(hashed.headers["cache-control"], IMMUTABLE);
+    for (const target of ["/assets/vue-language.js", "/assets/gone-5SrrfWpU.js"]) {
+      assert.equal((await get(listener.port, target, {})).headers["cache-control"], undefined);
+    }
+  } finally {
+    listener.close();
+    dsh.close();
+    await rm(dir, { recursive: true, force: true });
   }
 });
 

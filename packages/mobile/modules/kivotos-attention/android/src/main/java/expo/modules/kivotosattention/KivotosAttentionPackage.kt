@@ -24,6 +24,7 @@ class AttentionActivityListener : ReactActivityLifecycleListener {
 
   override fun onResume(activity: Activity) {
     AttentionState.appVisible = true
+    Prefetch.resumed(activity)
   }
 
   override fun onPause(activity: Activity) {

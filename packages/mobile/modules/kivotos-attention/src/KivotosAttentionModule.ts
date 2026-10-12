@@ -54,7 +54,7 @@ declare class KivotosAttentionModule extends NativeModule<Events> {
   setMachines(json: string): void;
   relayJoin(invite: string): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }>;
   relayPeers(endpoint: string, key: string): Promise<RelayPeer[]>;
-  relayOpen(json: string): string;
+  machineOpen(json: string): string;
   setEnabled(enabled: boolean): void;
   isEnabled(): boolean;
   setOnScreen(machineId: string, sessionId: string): void;
@@ -74,8 +74,9 @@ export const relayJoin = (
 ): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }> => native.relayJoin(invite);
 export const relayPeers = (endpoint: string, key: string): Promise<RelayPeer[]> =>
   native.relayPeers(endpoint, key);
-/** @returns the local base URL through which a relay machine's dsh loads. */
-export const relayOpen = (machine: Machine): string => native.relayOpen(JSON.stringify(machine));
+/** @returns the local base URL through which a machine's dsh loads (its door, which caches). */
+export const machineOpen = (machine: Machine): string =>
+  native.machineOpen(JSON.stringify(machine));
 export const setEnabled = (enabled: boolean): void => native.setEnabled(enabled);
 export const isEnabled = (): boolean => native.isEnabled();
 export const setOnScreen = (machineId: string, sessionId: string): void =>
