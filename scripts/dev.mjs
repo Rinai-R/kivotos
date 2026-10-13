@@ -51,7 +51,7 @@ class Failure extends Error {
   }
 }
 
-function options() {
+function parseOptions() {
   let parsed;
   try {
     parsed = parseArgs({
@@ -189,11 +189,12 @@ function start(command, args, log, env = process.env) {
   });
   // A process that could not be started fires "error" and never "exit".
   child.exited = new Promise((resolve) => {
-    child.once("exit", (code, signal) => resolve({ code, signal }));
-    child.once("error", (error) => resolve({ code: null, signal: null, error }));
-  });
-  child.exited.then(() => {
-    child.done = true;
+    const end = (result) => {
+      child.done = true;
+      resolve(result);
+    };
+    child.once("exit", (code, signal) => end({ code, signal }));
+    child.once("error", (error) => end({ code: null, signal: null, error }));
   });
   children.push(child);
   return child;
@@ -253,7 +254,7 @@ process.on("SIGINT", () => void shutdown(130));
 process.on("SIGTERM", () => void shutdown(143));
 
 async function main() {
-  const opts = options();
+  const opts = parseOptions();
   keep = opts.keep;
   const dsh = requirePrerequisites(opts.dsh);
   const dir = claimLabDir(opts["lab-dir"]);
