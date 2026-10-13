@@ -37,15 +37,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-mkdir -p "$lab_dir"
-lab_dir="$(cd "$lab_dir" && pwd -P)"
-case "$lab_dir" in
-  /|"$HOME"|"$repo_root")
-    echo "refusing to use $lab_dir as the lab directory" >&2
-    exit 2
-    ;;
-esac
-
 need() {
   command -v "$1" >/dev/null 2>&1 || { echo "lab: $1 is required ($2)" >&2; exit 1; }
 }
@@ -58,6 +49,25 @@ if [ ! -x "$dsh_bin" ]; then
   command -v "$dsh_bin" >/dev/null 2>&1 ||
     { echo "lab: dsh not found; install it or pass --dsh <path> (or DSH_BIN)" >&2; exit 1; }
 fi
+
+# The lab deletes its directory on start and on exit, so it only ever takes a
+# directory that is new, empty, or one it made itself (it holds this marker).
+marker=".kivotos-lab"
+if [ -e "$lab_dir" ]; then
+  [ -d "$lab_dir" ] || { echo "lab: $lab_dir exists and is not a directory" >&2; exit 2; }
+  if [ ! -e "$lab_dir/$marker" ] && [ -n "$(ls -A "$lab_dir")" ]; then
+    echo "lab: refusing to use $lab_dir: it is not empty and was not made by this script" >&2
+    exit 2
+  fi
+fi
+mkdir -p "$lab_dir"
+lab_dir="$(cd "$lab_dir" && pwd -P)"
+case "$lab_dir" in
+  /|"$HOME"|"$repo_root")
+    echo "lab: refusing to use $lab_dir as the lab directory" >&2
+    exit 2
+    ;;
+esac
 
 if [ ! -f "$repo_root/packages/kivotos/dist/index.js" ]; then
   echo "lab: building the plugin (packages/kivotos/dist is missing)"
@@ -89,13 +99,21 @@ cleanup() {
   for pid in "${pids[@]:-}"; do
     if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; fi
   done
-  if [ "$keep" -eq 0 ]; then rm -rf "$lab_dir"; else echo "lab: files kept in $lab_dir"; fi
+  # Stopping (Ctrl-C, SIGTERM) cleans up; a failed start keeps its logs, since
+  # the error above names one of them.
+  case "$status" in 0 | 130 | 143) failed=0 ;; *) failed=1 ;; esac
+  if [ "$keep" -eq 1 ] || [ "$failed" -eq 1 ]; then
+    echo "lab: files kept in $lab_dir"
+  else
+    rm -rf "$lab_dir"
+  fi
   exit "$status"
 }
 trap cleanup EXIT INT TERM
 
 rm -rf "$lab_dir"
 mkdir -p "$lab_dir/relay/data" "$lab_dir/home-a/kivotos" "$lab_dir/home-b/kivotos"
+touch "$lab_dir/$marker"
 
 echo "lab: building the relay"
 (cd "$repo_root/packages/relay" && go build -o "$lab_dir/relay/kivotos-relay" .)
@@ -132,13 +150,15 @@ invite="$(cd "$repo_root" && node --input-type=module -e '
 echo "lab: starting the relay on $relay_addr"
 "$relay" serve --listen "$relay_addr" --data-dir "$lab_dir/relay/data" \
   >"$lab_dir/relay.log" 2>&1 &
-pids+=($!)
+relay_pid=$!
+pids+=("$relay_pid")
 for _ in $(seq 1 100); do
   [ -S "$lab_dir/relay/data/admin.sock" ] && break
+  kill -0 "$relay_pid" 2>/dev/null || break
   sleep 0.1
 done
 [ -S "$lab_dir/relay/data/admin.sock" ] ||
-  { echo "lab: the relay did not start; see $lab_dir/relay.log" >&2; exit 1; }
+  { echo "lab: the relay did not start ($(tail -n 1 "$lab_dir/relay.log")); see $lab_dir/relay.log" >&2; exit 1; }
 
 "$relay" network add "$(cat "$lab_dir/registration.txt")" --data-dir "$lab_dir/relay/data" >/dev/null
 
@@ -151,14 +171,16 @@ start_dsh() {
   (DSH_HOME="$lab_dir/$home" exec "$dsh_bin" web \
     --patch "$lab_dir/lab.patch.yml" --port "$port" --host 127.0.0.1 --no-open) \
     >"$log" 2>&1 &
-  pids+=($!)
+  local pid=$!
+  pids+=("$pid")
   local url=""
   for _ in $(seq 1 300); do
     url="$(sed -n 's/^dsh web: \(http[^ ]*\).*/\1/p' "$log" | head -n 1)"
     [ -n "$url" ] && break
+    kill -0 "$pid" 2>/dev/null || break
     sleep 0.2
   done
-  [ -n "$url" ] || { echo "lab: $name did not start; see $log" >&2; exit 1; }
+  [ -n "$url" ] || { echo "lab: $name did not start ($(tail -n 1 "$log")); see $log" >&2; exit 1; }
   ui_url="$url"
 }
 

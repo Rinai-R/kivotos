@@ -54,7 +54,7 @@ npm run apk -w packages/mobile
 
 ## Run a lab in one command
 
-`scripts/lab.sh` starts a relay built from `packages/relay` and two dsh instances, each with its own `DSH_HOME`, both already members of the same relay network. It prints each instance's UI URL and the invite link, and removes everything it created when you stop it with Ctrl-C.
+`scripts/lab.sh` starts a relay built from `packages/relay` and two dsh instances, each with its own `DSH_HOME`, both already members of the same relay network. It prints each instance's UI URL and the invite link, and removes everything it created when you stop it with Ctrl-C. A start that fails (a port in use, say) says why and keeps the directory, so the log it names is there to read.
 
 ```sh
 scripts/lab.sh                                   # relay on 7411, dsh on 7412 and 7413
@@ -62,7 +62,7 @@ scripts/lab.sh --lab-dir /tmp/kivotos-lab --relay-port 8411 --web-a-port 8412 --
 scripts/lab.sh --keep                            # keep the files for inspection
 ```
 
-The script needs `dsh` on `PATH` (`--dsh <path>` or `$DSH_BIN` override it) and Go. It never touches `~/.dsh` or an installed dsh: everything it writes is under `--lab-dir`, which defaults to `.lab/` in the repository root.
+The script needs `dsh` on `PATH` (`--dsh <path>` or `$DSH_BIN` override it) and Go. It never touches `~/.dsh` or an installed dsh: everything it writes is under `--lab-dir`, which defaults to `.lab/` in the repository root. Because it deletes that directory, it refuses one that already holds files it did not make.
 
 The two instances run relay-only (`listen: false`, `discover: false`), so the lab needs no Tailscale and never mounts the machines of your own tailnet. To exercise the tailnet listener, the phone layout, or an Android device against a lab, use the two-instance lab in [CLAUDE.md](CLAUDE.md#two-instance-lab) instead — it sets `allowSelf` and `staticPeers` and runs the listener on the tailnet address.
 
