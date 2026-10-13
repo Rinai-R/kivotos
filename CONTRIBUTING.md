@@ -11,6 +11,7 @@ Kivotos is a plugin for DeepSeek Harness (dsh), plus an Android app and a relay 
 | JDK                                | 17 (Temurin tested)                                                                      | the Android APK                                           |
 | Android SDK                        | `platforms;android-36`, `build-tools;36.0.0` (React Native 0.86 compiles against SDK 36) | the Android APK                                           |
 | [dsh](https://deepseek.com)        | `0.2.0-rc.2`                                                                             | running the plugin (`npm install` alone does not need it) |
+| [pnpm](https://pnpm.io)            | 11                                                                                       | `dsh plugin add`, which the lab and the dsh check run     |
 | [Tailscale](https://tailscale.com) | any                                                                                      | only if you want to exercise federation over a tailnet    |
 
 `npm install` runs the plugin's `prepare` script, which builds `dist/` — no separate build step is needed before the first test run.
