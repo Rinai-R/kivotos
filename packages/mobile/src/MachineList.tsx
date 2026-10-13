@@ -17,6 +17,7 @@ import {
   type PhoneMachineProbe,
   type PhoneProbe,
   type RouteMode,
+  type Via,
 } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import {
@@ -28,6 +29,7 @@ import {
   MonitorGlyph,
   QrGlyph,
 } from "./icons";
+import { LinkChips, phoneVias } from "./LinkChips";
 import { MachineSheet } from "./MachineSheet";
 import { resolveMachines } from "./machines";
 import { PairScanner } from "./PairScanner";
@@ -56,13 +58,15 @@ interface RowProps {
   machine: Machine;
   /** What the last probe found; undefined until then. */
   probe: PhoneMachineProbe | undefined;
+  /** The links the phone has: one chip each. */
+  vias: readonly Via[];
   last: boolean;
   onOpen: (machine: Machine) => void;
   /** Long-press: its actions (how it is reached, remove). */
   onActions: (machine: Machine) => void;
 }
 
-function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
+function MachineRow({ machine, probe, vias, last, onOpen, onActions }: RowProps) {
   const styles = useStyles(createStyles);
   const colors = useColors();
   const open = useCallback(() => onOpen(machine), [machine, onOpen]);
@@ -71,8 +75,8 @@ function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
     ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
     [styles],
   );
-  // One line for how the phone reaches it by its mode, in the computer's
-  // words; a machine no link reaches is dimmed and says why.
+  // How the phone reaches it by its mode, in the computer's words, then its
+  // state on each link; a machine no link reaches is dimmed and says why.
   const mode = machine.mode ?? "auto";
   const status = statusLine(probe, mode, Date.now());
   const reachable = probe === undefined || routeOf(probe, mode) !== null;
@@ -95,6 +99,7 @@ function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
           <Text style={styles.rowMeta} numberOfLines={2}>
             {status}
           </Text>
+          <LinkChips machine={machine} probe={probe} vias={vias} />
         </View>
         <ChevronGlyph color={colors.textTertiary} />
       </View>
@@ -143,6 +148,7 @@ export function MachineList(props: Props) {
     () => new Map((props.probe?.machines ?? []).map((entry) => [entry.id, entry])),
     [props.probe],
   );
+  const vias = useMemo(() => phoneVias(machines), [machines]);
   useEffect(
     () => () => {
       mounted.current = false;
@@ -254,6 +260,7 @@ export function MachineList(props: Props) {
                 key={machine.id}
                 machine={machine}
                 probe={probes.get(machine.id)}
+                vias={vias}
                 last={index === machines.length - 1}
                 onOpen={onOpen}
                 onActions={setSheet}
@@ -366,6 +373,7 @@ export function MachineList(props: Props) {
       <MachineSheet
         machine={sheet}
         probe={sheet === null ? undefined : probes.get(sheet.id)}
+        vias={vias}
         onMode={props.onMode}
         onRemove={confirmRemove}
         onClose={closeSheet}

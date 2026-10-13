@@ -8,10 +8,16 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ROUTE_MODES, type PhoneMachineProbe, type RouteMode } from "../../kivotos/src/machines";
+import {
+  modeOptions,
+  type PhoneMachineProbe,
+  type RouteMode,
+  type Via,
+} from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import { CheckGlyph } from "./icons";
-import { linkLine, routeLine, statusLine, t } from "./strings";
+import { LinkChips } from "./LinkChips";
+import { linkLine, linkState, routeLine, statusLine, t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 interface Props {
@@ -19,6 +25,8 @@ interface Props {
   machine: Machine | null;
   /** What the last probe found for it. */
   probe: PhoneMachineProbe | undefined;
+  /** The links the phone has: one chip each. */
+  vias: readonly Via[];
   onMode: (id: string, mode: RouteMode) => void;
   onRemove: (machine: Machine) => void;
   onClose: () => void;
@@ -27,13 +35,14 @@ interface Props {
 interface OptionProps {
   mode: RouteMode;
   checked: boolean;
-  /** What choosing it gives now. */
+  /** What choosing it gives now, or why it does not work (`unavailable`). */
   state: string;
+  unavailable: boolean;
   last: boolean;
   onChoose: (mode: RouteMode) => void;
 }
 
-function ModeOption({ mode, checked, state, last, onChoose }: OptionProps) {
+function ModeOption({ mode, checked, state, unavailable, last, onChoose }: OptionProps) {
   const styles = useStyles(createStyles);
   const colors = useColors();
   const choose = useCallback(() => onChoose(mode), [mode, onChoose]);
@@ -54,7 +63,7 @@ function ModeOption({ mode, checked, state, last, onChoose }: OptionProps) {
       <View style={last ? styles.optionBodyLast : styles.optionBody}>
         <View style={styles.optionText}>
           <Text style={styles.optionName}>{name}</Text>
-          <Text style={styles.optionState}>{state}</Text>
+          <Text style={unavailable ? styles.optionUnavailable : styles.optionState}>{state}</Text>
         </View>
         {checked ? <CheckGlyph color={colors.link} /> : <View style={styles.check} />}
       </View>
@@ -63,10 +72,11 @@ function ModeOption({ mode, checked, state, last, onChoose }: OptionProps) {
 }
 
 /**
- * A machine's actions on the app's home: how the phone reaches it (when it
- * has both links), then removing it.
+ * A machine's actions on the app's home: how the phone reaches it (for a
+ * machine with both links: Auto, the links that work, and the current choice
+ * even when its link is down, as on the computer), then removing it.
  */
-export function MachineSheet({ machine, probe, onMode, onRemove, onClose }: Props) {
+export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }: Props) {
   const styles = useStyles(createStyles);
   const insets = useSafeAreaInsets();
   const sheetStyle = useMemo(
@@ -92,34 +102,36 @@ export function MachineSheet({ machine, probe, onMode, onRemove, onClose }: Prop
   let body = null;
   if (machine !== null) {
     const mode = machine.mode ?? "auto";
-    // One link per way: a machine reached both ways has a choice.
-    const choice = machine.url !== "" && machine.relay !== undefined;
-    const stateOf = (option: RouteMode): string => {
-      if (probe === undefined) return t("checking");
-      if (option === "auto") return routeLine(probe, "auto", now);
-      const link = probe.links.find((candidate) => candidate.via === option);
-      return link === undefined ? t("checking") : linkLine(link, now);
-    };
+    const options = probe === undefined ? [] : modeOptions(probe, mode);
     body = (
       <View style={sheetStyle}>
         <Text style={styles.title} numberOfLines={1}>
           {machine.name}
         </Text>
         <Text style={styles.subtitle}>{statusLine(probe, mode, now)}</Text>
-        {choice ? (
+        <LinkChips machine={machine} probe={probe} vias={vias} />
+        {probe !== undefined && options.length > 0 ? (
           <>
             <Text style={styles.section}>{t("mode.title")}</Text>
             <View style={styles.group} accessibilityRole="radiogroup">
-              {ROUTE_MODES.map((option, index) => (
-                <ModeOption
-                  key={option}
-                  mode={option}
-                  checked={option === mode}
-                  state={stateOf(option)}
-                  last={index === ROUTE_MODES.length - 1}
-                  onChoose={choose}
-                />
-              ))}
+              {options.map((option, index) => {
+                let state = routeLine(probe, "auto", now);
+                if (option.link !== undefined)
+                  state = option.unavailable
+                    ? t("mode.unavailable", { reason: linkState(option.link) })
+                    : linkLine(option.link, now);
+                return (
+                  <ModeOption
+                    key={option.mode}
+                    mode={option.mode}
+                    checked={option.mode === mode}
+                    state={state}
+                    unavailable={option.unavailable}
+                    last={index === options.length - 1}
+                    onChoose={choose}
+                  />
+                );
+              })}
             </View>
           </>
         ) : null}
@@ -215,6 +227,7 @@ function createStyles(c: Palette) {
     optionText: { flex: 1, paddingVertical: 10 },
     optionName: { fontSize: 16, fontWeight: "500", color: c.text },
     optionState: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.textTertiary },
+    optionUnavailable: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.danger },
     check: { width: 18, height: 18 },
     actions: { marginTop: 16, gap: 4 },
     action,

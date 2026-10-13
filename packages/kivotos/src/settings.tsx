@@ -1,9 +1,10 @@
 /**
- * The Kivotos section of dsh Settings: the machines this one reaches and how
- * (with each machine's connection mode), then one tab per way this machine
- * can be reached. The links are independent; a machine can use both at once.
- * The text helpers here word the machine model (machines.ts) for the
- * switcher too.
+ * The Kivotos section of dsh Settings, one page: this machine's links (a
+ * line each, with what managing it needs folded under it), then the machines
+ * it knows, each with its state on every link this machine has and, for a
+ * machine reached both ways, its connection mode. The links are independent;
+ * a machine can use both at once. The text helpers here word the machine
+ * model (machines.ts) for the switcher too.
  */
 import QrCode from "qrcode-generator";
 import * as React from "react";
@@ -12,11 +13,12 @@ import type { ReactNode } from "react";
 import {
   agoOf,
   isRouteMode,
+  modeOptions,
   pinnedVia,
-  ROUTE_MODES,
   statusOf,
   type MachineInfo,
   type MachineLink,
+  type ModeOption,
   type RouteMode,
   type Via,
 } from "./machines.ts";
@@ -29,7 +31,7 @@ const POLL_MS = 3_000;
 
 export const SETTINGS_ZH = {
   "settings.nav": "远程连接",
-  "settings.tabs": "连接方式",
+  "settings.links": "连接方式",
   "settings.machines": "机器",
   "settings.tailscale": "Tailscale",
   "settings.relay": "自建中继",
@@ -37,6 +39,8 @@ export const SETTINGS_ZH = {
   "settings.failed": "无法读取连接状态",
   "settings.copy": "复制",
   "settings.copied": "已复制",
+  "settings.manage": "管理",
+  "settings.setUp": "配置",
   "via.tailscale": "Tailscale",
   "via.relay": "中继",
   "state.online": "在线",
@@ -65,24 +69,23 @@ export const SETTINGS_ZH = {
   "status.offlineSince": "离线 · 最后在线 {ago}",
   "status.unreachable": "无法连接：{reason}",
   "status.lastSeen": "最后在线 {ago}",
+  "chip.noTailnet": "不在 tailnet 中",
+  "chip.noNetwork": "不在网络中",
   "mode.auto": "自动",
-  "mode.menu": "{name} 的连接方式：{mode}",
+  "mode.label": "{name} 的连接方式",
+  "mode.unavailable": "不可用：{reason}",
   "mode.setOn": "{name} 上的设置",
   "mode.failed": "无法更改连接方式",
   "machines.intro":
     "每台机器只列一次，无论经由哪种方式连接。自动：能直连时走 Tailscale，不通时改走中继。选 Tailscale 或中继则只用那一种，不通时不会改道。",
-  "machines.none": "还没有其它机器。用下面的 Tailscale 或自建中继连接它们。",
-  "tailscale.intro": "登录同一个 tailnet 账号的手机和电脑可以直接打开这台机器，不需要额外设置。",
-  "tailscale.state": "状态",
+  "machines.none": "还没有其它机器。用上面的 Tailscale 或自建中继连接它们。",
   "tailscale.joined": "已连接 tailnet，名称 {name}",
   "tailscale.notJoined": "本机未连接 tailnet：请打开 Tailscale 并登录。",
-  "tailscale.address": "本机地址",
   "tailscale.unready": "监听尚未就绪：请确认本机已登录 Tailscale。",
   "tailscale.off": "监听已关闭（配置 listen: false）：其它设备无法经 Tailscale 打开本机。",
-  "tailscale.pair": "用手机上的 Kivotos 扫描此二维码完成配对，或在侧边栏机器列表里选择“配对手机”。",
-  "tailscale.qr": "用于配对手机的二维码",
   "relay.intro":
     "通过你自己部署的中继服务器连接，不依赖 Tailscale。中继只转发加密数据，看不到内容，也无法冒充成员。",
+  "relay.none": "未加入网络",
   "relay.address": "中继地址",
   "relay.network": "网络",
   "relay.addressHint": "例如 203.0.113.7:7443 或 https://relay.example.com",
@@ -91,23 +94,30 @@ export const SETTINGS_ZH = {
   "relay.invite": "邀请链接",
   "relay.inviteHint": "粘贴另一台机器上显示的邀请链接",
   "relay.join": "加入网络",
-  "relay.state": "状态",
   "relay.state.connecting": "正在连接…",
-  "relay.state.online": "已连接。在线的其它机器：{count}",
+  "relay.state.online": "在线",
   "relay.state.denied": "中继尚未登记这个网络",
   "relay.state.unreachable": "无法连接中继",
+  "relay.peers": "在线机器：{count}",
   "relay.register": "在中继服务器上执行一次这条命令来登记网络：",
   "relay.share": "邀请其它设备",
   "relay.shareHint":
-    "在另一台电脑的这个页面粘贴下面的链接，或用手机上的 Kivotos 扫码。拿到它的人就能加入网络，请像密码一样保管。",
+    "在另一台电脑的 设置 → 远程连接 → 自建中继 → 配置 中粘贴下面的链接，或用手机上的 Kivotos 扫码。拿到它的人就能加入网络，请像密码一样保管。",
   "relay.qr": "加入网络的二维码",
   "relay.leave": "退出网络",
   "relay.leaveHint": "退出后本机不再经中继可达，并删除本机保存的网络密钥。",
+  "pair.action": "配对手机",
+  "pair.unavailable": "此机器的远程连接尚未就绪",
+  "pair.title": "配对手机",
+  "pair.instructions": "用手机上的 Kivotos 扫描此二维码，或手动输入下方地址。",
+  "pair.qr": "用于配对手机的二维码",
+  "pair.address": "配对地址",
+  "pair.close": "关闭",
 };
 
 export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "settings.nav": "Remote access",
-  "settings.tabs": "Ways to connect",
+  "settings.links": "Links",
   "settings.machines": "Machines",
   "settings.tailscale": "Tailscale",
   "settings.relay": "Own relay",
@@ -115,6 +125,8 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "settings.failed": "Could not read the connection status",
   "settings.copy": "Copy",
   "settings.copied": "Copied",
+  "settings.manage": "Manage",
+  "settings.setUp": "Set up",
   "via.tailscale": "Tailscale",
   "via.relay": "Relay",
   "state.online": "Online",
@@ -143,28 +155,25 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "status.offlineSince": "Offline · last seen {ago}",
   "status.unreachable": "Unreachable: {reason}",
   "status.lastSeen": "last seen {ago}",
+  "chip.noTailnet": "Not on tailnet",
+  "chip.noNetwork": "Not in network",
   "mode.auto": "Auto",
-  "mode.menu": "How to reach {name}: {mode}",
+  "mode.label": "How to reach {name}",
+  "mode.unavailable": "Unavailable: {reason}",
   "mode.setOn": "Set on {name}",
   "mode.failed": "Could not change how the machine is reached",
   "machines.intro":
     "Each machine is listed once, whatever reaches it. Auto goes over Tailscale when it works and over the relay when it does not; Tailscale or Relay uses only that link and is never rerouted.",
-  "machines.none": "No other machines yet. Connect them with Tailscale or your own relay below.",
-  "tailscale.intro":
-    "Phones and computers signed in to the same tailnet account can open this machine directly. Nothing to set up.",
-  "tailscale.state": "Status",
+  "machines.none": "No other machines yet. Connect them with Tailscale or your own relay above.",
   "tailscale.joined": "On the tailnet as {name}",
   "tailscale.notJoined": "This computer is not on the tailnet: open Tailscale and sign in.",
-  "tailscale.address": "This machine's address",
   "tailscale.unready":
     "The listener is not ready: check that this machine is signed in to Tailscale.",
   "tailscale.off":
     "The listener is off (listen: false): other devices cannot open this computer over Tailscale.",
-  "tailscale.pair":
-    'Scan this code with Kivotos on your phone to pair it, or choose "Pair phone" in the sidebar machine list.',
-  "tailscale.qr": "QR code to pair your phone",
   "relay.intro":
     "Connect through a relay server you run, without Tailscale. The relay only forwards encrypted data: it cannot read it or pose as a member.",
+  "relay.none": "Not in a network",
   "relay.address": "Relay address",
   "relay.network": "Network",
   "relay.addressHint": "For example 203.0.113.7:7443 or https://relay.example.com",
@@ -173,28 +182,50 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "relay.invite": "Invite link",
   "relay.inviteHint": "Paste the invite link another machine shows",
   "relay.join": "Join network",
-  "relay.state": "Status",
   "relay.state.connecting": "Connecting…",
-  "relay.state.online": "Connected. Other machines online: {count}",
-  "relay.state.denied": "The relay has not registered this network yet",
-  "relay.state.unreachable": "Cannot reach the relay",
+  "relay.state.online": "Online",
+  "relay.state.denied": "Not registered on the relay",
+  "relay.state.unreachable": "Relay unreachable",
+  "relay.peers": "Machines online: {count}",
   "relay.register": "Run this once on the relay server to register the network:",
   "relay.share": "Invite other devices",
   "relay.shareHint":
-    "Paste this link on this page of another computer, or scan the code in Kivotos on a phone. Whoever has it can join the network: keep it like a password.",
+    "Paste this link on another computer under Settings → Remote access → Own relay → Set up, or scan the code in Kivotos on a phone. Whoever has it can join the network: keep it like a password.",
   "relay.qr": "QR code to join the network",
   "relay.leave": "Leave network",
   "relay.leaveHint":
     "This machine stops being reachable through the relay and forgets the network key.",
+  "pair.action": "Pair phone",
+  "pair.unavailable": "This machine's remote listener is not ready",
+  "pair.title": "Pair phone",
+  "pair.instructions":
+    "Scan this code in Kivotos on your phone, or enter the address below manually.",
+  "pair.qr": "QR code to pair your phone",
+  "pair.address": "Pairing address",
+  "pair.close": "Close",
 };
 
 export const SETTINGS_CSS = `
-.kivotos-links{display:flex;flex-direction:column;gap:16px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
-.kivotos-links-tabs{display:flex;gap:4px;padding:4px;border-radius:var(--dsw-radius-md);background:var(--dsw-alias-interactive-bg-hover);align-self:flex-start}
-.kivotos-links-tab{min-height:32px;padding:4px 14px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer}
-.kivotos-links-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-shadow-lv1)}
-.kivotos-links-panel{display:flex;flex-direction:column;gap:16px;min-width:0}
+.kivotos-links{container-type:inline-size;display:flex;flex-direction:column;gap:24px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+.kivotos-links-group{display:flex;flex-direction:column;gap:8px;min-width:0}
+.kivotos-links-heading{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px;font-weight:500;line-height:20px}
 .kivotos-links-text{margin:0;color:var(--dsw-alias-label-secondary)}
+.kivotos-links-list{display:flex;flex-direction:column;margin:0;padding:0;list-style:none;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md)}
+.kivotos-links-list > li + li{border-top:0.5px solid var(--dsw-alias-border-l2)}
+.kivotos-links-line{display:flex;flex-direction:column;padding:10px 14px;min-width:0}
+.kivotos-links-line-head{display:flex;align-items:center;gap:10px;min-width:0;min-height:32px}
+.kivotos-links-dot{flex:none;align-self:flex-start;width:8px;height:8px;margin-top:7px;border-radius:50%;background:var(--dsw-alias-label-tertiary)}
+.kivotos-links-dot[data-tone="ok"]{background:var(--dsw-alias-state-success-primary)}
+.kivotos-links-dot[data-tone="busy"]{background:var(--dsw-alias-state-warn-primary)}
+.kivotos-links-dot[data-tone="bad"]{background:var(--dsw-alias-state-error-primary)}
+.kivotos-links-line-body{flex:1;min-width:0;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.kivotos-links-line-name{margin-right:8px;color:var(--dsw-alias-label-primary);font-weight:500}
+.kivotos-links-line-meta{color:var(--dsw-alias-label-tertiary)}
+.kivotos-links-line-action{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:4px 10px;border:0.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;white-space:nowrap;cursor:pointer}
+.kivotos-links-line-action:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.kivotos-links-line-action svg{transition:transform 120ms}
+.kivotos-links-line-action[aria-expanded="true"] svg{transform:rotate(180deg)}
+.kivotos-links-details{display:flex;flex-direction:column;gap:16px;margin-top:10px;padding:14px 0 4px;border-top:0.5px solid var(--dsw-alias-border-l2);min-width:0}
 .kivotos-links-field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .kivotos-links-label{color:var(--dsw-alias-label-primary)}
 .kivotos-links-row{display:flex;gap:8px;align-items:flex-start;min-width:0}
@@ -203,32 +234,44 @@ export const SETTINGS_CSS = `
 .kivotos-links-button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-links-button:disabled{color:var(--dsw-alias-label-tertiary);cursor:not-allowed}
 .kivotos-links-code{flex:1;min-width:0;margin:0;padding:8px 10px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover);font-family:var(--ds-font-family-code,monospace);font-size:12px;line-height:18px;overflow-wrap:anywhere;user-select:all}
-.kivotos-links-error{margin:0;color:var(--dsw-alias-state-error,var(--dsw-alias-label-primary))}
-.kivotos-links-qr{display:block;box-sizing:border-box;width:min(100%,220px);height:auto;padding:8px;border-radius:8px;background:#fff}
+.kivotos-links-error{margin:0;color:var(--dsw-alias-state-error-primary)}
+.kivotos-links-qr{display:block;box-sizing:border-box;width:min(100%,200px);height:auto;padding:8px;border-radius:8px;background:#fff}
 .kivotos-links-divider{height:0;margin:0;border:0;border-top:0.5px solid var(--dsw-alias-border-l2)}
-.kivotos-links-machines{display:flex;flex-direction:column;margin:0;padding:0;list-style:none;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md)}
-.kivotos-links-machine{display:flex;flex-direction:column;gap:4px;padding:12px 14px;min-width:0}
-.kivotos-links-machine + .kivotos-links-machine{border-top:0.5px solid var(--dsw-alias-border-l2)}
-.kivotos-links-machine-head{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;min-width:0}
-.kivotos-links-machine-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary);font-weight:500}
+.kivotos-links-machine{display:flex;flex-direction:column;gap:2px;padding:12px 14px;min-width:0}
+.kivotos-links-machine-head{display:flex;align-items:baseline;gap:8px;min-width:0}
+.kivotos-links-machine-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .kivotos-links-machine[data-reachable="false"] .kivotos-links-machine-name{color:var(--dsw-alias-label-tertiary)}
 .kivotos-links-machine-os{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px}
 .kivotos-links-machine-status{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
-.kivotos-links-machine-links{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:2px 0 0;font-size:12px;line-height:18px}
-.kivotos-links-machine-links dt{color:var(--dsw-alias-label-tertiary)}
-.kivotos-links-machine-links dd{margin:0;min-width:0;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
-.kivotos-links-machine-links dd[data-state="online"]{color:var(--dsw-alias-label-primary)}
-.kivotos-mode-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
-.kivotos-mode-button:hover,.kivotos-mode-button[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.kivotos-mode-button[data-pinned]{color:var(--dsw-alias-label-secondary)}
-.kivotos-mode-menu{flex-basis:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;margin:6px 0 2px;padding:4px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm)}
-.kivotos-mode-hint{padding:2px 8px 4px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}
-.kivotos-mode-option{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:4px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:18px;text-align:left;cursor:pointer}
-.kivotos-mode-option:hover,.kivotos-mode-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover)}
-.kivotos-mode-check{flex:none;width:14px;height:14px;color:var(--dsw-alias-label-primary)}
-.kivotos-mode-text{display:flex;flex:1;flex-direction:column;min-width:0}
-.kivotos-mode-state{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px;overflow-wrap:anywhere}
-.kivotos-mode-option[aria-checked="true"] .kivotos-mode-name{font-weight:500}
+.kivotos-links-machine-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:6px;min-width:0}
+.kivotos-links-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none;min-width:0}
+.kivotos-links-chip{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:24px;padding:2px 10px;border:0.5px solid var(--dsw-alias-border-l4);border-radius:999px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
+.kivotos-links-chip::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-label-tertiary)}
+.kivotos-links-chip[data-state="online"]::before{background:var(--dsw-alias-state-success-primary)}
+.kivotos-links-chip[data-state="unreachable"]::before,.kivotos-links-chip[data-state="denied"]::before{background:var(--dsw-alias-state-error-primary)}
+.kivotos-links-chip[data-state="missing"]{border-style:dashed;color:var(--dsw-alias-label-tertiary)}
+.kivotos-links-chip[data-state="missing"]::before{display:none}
+.kivotos-mode{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:auto;min-width:0}
+.kivotos-mode-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 10px;min-width:0}
+.kivotos-mode-hint{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}
+.kivotos-mode-seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover)}
+.kivotos-mode-option{position:relative;display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:28px;padding:3px 12px;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-secondary);font-size:13px;line-height:18px;cursor:pointer}
+.kivotos-mode-option:hover{color:var(--dsw-alias-label-primary)}
+.kivotos-mode-option input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.kivotos-mode-option[data-checked]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-shadow-lv1)}
+.kivotos-mode-option[data-unavailable]::after{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-error-primary)}
+.kivotos-mode-option:has(input:focus-visible){outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.kivotos-mode-note{contain:inline-size;align-self:stretch;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:16px;text-align:right}
+@container (max-width:520px){.kivotos-mode{align-items:flex-start;margin-left:0}.kivotos-mode-row{justify-content:flex-start}.kivotos-mode-note{text-align:left}}
+.kivotos-pair{box-sizing:border-box;width:min(92vw,380px);max-height:90dvh;overflow:auto;margin:auto;padding:24px;border:1px solid var(--dsw-alias-interactive-bg-hover);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-prominent);font:inherit}
+.kivotos-pair::backdrop{background:var(--dsw-alias-bg-mask-1)}
+.kivotos-pair-title{margin:0 0 12px;font-size:18px}
+.kivotos-pair-instructions{margin:0 0 18px;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1.5}
+.kivotos-pair-qr{display:block;box-sizing:border-box;width:min(100%,260px);height:auto;margin:0 auto 18px;padding:10px;border-radius:8px;background:#fff}
+.kivotos-pair-address{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px}
+.kivotos-pair-url{display:block;margin-top:6px;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary);font-size:14px;user-select:all}
+.kivotos-pair-close{display:block;margin:24px 0 0 auto;min-height:40px;padding:6px 16px;border:0;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
+.kivotos-pair-close:hover{filter:brightness(1.1)}
 `;
 
 /**
@@ -342,17 +385,14 @@ function linkState(t: Translate, link: MachineLink): string {
   return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
 }
 
-/**
- * @param brief - in the mode menu: leave the address out.
- * @returns one link's line: its state with any reason, address, and when it last worked if it does not now.
- */
-export function linkText(t: Translate, link: MachineLink, now: number, brief = false): string {
+/** @returns one link in full (a chip's tooltip): its state with any reason, address, and when it last worked if it does not now. */
+export function linkText(t: Translate, link: MachineLink, now: number): string {
   const parts = [
     link.state === "unreachable" && link.reason !== undefined
       ? t("status.unreachable", { reason: t(`reason.${link.reason}`) })
       : t(`state.${link.state}`),
   ];
-  if (!brief && link.address !== undefined) parts.push(link.address);
+  if (link.address !== undefined) parts.push(link.address);
   if (link.state !== "online" && link.lastSeen !== undefined)
     parts.push(t("status.lastSeen", { ago: agoText(t, link.lastSeen, now) }));
   return parts.join(" · ");
@@ -418,29 +458,31 @@ async function readBody<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-/** Mode glyph: two places joined by a path (original artwork, currentColor). */
-function ModeGlyph(): ReactNode {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <circle cx="3.5" cy="4" r="1.75" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="12.5" cy="12" r="1.75" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d="M5.25 4h4.5a2.25 2.25 0 0 1 0 4.5h-3.5a2.25 2.25 0 0 0 0 4.5h4.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+/** `host:port` of a listener or relay URL, as the page shows it. */
+function hostOf(address: string): string {
+  return address.replace(/^[a-z]+:\/\//i, "").replace(/\/.*$/, "");
 }
 
-function CheckGlyph(): ReactNode {
+/**
+ * A machine's line: its route alone when it has one (the chips say why
+ * another link is not used), else its status.
+ */
+function routeText(t: Translate, machine: MachineInfo, now: number): string {
+  const status = statusOf(machine, machine.mode);
+  if (status.kind !== "online") return statusText(t, machine, now);
+  const via = t(`via.${status.via}`);
+  return pinnedVia(machine, machine.mode) === null
+    ? t("status.via", { via })
+    : t("status.viaOnly", { via });
+}
+
+function ChevronGlyph(): ReactNode {
   return (
-    <svg className="kivotos-mode-check" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
       <path
-        d="M2.75 7.25 5.75 10.25 11.25 4"
+        d="M3 4.5 6 7.5 9 4.5"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -448,128 +490,56 @@ function CheckGlyph(): ReactNode {
   );
 }
 
-/** @returns what choosing a mode gives now: auto's status, or the one link's state. */
-function modeState(t: Translate, machine: MachineInfo, mode: RouteMode, now: number): string {
-  if (mode === "auto") return statusText(t, { links: machine.links, mode }, now);
-  const link = machine.links.find((candidate) => candidate.via === mode);
-  return link === undefined ? "" : linkText(t, link, now, true);
-}
-
-interface ModeMenuProps {
-  machine: MachineInfo;
-  /** Its menu is open; one at a time. */
-  open: boolean;
-  /** "Set on <computer>", where the page may be taken for the device's own setting. */
-  hint: string | null;
-  now: number;
-  t: Translate;
-  onToggle: (id: string) => void;
-  onChange: (id: string, mode: RouteMode) => void;
-}
-
 /**
- * How a machine with two links is reached: a small button at the end of its
- * card head, and below it while open, Auto / Tailscale / Relay with what each
- * gives now. A machine with one link has nothing to choose and gets none.
- * The parent lays it out in a wrapping flex row.
+ * The pairing code. A native modal keeps keyboard focus and Escape inside
+ * the dialog, in the phone drawer and in the Settings panel alike.
  */
-function ModeMenu(props: ModeMenuProps): ReactNode {
-  const { machine, open, t, onToggle, onChange } = props;
-  const menuId = useId();
-  const hintId = useId();
-  const button = useRef<HTMLButtonElement | null>(null);
-  const menu = useRef<HTMLDivElement | null>(null);
-  const toggle = useCallback(() => onToggle(machine.id), [machine.id, onToggle]);
-  const choose = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      const mode = event.currentTarget.value;
-      if (isRouteMode(mode)) onChange(machine.id, mode);
-      onToggle(machine.id);
-      button.current?.focus();
-    },
-    [machine.id, onChange, onToggle],
-  );
-  const onKey = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const items = [...(menu.current?.querySelectorAll("button") ?? [])];
-      const at = items.findIndex((item) => item === document.activeElement);
-      if (event.key === "Escape") {
-        // Close this menu only, not the Settings panel around it.
-        event.preventDefault();
-        event.stopPropagation();
-        onToggle(machine.id);
-        button.current?.focus();
-      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const step = event.key === "ArrowDown" ? 1 : items.length - 1;
-        items[at < 0 ? 0 : (at + step) % items.length]?.focus();
-      }
-    },
-    [machine.id, onToggle],
-  );
+export function PairDialog({
+  url,
+  t,
+  onClose,
+}: {
+  url: string;
+  t: Translate;
+  onClose: () => void;
+}): ReactNode {
+  const dialog = useRef<HTMLDialogElement | null>(null);
   useEffect(() => {
-    if (open) menu.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
-  }, [open]);
-  // One link per way (machines.ts): two links are a choice.
-  if (machine.links.length < 2) return null;
-  const current = machine.mode === "auto" ? t("mode.auto") : t(`via.${machine.mode}`);
-  const label = t("mode.menu", { name: machine.name, mode: current });
+    const node = dialog.current;
+    node?.showModal();
+    return () => node?.close();
+  }, []);
+  const dismiss = useCallback(() => dialog.current?.close(), []);
+  // Escape closes this dialog only, not the Settings panel it was opened from.
+  const onKey = useCallback((event: React.KeyboardEvent<HTMLDialogElement>) => {
+    if (event.key === "Escape") event.stopPropagation();
+  }, []);
+  const data = useMemo(() => `kivotos://pair?url=${encodeURIComponent(url)}`, [url]);
+
   return (
-    <>
-      <button
-        ref={button}
-        type="button"
-        className="kivotos-mode-button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-label={label}
-        title={label}
-        data-pinned={machine.mode === "auto" ? undefined : ""}
-        onClick={toggle}
-      >
-        <ModeGlyph />
+    <dialog
+      ref={dialog}
+      className="kivotos-pair"
+      aria-labelledby="kivotos-pair-title"
+      aria-describedby="kivotos-pair-instructions"
+      onClose={onClose}
+      onKeyDown={onKey}
+    >
+      <h2 id="kivotos-pair-title" className="kivotos-pair-title">
+        {t("pair.title")}
+      </h2>
+      <p id="kivotos-pair-instructions" className="kivotos-pair-instructions">
+        {t("pair.instructions")}
+      </p>
+      <QrImage data={data} label={t("pair.qr")} className="kivotos-pair-qr" />
+      <p className="kivotos-pair-address">
+        {t("pair.address")}
+        <code className="kivotos-pair-url">{url}</code>
+      </p>
+      <button type="button" className="kivotos-pair-close" autoFocus onClick={dismiss}>
+        {t("pair.close")}
       </button>
-      {open ? (
-        <div className="kivotos-mode-menu">
-          {props.hint === null ? null : (
-            <span id={hintId} className="kivotos-mode-hint">
-              {props.hint}
-            </span>
-          )}
-          <div
-            ref={menu}
-            id={menuId}
-            role="menu"
-            aria-label={label}
-            aria-describedby={props.hint === null ? undefined : hintId}
-            onKeyDown={onKey}
-          >
-            {ROUTE_MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                role="menuitemradio"
-                className="kivotos-mode-option"
-                aria-checked={machine.mode === mode}
-                value={mode}
-                onClick={choose}
-              >
-                {machine.mode === mode ? <CheckGlyph /> : <span className="kivotos-mode-check" />}
-                <span className="kivotos-mode-text">
-                  <span className="kivotos-mode-name">
-                    {mode === "auto" ? t("mode.auto") : t(`via.${mode}`)}
-                  </span>
-                  <span className="kivotos-mode-state">
-                    {modeState(t, machine, mode, props.now)}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </>
+    </dialog>
   );
 }
 
@@ -578,8 +548,10 @@ interface LinksState {
   /** The machines this page's machine knows; null until read. */
   list: MachineList | null;
   failed: boolean;
-  /** Message of the last relay action or mode change that was refused. */
+  /** Message of the last relay action that was refused. */
   error: string | null;
+  /** The last mode change failed. */
+  modeError: string | null;
   busy: boolean;
   act: (body: Record<string, string>) => void;
   /** Set how this page's machine reaches one machine (index.ts `/kivotos/mode`). */
@@ -591,6 +563,7 @@ function useLinks(t: Translate): LinksState {
   const [list, setList] = useState<MachineList | null>(null);
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -640,7 +613,7 @@ function useLinks(t: Translate): LinksState {
 
   const changeMode = useCallback(
     (machine: string, mode: RouteMode) => {
-      setError(null);
+      setModeError(null);
       void (async () => {
         try {
           const response = await fetch(linksUrl("mode"), {
@@ -650,14 +623,14 @@ function useLinks(t: Translate): LinksState {
           });
           setList(machineListOf(await readBody<unknown>(response)));
         } catch {
-          setError(t("mode.failed"));
+          setModeError(t("mode.failed"));
         }
       })();
     },
     [t],
   );
 
-  return { links, list, failed, error, busy, act, changeMode };
+  return { links, list, failed, error, modeError, busy, act, changeMode };
 }
 
 /** Text people copy out; the button appears only where the clipboard API exists. */
@@ -685,135 +658,199 @@ function Copyable({ text, t }: { text: string; t: Translate }): ReactNode {
   );
 }
 
-function TailscalePanel({ links, t }: { links: Links; t: Translate }): ReactNode {
-  const { url, joined, name, address, listen } = links.tailscale;
-  const pairing = useMemo(
-    () => (url === null ? null : `kivotos://pair?url=${encodeURIComponent(url)}`),
-    [url],
-  );
-  let listener: ReactNode;
-  if (!listen) listener = <p className="kivotos-links-text">{t("tailscale.off")}</p>;
-  else if (url === null || pairing === null)
-    listener = <p className="kivotos-links-text">{t("tailscale.unready")}</p>;
-  else {
-    listener = (
-      <div className="kivotos-links-field">
-        <span className="kivotos-links-label">{t("tailscale.address")}</span>
-        <Copyable text={url} t={t} />
-        <p className="kivotos-links-text">{t("tailscale.pair")}</p>
-        <QrImage data={pairing} label={t("tailscale.qr")} className="kivotos-links-qr" />
-      </div>
-    );
-  }
-  const where = address === null ? name : `${name} (${address})`;
+/** A link line's dot: working, on its way, failing, or not set up. */
+type Tone = "ok" | "busy" | "bad" | "off";
+
+/** The head of a link line: dot, name, state and details, then its action (`children`). */
+function LinkHead({
+  name,
+  tone,
+  text,
+  meta,
+  children,
+}: {
+  name: string;
+  tone: Tone;
+  text: string;
+  meta: string | null;
+  children?: ReactNode;
+}): ReactNode {
   return (
-    <div className="kivotos-links-panel" role="tabpanel">
-      <p className="kivotos-links-text">{t("tailscale.intro")}</p>
-      <div className="kivotos-links-field">
-        <span className="kivotos-links-label">{t("tailscale.state")}</span>
-        <p className="kivotos-links-text" role="status">
-          {joined ? t("tailscale.joined", { name: where }) : t("tailscale.notJoined")}
-        </p>
-      </div>
-      {listener}
+    <div className="kivotos-links-line-head">
+      <span className="kivotos-links-dot" data-tone={tone} aria-hidden />
+      <span className="kivotos-links-line-body">
+        <span className="kivotos-links-line-name">{name}</span>
+        <span role="status">
+          {text}
+          {meta === null ? null : <span className="kivotos-links-line-meta">{` · ${meta}`}</span>}
+        </span>
+      </span>
+      {children}
     </div>
   );
 }
 
-interface MachineCardProps extends Omit<ModeMenuProps, "open"> {
-  /** Its mode menu is open. */
-  menu: boolean;
-}
-
-/** One machine: its status line and mode, then each link's state. */
-function MachineCard(props: MachineCardProps): ReactNode {
-  const { machine, now, t } = props;
+/**
+ * Tailscale: whether this computer is on the tailnet, its listener address,
+ * and its pairing code (not inside the phone app, which is what gets paired).
+ */
+function TailscaleLine({
+  links,
+  inApp,
+  t,
+}: {
+  links: Links;
+  inApp: boolean;
+  t: Translate;
+}): ReactNode {
+  const [pairing, setPairing] = useState(false);
+  const button = useRef<HTMLButtonElement | null>(null);
+  const pair = useCallback(() => setPairing(true), []);
+  const closePair = useCallback(() => {
+    setPairing(false);
+    button.current?.focus();
+  }, []);
+  const { url, joined, name, address, listen } = links.tailscale;
+  let tone: Tone = "ok";
+  let text = t("tailscale.joined", { name });
+  if (!joined) {
+    tone = "bad";
+    text = t("tailscale.notJoined");
+  } else if (!listen) {
+    tone = "busy";
+    text = t("tailscale.off");
+  } else if (url === null) {
+    tone = "busy";
+    text = t("tailscale.unready");
+  }
+  let meta: string | null = null;
+  if (url !== null) meta = hostOf(url);
+  else if (joined) meta = address;
   return (
-    <li className="kivotos-links-machine" data-reachable={String(machine.route !== null)}>
-      <div className="kivotos-links-machine-head">
-        <span className="kivotos-links-machine-name">{machine.name}</span>
-        {machine.os === "" ? null : <span className="kivotos-links-machine-os">{machine.os}</span>}
-        <ModeMenu
-          machine={machine}
-          open={props.menu}
-          hint={props.hint}
-          now={now}
-          t={t}
-          onToggle={props.onToggle}
-          onChange={props.onChange}
-        />
-      </div>
-      <p className="kivotos-links-machine-status">{statusText(t, machine, now)}</p>
-      <dl className="kivotos-links-machine-links">
-        {machine.links.map((link) => (
-          <React.Fragment key={link.via}>
-            <dt>{t(`via.${link.via}`)}</dt>
-            <dd data-state={link.state}>{linkText(t, link, now)}</dd>
-          </React.Fragment>
-        ))}
-      </dl>
+    <li className="kivotos-links-line">
+      <LinkHead name={t("settings.tailscale")} tone={tone} text={text} meta={meta}>
+        {url === null || inApp ? null : (
+          <button ref={button} type="button" className="kivotos-links-line-action" onClick={pair}>
+            {t("pair.action")}
+          </button>
+        )}
+      </LinkHead>
+      {pairing && url !== null ? <PairDialog url={url} t={t} onClose={closePair} /> : null}
     </li>
   );
 }
 
-function MachinesPanel({
-  state,
-  inApp,
-  t,
-}: {
-  state: LinksState;
-  inApp: boolean;
-  t: Translate;
-}): ReactNode {
-  const [menu, setMenu] = useState<string | null>(null);
-  const toggleMenu = useCallback(
-    (id: string) => setMenu((shown) => (shown === id ? null : id)),
-    [],
-  );
-  const { list, changeMode } = state;
-  // Re-rendered on every poll, which also moves "last seen" along.
-  const now = Date.now();
-  // In the phone app, whose own machine list has modes too: these are this page's computer's.
-  const hint = inApp && list !== null ? t("mode.setOn", { name: list.self.name }) : null;
-  let body: ReactNode;
-  if (list === null) body = <p className="kivotos-links-text">{t("settings.loading")}</p>;
-  else if (list.machines.length === 0)
-    body = <p className="kivotos-links-text">{t("machines.none")}</p>;
-  else {
-    body = (
-      <ul className="kivotos-links-machines">
-        {list.machines.map((machine) => (
-          <MachineCard
-            key={machine.id}
-            machine={machine}
-            menu={menu === machine.id}
-            hint={hint}
-            now={now}
-            t={t}
-            onToggle={toggleMenu}
-            onChange={changeMode}
-          />
-        ))}
-      </ul>
-    );
-  }
+/** In a network: its id, the invite to share, the registration while refused, and Leave. */
+function RelayManage({ relay, act, busy, t }: RelayActions & { relay: Links["relay"] }): ReactNode {
+  const leave = useCallback(() => act({ action: "leave" }), [act]);
   return (
-    <div className="kivotos-links-panel" role="tabpanel">
-      <p className="kivotos-links-text">{t("machines.intro")}</p>
-      {body}
-      {state.error === null ? null : (
-        <p className="kivotos-links-error" role="alert">
-          {state.error}
-        </p>
+    <>
+      {relay.networkId === undefined ? null : (
+        <div className="kivotos-links-field">
+          <span className="kivotos-links-label">{t("relay.network")}</span>
+          <code className="kivotos-links-code">{relay.networkId}</code>
+        </div>
       )}
-    </div>
+      {relay.state === "denied" && relay.registration !== undefined ? (
+        <div className="kivotos-links-field">
+          <p className="kivotos-links-text">{t("relay.register")}</p>
+          <Copyable text={`kivotos-relay network add ${relay.registration}`} t={t} />
+        </div>
+      ) : null}
+      {relay.invite === undefined ? null : (
+        <div className="kivotos-links-field">
+          <span className="kivotos-links-label">{t("relay.share")}</span>
+          <p className="kivotos-links-text">{t("relay.shareHint")}</p>
+          <Copyable text={relay.invite} t={t} />
+          <QrImage data={relay.invite} label={t("relay.qr")} className="kivotos-links-qr" />
+        </div>
+      )}
+      <hr className="kivotos-links-divider" />
+      <div className="kivotos-links-field">
+        <p className="kivotos-links-text">{t("relay.leaveHint")}</p>
+        <div className="kivotos-links-row">
+          <button type="button" className="kivotos-links-button" disabled={busy} onClick={leave}>
+            {t("relay.leave")}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
-function RelayForm({ state, t }: { state: LinksState; t: Translate }): ReactNode {
+/** Own relay: the network's state, relay and machines online; Manage or Set up folds out below. */
+function RelayLine({
+  state,
+  relay,
+  t,
+}: {
+  state: LinksState;
+  relay: Links["relay"];
+  t: Translate;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
+  const toggle = useCallback(() => setOpen((shown) => !shown), []);
+  const { act, busy } = state;
+  let tone: Tone = "off";
+  let text = t("relay.none");
+  const meta: string[] = [];
+  if (relay.joined) {
+    const status = relay.state ?? "connecting";
+    tone = "bad";
+    if (status === "online") tone = "ok";
+    else if (status === "connecting") tone = "busy";
+    text = t(`relay.state.${status}`);
+    if (relay.relay !== undefined) meta.push(hostOf(relay.relay));
+    if (status === "online") meta.push(t("relay.peers", { count: relay.peers }));
+  }
+  return (
+    <li className="kivotos-links-line">
+      <LinkHead
+        name={t("settings.relay")}
+        tone={tone}
+        text={text}
+        meta={meta.length === 0 ? null : meta.join(" · ")}
+      >
+        <button
+          type="button"
+          className="kivotos-links-line-action"
+          aria-expanded={open}
+          aria-controls={open ? detailsId : undefined}
+          onClick={toggle}
+        >
+          {t(relay.joined ? "settings.manage" : "settings.setUp")}
+          <ChevronGlyph />
+        </button>
+      </LinkHead>
+      {open ? (
+        <div id={detailsId} className="kivotos-links-details">
+          {relay.joined ? (
+            <RelayManage relay={relay} act={act} busy={busy} t={t} />
+          ) : (
+            <RelayForm act={act} busy={busy} t={t} />
+          )}
+          {state.error === null ? null : (
+            <p className="kivotos-links-error" role="alert">
+              {state.error}
+            </p>
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+interface RelayActions {
+  act: LinksState["act"];
+  busy: boolean;
+  t: Translate;
+}
+
+/** Not in a network: join one by invite, or create it on a relay. */
+function RelayForm({ act, busy, t }: RelayActions): ReactNode {
   const [address, setAddress] = useState("");
   const [invite, setInvite] = useState("");
-  const { act, busy } = state;
   const onAddress = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => setAddress(event.target.value),
     [],
@@ -838,6 +875,7 @@ function RelayForm({ state, t }: { state: LinksState; t: Translate }): ReactNode
   );
   return (
     <>
+      <p className="kivotos-links-text">{t("relay.intro")}</p>
       <form className="kivotos-links-field" onSubmit={join}>
         <label className="kivotos-links-label" htmlFor="kivotos-relay-invite">
           {t("relay.invite")}
@@ -890,118 +928,276 @@ function RelayForm({ state, t }: { state: LinksState; t: Translate }): ReactNode
   );
 }
 
-function RelayMembership({ state, t }: { state: LinksState; t: Translate }): ReactNode {
-  const { act, busy } = state;
-  const relay = state.links?.relay;
-  const leave = useCallback(() => act({ action: "leave" }), [act]);
-  if (relay === undefined) return null;
-  const status = relay.state ?? "connecting";
-  return (
-    <>
-      <div className="kivotos-links-field">
-        <span className="kivotos-links-label">{t("relay.address")}</span>
-        <code className="kivotos-links-code">{relay.relay}</code>
-      </div>
-      {relay.networkId === undefined ? null : (
-        <div className="kivotos-links-field">
-          <span className="kivotos-links-label">{t("relay.network")}</span>
-          <code className="kivotos-links-code">{relay.networkId}</code>
-        </div>
-      )}
-      <div className="kivotos-links-field">
-        <span className="kivotos-links-label">{t("relay.state")}</span>
-        <p className="kivotos-links-text" role="status">
-          {t(`relay.state.${status}`, { count: relay.peers })}
-        </p>
-        {status === "denied" && relay.registration !== undefined ? (
-          <>
-            <p className="kivotos-links-text">{t("relay.register")}</p>
-            <Copyable text={`kivotos-relay network add ${relay.registration}`} t={t} />
-          </>
-        ) : null}
-      </div>
-      {relay.invite === undefined ? null : (
-        <div className="kivotos-links-field">
-          <span className="kivotos-links-label">{t("relay.share")}</span>
-          <p className="kivotos-links-text">{t("relay.shareHint")}</p>
-          <Copyable text={relay.invite} t={t} />
-          <QrImage data={relay.invite} label={t("relay.qr")} className="kivotos-links-qr" />
-        </div>
-      )}
-      <hr className="kivotos-links-divider" />
-      <div className="kivotos-links-field">
-        <p className="kivotos-links-text">{t("relay.leaveHint")}</p>
-        <div className="kivotos-links-row">
-          <button type="button" className="kivotos-links-button" disabled={busy} onClick={leave}>
-            {t("relay.leave")}
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-type Tab = "machines" | "tailscale" | "relay";
-const TABS: readonly Tab[] = ["machines", "tailscale", "relay"];
-
-/**
- * The section body: the machines, then a tab per link.
- * @param inApp - the page runs in the Kivotos phone app (client.tsx IN_APP).
- */
-export function LinksSection({ t, inApp }: { t: Translate; inApp: boolean }): ReactNode {
-  const [tab, setTab] = useState<Tab>("machines");
-  const state = useLinks(t);
-  const select = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    const next = TABS.find((id) => id === event.currentTarget.value);
-    if (next !== undefined) setTab(next);
-  }, []);
-  const { links } = state;
-  let body: ReactNode;
-  if (links === null) {
-    body = (
-      <p className="kivotos-links-text">
-        {t(state.failed ? "settings.failed" : "settings.loading")}
-      </p>
-    );
-  } else if (tab === "machines") {
-    body = <MachinesPanel state={state} inApp={inApp} t={t} />;
-  } else if (tab === "tailscale") {
-    body = <TailscalePanel links={links} t={t} />;
-  } else {
-    body = (
-      <div className="kivotos-links-panel" role="tabpanel">
-        <p className="kivotos-links-text">{t("relay.intro")}</p>
-        {links.relay.joined ? (
-          <RelayMembership state={state} t={t} />
-        ) : (
-          <RelayForm state={state} t={t} />
-        )}
-        {state.error === null ? null : (
-          <p className="kivotos-links-error" role="alert">
-            {state.error}
-          </p>
-        )}
-      </div>
+/** A machine's state on one link this computer has; dashed when the machine lacks that link. */
+function LinkChip({
+  via,
+  link,
+  now,
+  t,
+}: {
+  via: Via;
+  link: MachineLink | undefined;
+  now: number;
+  t: Translate;
+}): ReactNode {
+  if (link === undefined) {
+    return (
+      <li className="kivotos-links-chip" data-state="missing">
+        {t(via === "tailscale" ? "chip.noTailnet" : "chip.noNetwork")}
+      </li>
     );
   }
   return (
-    <div className="kivotos-links">
-      <div className="kivotos-links-tabs" role="tablist" aria-label={t("settings.tabs")}>
-        {TABS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            value={id}
-            className="kivotos-links-tab"
-            aria-selected={tab === id}
-            onClick={select}
-          >
-            {t(`settings.${id}`)}
-          </button>
-        ))}
+    <li className="kivotos-links-chip" data-state={link.state} title={linkText(t, link, now)}>
+      {`${t(`via.${via}`)} · ${linkState(t, link)}`}
+    </li>
+  );
+}
+
+function ModeSegment({
+  option,
+  group,
+  checked,
+  noteId,
+  t,
+  onChange,
+}: {
+  option: ModeOption;
+  /** The radio group's name. */
+  group: string;
+  checked: boolean;
+  /** The control's "Unavailable: <reason>" line, which describes this option when it is down. */
+  noteId: string;
+  t: Translate;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}): ReactNode {
+  return (
+    <label
+      className="kivotos-mode-option"
+      data-checked={checked ? "" : undefined}
+      data-unavailable={option.unavailable ? "" : undefined}
+    >
+      <input
+        type="radio"
+        name={group}
+        value={option.mode}
+        checked={checked}
+        aria-describedby={option.unavailable ? noteId : undefined}
+        onChange={onChange}
+      />
+      <span>{option.mode === "auto" ? t("mode.auto") : t(`via.${option.mode}`)}</span>
+    </label>
+  );
+}
+
+/**
+ * How a machine reached both ways is reached: Auto, the links that work, and
+ * the current choice even when its link is down (machines.ts `modeOptions`).
+ */
+function ModeControl({
+  machine,
+  options,
+  hint,
+  t,
+  onChange,
+}: {
+  machine: MachineInfo;
+  options: readonly ModeOption[];
+  /** "Set on <computer>", where the page may be taken for the device's own setting. */
+  hint: string | null;
+  t: Translate;
+  onChange: (id: string, mode: RouteMode) => void;
+}): ReactNode {
+  const group = useId();
+  const hintId = useId();
+  const noteId = useId();
+  // Only the current choice is ever shown down (machines.ts `modeOptions`).
+  const down = options.find((option) => option.unavailable)?.link;
+  const choose = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const mode = event.currentTarget.value;
+      if (isRouteMode(mode)) onChange(machine.id, mode);
+    },
+    [machine.id, onChange],
+  );
+  return (
+    <div className="kivotos-mode">
+      <div className="kivotos-mode-row">
+        {hint === null ? null : (
+          <span id={hintId} className="kivotos-mode-hint">
+            {hint}
+          </span>
+        )}
+        <div
+          role="radiogroup"
+          className="kivotos-mode-seg"
+          aria-label={t("mode.label", { name: machine.name })}
+          aria-describedby={hint === null ? undefined : hintId}
+        >
+          {options.map((option) => (
+            <ModeSegment
+              key={option.mode}
+              option={option}
+              group={group}
+              checked={option.mode === machine.mode}
+              noteId={noteId}
+              t={t}
+              onChange={choose}
+            />
+          ))}
+        </div>
       </div>
+      {down === undefined ? null : (
+        <span id={noteId} className="kivotos-mode-note">
+          {t("mode.unavailable", { reason: linkState(t, down) })}
+        </span>
+      )}
+    </div>
+  );
+}
+
+interface MachineRowProps {
+  machine: MachineInfo;
+  /** The links this computer has: one chip each. */
+  vias: readonly Via[];
+  hint: string | null;
+  now: number;
+  t: Translate;
+  onChange: (id: string, mode: RouteMode) => void;
+}
+
+/** One machine: name, route or state, a chip per link, and its mode. */
+function MachineRow({ machine, vias, hint, now, t, onChange }: MachineRowProps): ReactNode {
+  const options = useMemo(() => modeOptions(machine, machine.mode), [machine]);
+  return (
+    <li className="kivotos-links-machine" data-reachable={String(machine.route !== null)}>
+      <div className="kivotos-links-machine-head">
+        <span className="kivotos-links-machine-name">{machine.name}</span>
+        {machine.os === "" ? null : <span className="kivotos-links-machine-os">{machine.os}</span>}
+      </div>
+      <p className="kivotos-links-machine-status">{routeText(t, machine, now)}</p>
+      {vias.length === 0 && options.length === 0 ? null : (
+        <div className="kivotos-links-machine-foot">
+          {vias.length === 0 ? null : (
+            <ul className="kivotos-links-chips">
+              {vias.map((via) => (
+                <LinkChip
+                  key={via}
+                  via={via}
+                  link={machine.links.find((link) => link.via === via)}
+                  now={now}
+                  t={t}
+                />
+              ))}
+            </ul>
+          )}
+          {options.length === 0 ? null : (
+            <ModeControl
+              machine={machine}
+              options={options}
+              hint={hint}
+              t={t}
+              onChange={onChange}
+            />
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function MachinesGroup({
+  state,
+  vias,
+  inApp,
+  t,
+}: {
+  state: LinksState;
+  vias: readonly Via[];
+  inApp: boolean;
+  t: Translate;
+}): ReactNode {
+  const { list, changeMode } = state;
+  const headingId = useId();
+  // Re-rendered on every poll, which also moves "last seen" along.
+  const now = Date.now();
+  // In the phone app, whose own machine list has modes too: these are this page's computer's.
+  const hint = inApp && list !== null ? t("mode.setOn", { name: list.self.name }) : null;
+  let body: ReactNode;
+  if (list === null) body = <p className="kivotos-links-text">{t("settings.loading")}</p>;
+  else if (list.machines.length === 0)
+    body = <p className="kivotos-links-text">{t("machines.none")}</p>;
+  else {
+    body = (
+      <ul className="kivotos-links-list" aria-labelledby={headingId}>
+        {list.machines.map((machine) => (
+          <MachineRow
+            key={machine.id}
+            machine={machine}
+            vias={vias}
+            hint={hint}
+            now={now}
+            t={t}
+            onChange={changeMode}
+          />
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <section className="kivotos-links-group">
+      <h3 id={headingId} className="kivotos-links-heading">
+        {t("settings.machines")}
+      </h3>
+      <p className="kivotos-links-text">{t("machines.intro")}</p>
       {body}
+      {state.modeError === null ? null : (
+        <p className="kivotos-links-error" role="alert">
+          {state.modeError}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const NO_VIAS: readonly Via[] = [];
+const TAILSCALE: readonly Via[] = ["tailscale"];
+const RELAY: readonly Via[] = ["relay"];
+const BOTH: readonly Via[] = ["tailscale", "relay"];
+
+/**
+ * The section body: this machine's links, then the machines it knows.
+ * @param inApp - the page runs in the Kivotos phone app (client.tsx IN_APP).
+ */
+export function LinksSection({ t, inApp }: { t: Translate; inApp: boolean }): ReactNode {
+  const state = useLinks(t);
+  const headingId = useId();
+  const { links } = state;
+  if (links === null) {
+    return (
+      <div className="kivotos-links">
+        <p className="kivotos-links-text">
+          {t(state.failed ? "settings.failed" : "settings.loading")}
+        </p>
+      </div>
+    );
+  }
+  // A machine gets a chip for each link this computer has, and none for the others.
+  let vias = NO_VIAS;
+  if (links.tailscale.joined) vias = links.relay.joined ? BOTH : TAILSCALE;
+  else if (links.relay.joined) vias = RELAY;
+  return (
+    <div className="kivotos-links">
+      <section className="kivotos-links-group">
+        <h3 id={headingId} className="kivotos-links-heading">
+          {t("settings.links")}
+        </h3>
+        <ul className="kivotos-links-list" aria-labelledby={headingId}>
+          <TailscaleLine links={links} inApp={inApp} t={t} />
+          <RelayLine state={state} relay={links.relay} t={t} />
+        </ul>
+      </section>
+      <MachinesGroup state={state} vias={vias} inApp={inApp} t={t} />
     </div>
   );
 }

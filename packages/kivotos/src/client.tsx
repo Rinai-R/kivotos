@@ -6,8 +6,8 @@
  * - `conversation.header.leading`: drawer toggle, shown only on phones.
  * - `shell.overlay`: drawer backdrop plus the plugin's stylesheet. The
  *   stylesheet renders as a React element, so unmounting the plugin removes it.
- * - `settings.section`: "Remote access", a tab per way to reach this machine
- *   (settings.tsx).
+ * - `settings.section`: "Remote access", this machine's links and the
+ *   machines it knows, with their modes (settings.tsx).
  *
  * Built by scripts/build.mjs into the `window.__ModuleLoader__.load` form dsh
  * expects, with `react` taken from dsh's module require.
@@ -23,7 +23,7 @@ import { statusOf, type MachineInfo } from "./machines.ts";
 import {
   LinksSection,
   machineListOf,
-  QrImage,
+  PairDialog,
   SETTINGS_CSS,
   SETTINGS_EN,
   SETTINGS_ZH,
@@ -87,13 +87,6 @@ const ZH = {
   "attention.done": "{name}：任务已完成",
   "attention.failed": "{name}：任务失败",
   "attention.untitled": "未命名会话",
-  "pair.action": "配对手机",
-  "pair.unavailable": "此机器的远程连接尚未就绪",
-  "pair.title": "配对手机",
-  "pair.instructions": "用手机上的 Kivotos 扫描此二维码，或手动输入下方地址。",
-  "pair.qr": "用于配对手机的二维码",
-  "pair.address": "配对地址",
-  "pair.close": "关闭",
   "drawer.open": "打开侧边栏",
   "drawer.close": "关闭侧边栏",
 };
@@ -114,14 +107,6 @@ const EN: Record<keyof typeof ZH, string> = {
   "attention.done": "{name}: task finished",
   "attention.failed": "{name}: task failed",
   "attention.untitled": "Untitled session",
-  "pair.action": "Pair phone",
-  "pair.unavailable": "This machine's remote listener is not ready",
-  "pair.title": "Pair phone",
-  "pair.instructions":
-    "Scan this code in Kivotos on your phone, or enter the address below manually.",
-  "pair.qr": "QR code to pair your phone",
-  "pair.address": "Pairing address",
-  "pair.close": "Close",
   "drawer.open": "Open sidebar",
   "drawer.close": "Close sidebar",
 };
@@ -157,15 +142,6 @@ const CSS = `
 .kivotos-attention-dot[data-tone="failed"]{background:var(--dsw-alias-state-error-primary)}
 .kivotos-attention-dot[data-tone="waiting"]{background:var(--dsw-alias-state-warn-primary)}
 .kivotos-machines-trigger[data-narrow] .kivotos-attention-dot{position:absolute;top:8px;right:8px;width:7px;height:7px}
-.kivotos-pair{box-sizing:border-box;width:min(92vw,380px);max-height:90dvh;overflow:auto;margin:auto;padding:24px;border:1px solid var(--dsw-alias-interactive-bg-hover);border-radius:var(--dsw-radius-md);background:var(--dsw-specific-menu);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-panel);font:inherit}
-.kivotos-pair::backdrop{background:var(--dsw-alias-bg-mask-1)}
-.kivotos-pair-title{margin:0 0 12px;font-size:18px}
-.kivotos-pair-instructions{margin:0 0 18px;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1.5}
-.kivotos-pair-qr{display:block;box-sizing:border-box;width:min(100%,260px);height:auto;margin:0 auto 18px;padding:10px;border-radius:8px;background:#fff}
-.kivotos-pair-address{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px}
-.kivotos-pair-url{display:block;margin-top:6px;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary);font-size:14px;user-select:all}
-.kivotos-pair-close{display:block;margin:24px 0 0 auto;min-height:40px;padding:6px 16px;border:0;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
-.kivotos-pair-close:hover{filter:brightness(1.1)}
 .kivotos-drawer-toggle{display:none;width:28px;height:28px;align-items:center;justify-content:center;margin-right:8px;padding:0;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .kivotos-drawer-toggle:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-backdrop{position:fixed;inset:0;z-index:29;border:none;padding:0;background:var(--dsw-alias-bg-mask-1);cursor:default}
@@ -643,51 +619,6 @@ function PeerRow({
       attention={row}
       t={t}
     />
-  );
-}
-
-/** Native modal keeps keyboard focus and Escape inside the dialog, even in the phone drawer. */
-function PairDialog({
-  url,
-  t,
-  onClose,
-}: {
-  url: string;
-  t: Translate;
-  onClose: () => void;
-}): ReactNode {
-  const dialog = useRef<HTMLDialogElement | null>(null);
-  useEffect(() => {
-    const node = dialog.current;
-    node?.showModal();
-    return () => node?.close();
-  }, []);
-  const dismiss = useCallback(() => dialog.current?.close(), []);
-  const data = useMemo(() => `kivotos://pair?url=${encodeURIComponent(url)}`, [url]);
-
-  return (
-    <dialog
-      ref={dialog}
-      className="kivotos-pair"
-      aria-labelledby="kivotos-pair-title"
-      aria-describedby="kivotos-pair-instructions"
-      onClose={onClose}
-    >
-      <h2 id="kivotos-pair-title" className="kivotos-pair-title">
-        {t("pair.title")}
-      </h2>
-      <p id="kivotos-pair-instructions" className="kivotos-pair-instructions">
-        {t("pair.instructions")}
-      </p>
-      <QrImage data={data} label={t("pair.qr")} className="kivotos-pair-qr" />
-      <p className="kivotos-pair-address">
-        {t("pair.address")}
-        <code className="kivotos-pair-url">{url}</code>
-      </p>
-      <button type="button" className="kivotos-pair-close" autoFocus onClick={dismiss}>
-        {t("pair.close")}
-      </button>
-    </dialog>
   );
 }
 
