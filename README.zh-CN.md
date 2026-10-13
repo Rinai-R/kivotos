@@ -72,7 +72,7 @@ npm run apk -w packages/mobile     # Android APK (JDK 17, Android SDK)
 cd packages/relay && go test ./...
 ```
 
-架构和约定见 [AGENTS.md](AGENTS.md)，报告漏洞见 [SECURITY.md](SECURITY.md)。
+构建、测试和贡献见 [CONTRIBUTING.md](CONTRIBUTING.md)，在本地起一个中继和两个 dsh 实例用 `scripts/lab.sh`。架构和约定见 [AGENTS.md](AGENTS.md)，报告漏洞见 [SECURITY.md](SECURITY.md)。
 
 ## 许可证
 

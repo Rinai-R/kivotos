@@ -58,3 +58,6 @@ CLAUDE.local.md
 
 # Relay binary built in place
 packages/relay/kivotos-relay
+
+# scripts/lab.sh default lab directory
+.lab/

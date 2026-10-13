@@ -72,7 +72,7 @@ npm run apk -w packages/mobile     # Android APK (JDK 17, Android SDK)
 cd packages/relay && go test ./...
 ```
 
-아키텍처와 규칙은 [AGENTS.md](AGENTS.md), 취약점 신고는 [SECURITY.md](SECURITY.md)를 참고하세요.
+빌드·테스트·기여 방법은 [CONTRIBUTING.md](CONTRIBUTING.md), 로컬에서 릴레이와 dsh 인스턴스 두 개를 띄우려면 `scripts/lab.sh`를 참고하세요. 아키텍처와 규칙은 [AGENTS.md](AGENTS.md), 취약점 신고는 [SECURITY.md](SECURITY.md)를 참고하세요.
 
 ## 라이선스
 

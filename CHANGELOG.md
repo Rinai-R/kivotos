@@ -6,11 +6,17 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 - Settings → Remote access warns when the relay address is plaintext (`ws://`): anyone on the path can read the relay token and use that relay as your network. Traffic stays end-to-end encrypted and they cannot join the network. (#19)
 - When a dsh update changes one of the internals Kivotos depends on, only that feature turns off and a notice names it, instead of the page breaking. A nightly check boots the newest stable dsh (`latest`/`next`) with the plugin and reports which points still fit. (#18)
+- Contributors no longer have to reverse-engineer the repository: `CONTRIBUTING.md` has the prerequisites, the build and test commands for the plugin, the relay and the Android app, the commit and PR conventions, and the CI jobs a pull request must pass.
+- `scripts/lab.sh` starts a local lab in one command — a relay built from `packages/relay` and two dsh instances, each with its own `DSH_HOME`, already members of one relay network — and prints each UI URL and the invite link. It is parameterisable (ports, data directory), cleans up after itself, and never touches `~/.dsh`, the installed app or the runner's own tailnet.
+- The four READMEs link both from their Development section. (#21)
 
 ### 中文
 
 - 设置 → 远程连接：中继地址是明文（`ws://`）时会给出警告——路径上的任何人都能读到中继令牌，借这个中继冒充你的网络。流量仍是端到端加密的，对方也加入不了网络。(#19)
 - dsh 更新改动了 Kivotos 依赖的某处内部结构时，只停用对应的功能并提示是哪一项，页面不再整体出错。每晚的检查会用最新的稳定版 dsh（`latest`/`next`）加载插件，报告哪些依赖点仍然吻合。(#18)
+- 贡献者不必再逆向摸索这个仓库：`CONTRIBUTING.md` 写清了前置条件，插件、中继和安卓 App 的构建与测试命令，提交和 PR 约定，以及 PR 必须通过的 CI 任务。
+- `scripts/lab.sh` 一条命令就能起一个本地实验环境：用 `packages/relay` 构建的中继，加上两个各自拥有 `DSH_HOME` 的 dsh 实例，它们已经同属一个中继网络；脚本会打印两个界面的地址和邀请链接。端口和数据目录都可配置，退出时自行清理，不会碰 `~/.dsh`、已安装的 App，也不会碰运行者自己的 tailnet。
+- 四个 README 的开发章节都加上了这两处的链接。(#21)
 
 ## v0.1.5
 
