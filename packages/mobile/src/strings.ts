@@ -1,9 +1,11 @@
 /** UI strings of the app's own screens (everything else is dsh's UI). */
 import {
   agoOf,
+  pinnedVia,
   statusOf,
   type MachineLink,
   type PhoneMachineProbe,
+  type RouteMode,
 } from "../../kivotos/src/machines";
 import { zh } from "./machines";
 
@@ -23,7 +25,7 @@ const en = {
   addPlaceholder: "100.64.0.1",
   add: "Add",
   adding: "Connecting…",
-  removeHint: "Long-press a machine to remove it",
+  removeHint: "Long-press a machine to choose how it is reached, or to remove it",
   remove: "Remove",
   removeConfirm: "Remove {name}?",
   cancel: "Cancel",
@@ -65,10 +67,15 @@ const en = {
   "ago.hours": "{count} h ago",
   "ago.days": "{count} d ago",
   "status.via": "Via {via}",
+  "status.viaOnly": "Via {via} only",
+  "status.only": "{via} only · {status}",
   "status.fallback": "Via {via} · {down}: {reason}",
   "status.offline": "Offline",
   "status.offlineSince": "Offline · last seen {ago}",
   "status.unreachable": "Unreachable: {reason}",
+  "status.lastSeen": "last seen {ago}",
+  "mode.title": "How this phone reaches it",
+  "mode.auto": "Auto",
   streamDown: "Notifications not connected",
   connections: "Connections",
   connectionsMeta: "Tailscale · Own relay",
@@ -81,7 +88,7 @@ const en = {
     "Machines added by pairing code or address are reached over the tailnet, through the computer's Kivotos listener.",
   linksRelay: "Own relay",
   linksRelayIntro:
-    "Connect through a relay server you run, without Tailscale. On a computer, open Settings → Remote access → Own relay to get the invite.",
+    "Connect through a relay server you run, without Tailscale. On a computer, open Machines → Connections → Own relay to get the invite.",
   linksRelayAddress: "Relay",
   linksRelayNetwork: "Network",
   linksStatus: "Status",
@@ -125,7 +132,7 @@ const zhText: typeof en = {
   addPlaceholder: "100.64.0.1",
   add: "添加",
   adding: "连接中…",
-  removeHint: "长按机器可移除",
+  removeHint: "长按机器可选择连接方式或移除",
   remove: "移除",
   removeConfirm: "移除 {name}？",
   cancel: "取消",
@@ -165,10 +172,15 @@ const zhText: typeof en = {
   "ago.hours": "{count} 小时前",
   "ago.days": "{count} 天前",
   "status.via": "经由 {via}",
+  "status.viaOnly": "仅经由 {via}",
+  "status.only": "仅 {via} · {status}",
   "status.fallback": "经由 {via} · {down}：{reason}",
   "status.offline": "离线",
   "status.offlineSince": "离线 · 最后在线 {ago}",
   "status.unreachable": "无法连接：{reason}",
+  "status.lastSeen": "最后在线 {ago}",
+  "mode.title": "这台手机如何连接它",
+  "mode.auto": "自动",
   streamDown: "通知未连接",
   connections: "连接",
   connectionsMeta: "Tailscale · 自建中继",
@@ -179,7 +191,7 @@ const zhText: typeof en = {
   linksTailscaleHint: "用配对码或地址添加的机器经 tailnet 连接，通过电脑上的 Kivotos 监听。",
   linksRelay: "自建中继",
   linksRelayIntro:
-    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 设置 → 远程连接 → 自建中继 获取邀请。",
+    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 机器 → 连接 → 自建中继 获取邀请。",
   linksRelayAddress: "中继",
   linksRelayNetwork: "网络",
   linksStatus: "状态",
@@ -224,26 +236,36 @@ function linkState(link: MachineLink): string {
   return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
 }
 
+/** One link's line in the mode sheet, worded like the computer's mode menu (`linkText`). */
+export function linkLine(link: MachineLink, now: number): string {
+  const state =
+    link.state === "unreachable" && link.reason !== undefined
+      ? t("status.unreachable", { reason: t(`reason.${link.reason}`) })
+      : t(`state.${link.state}`);
+  return link.state !== "online" && link.lastSeen !== undefined
+    ? `${state} · ${t("status.lastSeen", { ago: agoText(link.lastSeen, now) })}`
+    : state;
+}
+
 /**
- * A machine row's status line, worded like the computer's switcher
- * (packages/kivotos/src/settings.tsx `statusText`), plus its notification stream.
+ * How the phone reaches a machine in `mode`, worded like the computer's
+ * switcher (packages/kivotos/src/connections.tsx `statusText`).
  */
-export function statusLine(probe: PhoneMachineProbe | undefined, now: number): string {
-  if (probe === undefined) return t("checking");
-  const status = statusOf(probe);
+export function routeLine(probe: PhoneMachineProbe, mode: RouteMode, now: number): string {
+  const pinned = pinnedVia(probe, mode);
+  const status = statusOf(probe, mode);
   let line: string;
   switch (status.kind) {
     case "online": {
       const via = t(`via.${status.via}`);
-      line =
-        status.down === undefined
-          ? t("status.via", { via })
-          : t("status.fallback", {
-              via,
-              down: t(`via.${status.down.via}`),
-              reason: linkState(status.down),
-            });
-      break;
+      if (pinned !== null) return t("status.viaOnly", { via });
+      return status.down === undefined
+        ? t("status.via", { via })
+        : t("status.fallback", {
+            via,
+            down: t(`via.${status.down.via}`),
+            reason: linkState(status.down),
+          });
     }
     case "offline":
       line =
@@ -258,7 +280,18 @@ export function statusLine(probe: PhoneMachineProbe | undefined, now: number): s
       line = t("state.denied");
       break;
   }
-  return status.kind === "online" && probe.stream === "down"
+  return pinned === null ? line : t("status.only", { via: t(`via.${pinned}`), status: line });
+}
+
+/** A machine row's status line: {@link routeLine}, plus its notification stream. */
+export function statusLine(
+  probe: PhoneMachineProbe | undefined,
+  mode: RouteMode,
+  now: number,
+): string {
+  if (probe === undefined) return t("checking");
+  const line = routeLine(probe, mode, now);
+  return probe.stream === "down" && statusOf(probe, mode).kind === "online"
     ? `${line} · ${t("streamDown")}`
     : line;
 }

@@ -27,9 +27,11 @@ import javax.net.ssl.SSLSocketFactory
  * Local doors to the machines. Each machine gets a loopback HTTP address the
  * WebView loads it from; every connection to it gets its own connection to the
  * machine: TCP (TLS for an `https` listener) to its tailnet listener, or a
- * secured relay session. A machine with both links goes over the tailnet
- * first and through the relay when the listener cannot be reached ([Links]),
- * behind the same door, so the page keeps its origin whichever link carries it. Requests are read one by one so
+ * secured relay session. A machine with both links goes the way its mode
+ * says: in auto over the tailnet first and through the relay when the
+ * listener cannot be reached ([Links]); held to one link, only over that one.
+ * Either way it is behind the same door, so the page keeps its origin
+ * whichever link carries it. Requests are read one by one so
  * the immutable ones can be answered from [HttpCache]; everything else, and
  * every byte after a protocol switch (`/api/remote.mux`), streams through
  * unbuffered.
@@ -134,15 +136,22 @@ object MachineProxy {
     return url
   }
 
-  /** Close the doors, and drop the cache, of machines that are no longer in the list. */
+  /**
+   * Follow the machine list: close the doors, and drop the cache, of machines
+   * that left it; reopen on the same port the doors of machines whose links or
+   * mode changed, so no open connection keeps going the old way.
+   */
   @Synchronized
-  fun retain(ids: Set<String>) {
+  fun update(machines: List<Machine>) {
+    val byId = machines.associateBy { it.id }
     for ((id, door) in doors) {
-      if (id in ids) continue
+      val machine = byId[id]
+      if (machine != null && door.machine.copy(name = machine.name) == machine) continue
       doors.remove(id)
       door.close()
+      if (machine != null) doors[id] = listen(machine)
     }
-    HttpCache.retain(ids)
+    HttpCache.retain(byId.keys)
   }
 
   private fun listen(machine: Machine): Door {
@@ -178,19 +187,24 @@ object MachineProxy {
     }
   }
 
-  /** Connect to the machine over its preferred link, then the other one. */
+  /** Connect to the machine over the link its mode allows; in auto the preferred one, then the other. */
   private fun dial(door: Door): Upstream {
     val machine = door.machine
-    val order = if (Links.prefersRelay(machine)) listOf(false, true) else listOf(true, false)
+    val auto = machine.pinned == null
+    val order = when (machine.pinned) {
+      Machine.TAILSCALE -> listOf(true)
+      Machine.RELAY -> listOf(false)
+      else -> if (Links.prefersRelay(machine)) listOf(false, true) else listOf(true, false)
+    }
     var failure: Exception? = null
     for (tailnet in order) {
       if (if (tailnet) door.uri == null else door.network == null) continue
       try {
         val upstream = if (tailnet) dialTailnet(door) else dialRelay(door)
-        Links.dialed(machine, tailnet, ok = true)
+        if (auto) Links.dialed(machine, tailnet, ok = true)
         return upstream
       } catch (error: Exception) {
-        Links.dialed(machine, tailnet, ok = false)
+        if (auto) Links.dialed(machine, tailnet, ok = false)
         failure = error
       }
     }
@@ -205,7 +219,8 @@ object MachineProxy {
   private fun dialTailnet(door: Door): Upstream {
     val plain = Socket()
     try {
-      val timeout = if (door.network == null) CONNECT_TIMEOUT_MS else FALLBACK_CONNECT_TIMEOUT_MS
+      // Give up early only when the relay can take over.
+      val timeout = if (door.machine.pinned == null && door.network != null) FALLBACK_CONNECT_TIMEOUT_MS else CONNECT_TIMEOUT_MS
       plain.connect(InetSocketAddress(door.host, door.port), timeout)
       plain.tcpNoDelay = true
       val socket = if (door.tls) {

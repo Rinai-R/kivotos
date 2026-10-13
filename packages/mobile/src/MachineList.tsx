@@ -12,7 +12,12 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { PhoneMachineProbe, PhoneProbe } from "../../kivotos/src/machines";
+import {
+  routeOf,
+  type PhoneMachineProbe,
+  type PhoneProbe,
+  type RouteMode,
+} from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import {
   BellGlyph,
@@ -23,6 +28,7 @@ import {
   MonitorGlyph,
   QrGlyph,
 } from "./icons";
+import { MachineSheet } from "./MachineSheet";
 import { resolveMachines } from "./machines";
 import { PairScanner } from "./PairScanner";
 import { errorKey, statusLine, t, type Key } from "./strings";
@@ -36,6 +42,8 @@ interface Props {
   batteryRestricted: boolean;
   onAdd: (machines: Machine[]) => void;
   onRemove: (id: string) => void;
+  /** Set how the phone reaches a machine. */
+  onMode: (id: string, mode: RouteMode) => void;
   onOpen: (machine: Machine) => void;
   onToggleNotifications: () => void;
   onFixBattery: () => void;
@@ -50,26 +58,28 @@ interface RowProps {
   probe: PhoneMachineProbe | undefined;
   last: boolean;
   onOpen: (machine: Machine) => void;
-  onRemove: (machine: Machine) => void;
+  /** Long-press: its actions (how it is reached, remove). */
+  onActions: (machine: Machine) => void;
 }
 
-function MachineRow({ machine, probe, last, onOpen, onRemove }: RowProps) {
+function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
   const styles = useStyles(createStyles);
   const colors = useColors();
   const open = useCallback(() => onOpen(machine), [machine, onOpen]);
-  const remove = useCallback(() => onRemove(machine), [machine, onRemove]);
+  const actions = useCallback(() => onActions(machine), [machine, onActions]);
   const rowStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
     [styles],
   );
-  // One line for how the phone reaches it, in the computer's words; a machine
-  // no link reaches is dimmed and says why.
-  const status = statusLine(probe, Date.now());
-  const reachable = probe === undefined || probe.route !== null;
+  // One line for how the phone reaches it by its mode, in the computer's
+  // words; a machine no link reaches is dimmed and says why.
+  const mode = machine.mode ?? "auto";
+  const status = statusLine(probe, mode, Date.now());
+  const reachable = probe === undefined || routeOf(probe, mode) !== null;
   return (
     <Pressable
       onPress={open}
-      onLongPress={remove}
+      onLongPress={actions}
       style={rowStyle}
       accessibilityRole="button"
       accessibilityLabel={machine.name}
@@ -125,6 +135,8 @@ export function MachineList(props: Props) {
   const [error, setError] = useState<Key | null>(null);
   const [scanning, setScanning] = useState(false);
   const [manual, setManual] = useState(false);
+  /** The machine whose actions are open. */
+  const [sheet, setSheet] = useState<Machine | null>(null);
   const mounted = useRef(true);
   const { machines, onAdd, onRemove, onOpen } = props;
   const probes = useMemo(
@@ -188,6 +200,7 @@ export function MachineList(props: Props) {
     },
     [onRemove],
   );
+  const closeSheet = useCallback(() => setSheet(null), []);
 
   const trackColor = useMemo(() => ({ false: colors.pressed, true: colors.link }), [colors]);
   const rowStyle = useCallback(
@@ -243,7 +256,7 @@ export function MachineList(props: Props) {
                 probe={probes.get(machine.id)}
                 last={index === machines.length - 1}
                 onOpen={onOpen}
-                onRemove={confirmRemove}
+                onActions={setSheet}
               />
             ))}
           </View>
@@ -350,6 +363,13 @@ export function MachineList(props: Props) {
           ) : null}
         </View>
       </ScrollView>
+      <MachineSheet
+        machine={sheet}
+        probe={sheet === null ? undefined : probes.get(sheet.id)}
+        onMode={props.onMode}
+        onRemove={confirmRemove}
+        onClose={closeSheet}
+      />
     </SafeAreaView>
   );
 }

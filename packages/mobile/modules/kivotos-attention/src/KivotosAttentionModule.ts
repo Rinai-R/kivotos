@@ -1,5 +1,5 @@
 import { NativeModule, requireNativeModule } from "expo";
-import type { PhoneProbe } from "../../../../kivotos/src/machines";
+import type { PhoneProbe, Via } from "../../../../kivotos/src/machines";
 
 /** A machine the attention service follows. */
 export interface Machine {
@@ -11,6 +11,8 @@ export interface Machine {
   node?: string;
   /** Set when a relay network the phone joined reaches the machine (with or without `url`). */
   relay?: RelayAddress;
+  /** The one link the phone uses for it, when it has both; absent means auto. */
+  mode?: Via;
 }
 
 /** A computer as a node of a relay network. */

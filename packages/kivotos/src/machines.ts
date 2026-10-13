@@ -12,8 +12,25 @@
 /** A way of reaching a machine. */
 export type Via = "tailscale" | "relay";
 
-/** Route preference: Tailscale is direct; the relay is the detour when it fails. */
+/** Route preference in auto: Tailscale is direct; the relay is the detour when it fails. */
 export const VIAS: readonly Via[] = ["tailscale", "relay"];
+
+/**
+ * How a machine is reached, chosen per machine on the device that dials it:
+ * - `auto`: Tailscale when it works, else the relay (the default).
+ * - `tailscale`, `relay`: only that link. When it fails the machine is
+ *   unreachable with that link's reason; it is never rerouted.
+ *
+ * A machine with one link has nothing to choose: that link is used, and the
+ * mode is kept for when the other appears.
+ */
+export type RouteMode = "auto" | Via;
+
+export const ROUTE_MODES: readonly RouteMode[] = ["auto", "tailscale", "relay"];
+
+export function isRouteMode(value: unknown): value is RouteMode {
+  return value === "auto" || value === "tailscale" || value === "relay";
+}
 
 /**
  * Where one link to a machine stands:
@@ -64,16 +81,34 @@ export interface MachineInfo {
   os: string;
   /** Kivotos node id (SHA-256 of its certificate), when known. */
   node?: string;
-  /** The link requests go through now; null when none works. */
+  /** How this computer reaches it. */
+  mode: RouteMode;
+  /** The link requests go through now ({@link routeOf}); null when none works. */
   route: Via | null;
   /** One per link, in {@link VIAS} order. */
   links: MachineLink[];
 }
 
-/** @returns the preferred link that works, or null. */
-export function routeOf(links: readonly MachineLink[]): Via | null {
-  for (const via of VIAS) {
-    if (links.some((link) => link.via === via && link.state === "online")) return via;
+/**
+ * @returns the one link `mode` holds the machine to: null in auto, and for a
+ *   machine with one link, which has nothing to choose.
+ */
+export function pinnedVia(machine: Pick<MachineInfo, "links">, mode: RouteMode): Via | null {
+  if (mode === "auto") return null;
+  const { links } = machine;
+  return links.some((link) => link.via === mode) && links.some((link) => link.via !== mode)
+    ? mode
+    : null;
+}
+
+/**
+ * @returns the link requests go through: the pinned link when it works, else
+ *   (auto, or one link) the preferred link that works; null when none does.
+ */
+export function routeOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): Via | null {
+  const pinned = pinnedVia(machine, mode);
+  for (const via of pinned === null ? VIAS : [pinned]) {
+    if (machine.links.some((link) => link.via === via && link.state === "online")) return via;
   }
   return null;
 }
@@ -99,11 +134,14 @@ export type MachineStatus =
 /**
  * One status per machine: the route when a link works; otherwise "offline"
  * when a link says the machine is away (the plainest explanation), else the
- * first failed attempt's reason.
+ * first failed attempt's reason. A machine held to one link shows that
+ * link's state alone.
  */
-export function statusOf(machine: Pick<MachineInfo, "links">): MachineStatus {
-  const { links } = machine;
-  const route = routeOf(links);
+export function statusOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): MachineStatus {
+  const pinned = pinnedVia(machine, mode);
+  const links =
+    pinned === null ? machine.links : machine.links.filter((link) => link.via === pinned);
+  const route = routeOf(machine, mode);
   if (route !== null) {
     const rank = VIAS.indexOf(route);
     const down = links.find((link) => VIAS.indexOf(link.via) < rank);
@@ -149,6 +187,8 @@ export interface PhoneMachine {
   node?: string;
   /** Set when a relay network the phone joined reaches the machine. */
   relay?: { endpoint: string; key: string; node: string };
+  /** How the phone reaches it; absent means auto. */
+  mode?: Via;
 }
 
 /** A machine's links as one native probe found them (`Links.kt`). */
@@ -156,7 +196,6 @@ export interface PhoneMachineProbe {
   id: string;
   /** Node id its `/kivotos/hello` advertised. */
   node?: string;
-  route: Via | null;
   links: MachineLink[];
   /** Its `/kivotos/events` stream: connected, failing, or not held (notifications off). */
   stream: "live" | "down" | "off";
@@ -194,15 +233,18 @@ function samePhoneMachine(a: PhoneMachine, b: PhoneMachine): boolean {
   return a.url !== "" && a.url === b.url;
 }
 
-/** `into` with what `from` adds (a URL, a relay, a node); `into` keeps its id and name. */
+/** `into` with what `from` adds (a URL, a relay, a node); `into` keeps its id, name and mode. */
 function mergePhone(into: PhoneMachine, from: PhoneMachine): PhoneMachine {
   const url = into.url === "" ? from.url : into.url;
   const relay = into.relay ?? from.relay;
   const node = nodeOfPhone(into) ?? nodeOfPhone(from);
-  if (url === into.url && relay === into.relay && node === into.node) return into;
+  const mode = into.mode ?? from.mode;
+  if (url === into.url && relay === into.relay && node === into.node && mode === into.mode)
+    return into;
   const merged: PhoneMachine = { id: into.id, name: into.name, url };
   if (node !== undefined) merged.node = node;
   if (relay !== undefined) merged.relay = relay;
+  if (mode !== undefined) merged.mode = mode;
   return merged;
 }
 
@@ -249,7 +291,7 @@ function collapsePhone(list: PhoneMachine[]): PhoneMachine[] {
   return changed ? out : list;
 }
 
-/** Leave a relay network: machines only it reached go; the others keep their tailnet URL. */
+/** Leave a relay network: machines only it reached go; the others keep their tailnet URL and mode. */
 export function leavePhoneNetwork(list: readonly PhoneMachine[], key: string): PhoneMachine[] {
   const out: PhoneMachine[] = [];
   for (const machine of list) {
@@ -258,11 +300,24 @@ export function leavePhoneNetwork(list: readonly PhoneMachine[], key: string): P
       continue;
     }
     if (machine.url === "") continue;
-    const kept: PhoneMachine = { id: machine.id, name: machine.name, url: machine.url };
-    kept.node = machine.relay.node;
-    out.push(kept);
+    const { relay: _left, ...kept } = machine;
+    out.push({ ...kept, node: machine.relay.node });
   }
   return out;
+}
+
+/** @returns the list with one machine's mode set; auto is stored as no mode. */
+export function setPhoneMode(
+  list: readonly PhoneMachine[],
+  id: string,
+  mode: RouteMode,
+): PhoneMachine[] {
+  const index = list.findIndex((machine) => machine.id === id);
+  if (index < 0) return [...list];
+  const next = [...list];
+  const { mode: _old, ...rest } = list[index];
+  next[index] = mode === "auto" ? rest : { ...rest, mode };
+  return next;
 }
 
 /**
@@ -275,7 +330,10 @@ export function applyPhoneProbe(list: readonly PhoneMachine[], probe: PhoneProbe
   let next = list.map((machine) => {
     const node = learned.get(machine.id);
     if (node === undefined || nodeOfPhone(machine) !== undefined) return machine;
-    return { id: machine.id, name: machine.name, url: machine.url, node };
+    // A tailnet-only entry: nothing else to carry over but its mode.
+    const learnt: PhoneMachine = { id: machine.id, name: machine.name, url: machine.url, node };
+    if (machine.mode !== undefined) learnt.mode = machine.mode;
+    return learnt;
   });
   let changed = next.some((machine, index) => machine !== list[index]);
   for (const network of probe.networks) {

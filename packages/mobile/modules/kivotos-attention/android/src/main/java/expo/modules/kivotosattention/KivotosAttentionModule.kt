@@ -57,12 +57,12 @@ class KivotosAttentionModule : Module() {
       AttentionState.onFrame = null
     }
 
-    /** Machines to follow, as a JSON array of {id, name, url, relay?}; restarts the streams. */
+    /** Machines to follow, as a JSON array of {id, name, url, relay?, mode?}; restarts the streams. */
     Function("setMachines") { json: String ->
       val array = JSONArray(json)
       val machines = List(array.length()) { Machine.fromJson(array.getJSONObject(it)) }
       AttentionState.setMachines(context, machines)
-      MachineProxy.retain(machines.map { it.id }.toSet())
+      MachineProxy.update(machines)
       Prefetch.machines(context, machines)
       if (AttentionState.enabled(context)) {
         if (machines.isEmpty()) AttentionService.stop(context) else AttentionService.start(context)

@@ -193,6 +193,8 @@ const CSS = `
   [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_header"]{position:absolute;top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);height:auto;padding:12px 12px 0 0}
   [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_options"]{padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}
   [data-shortcut-modal="settings"] [class*="_themeCube"]{flex:1 1 0;min-width:0;padding:14px 8px}
+  [data-shortcut-modal="settings"] .kivotos-mode-button{width:36px;height:36px}
+  [data-shortcut-modal="settings"] .kivotos-mode-option{min-height:44px}
 }
 @media ${PHONE} and (prefers-reduced-motion:reduce){
   div:has(> [data-shell-overlay]) > [class*="_sidebarCol"]{transition:none}
@@ -624,7 +626,7 @@ function PeerRow({
   now: number;
   t: Translate;
 }): ReactNode {
-  const status = statusOf(machine);
+  const status = statusOf(machine, machine.mode);
   let meta = "";
   if (current) meta = t("machines.current");
   else if (machine.route !== null) meta = t(`via.${machine.route}`);
@@ -1056,6 +1058,8 @@ export function apply(ctx: ClientContext): void {
   // One stable function for every render, injected as a slot prop.
   const injected = { toggleSidebar: (): void => ctx.layout.toggleSidebar() };
   const props = (): typeof injected => injected;
+  const section = { inApp: IN_APP };
+  const sectionProps = (): typeof section => section;
 
   ctx.slots.inject("sidebar.footer.action", () =>
     ctx.slots.register(
@@ -1071,6 +1075,7 @@ export function apply(ctx: ClientContext): void {
         order: 50,
         label: () => t("settings.nav"),
         locale: NS,
+        inject: sectionProps,
       },
       LinksSection,
     ),
