@@ -106,6 +106,8 @@ export const SETTINGS_ZH = {
   "relay.qr": "加入网络的二维码",
   "relay.leave": "退出网络",
   "relay.leaveHint": "退出后本机不再经中继可达，并删除本机保存的网络密钥。",
+  "relay.plaintext":
+    "这个中继地址是明文（ws://）：路径上的任何人都能读到中继令牌，借这个中继冒充本网络，看到哪些机器在线、占用它们的连接。流量仍是端到端加密的，对方也加入不了网络。给中继加上 HTTPS（wss://）可以避免。",
   "pair.action": "配对手机",
   "pair.unavailable": "此机器的远程连接尚未就绪",
   "pair.title": "配对手机",
@@ -195,6 +197,8 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "relay.leave": "Leave network",
   "relay.leaveHint":
     "This machine stops being reachable through the relay and forgets the network key.",
+  "relay.plaintext":
+    "This relay address is plaintext (ws://). Anyone on the path can read the relay token and use this relay as your network: see which machines are online and take up their connections. Traffic stays end-to-end encrypted and they cannot join the network. Serve the relay over HTTPS (wss://) to avoid this.",
   "pair.action": "Pair phone",
   "pair.unavailable": "This machine's remote listener is not ready",
   "pair.title": "Pair phone",
@@ -235,6 +239,7 @@ export const SETTINGS_CSS = `
 .kivotos-links-button:disabled{color:var(--dsw-alias-label-tertiary);cursor:not-allowed}
 .kivotos-links-code{flex:1;min-width:0;margin:0;padding:8px 10px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-interactive-bg-hover);font-family:var(--ds-font-family-code,monospace);font-size:12px;line-height:18px;overflow-wrap:anywhere;user-select:all}
 .kivotos-links-error{margin:0;color:var(--dsw-alias-state-error-primary)}
+.kivotos-links-warning{margin:6px 0 0 18px;color:var(--dsw-alias-state-warn-label);font-size:13px;line-height:20px}
 .kivotos-links-qr{display:block;box-sizing:border-box;width:min(100%,200px);height:auto;padding:8px;border-radius:8px;background:#fff}
 .kivotos-links-divider{height:0;margin:0;border:0;border-top:0.5px solid var(--dsw-alias-border-l2)}
 .kivotos-links-machine{display:flex;flex-direction:column;gap:2px;padding:12px 14px;min-width:0}
@@ -335,6 +340,8 @@ interface Links {
     networkId?: string;
     registration?: string;
     invite?: string;
+    /** The link is plaintext (`ws://`): the token crosses the network in the clear. */
+    plaintext: boolean;
     state?: "connecting" | "online" | "denied" | "unreachable";
     error?: string | null;
     peers: number;
@@ -823,6 +830,11 @@ function RelayLine({
           <ChevronGlyph />
         </button>
       </LinkHead>
+      {relay.plaintext ? (
+        <p className="kivotos-links-warning" role="note">
+          {t("relay.plaintext")}
+        </p>
+      ) : null}
       {open ? (
         <div id={detailsId} className="kivotos-links-details">
           {relay.joined ? (
