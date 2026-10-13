@@ -52,6 +52,7 @@ need() {
 
 need node "Node ^22.19.0 || >=24"
 need go "Go, to build packages/relay"
+need pnpm "pnpm, which dsh plugin add runs"
 # A path to a dsh entry point works too; --dsh and $DSH_BIN win over PATH.
 if [ ! -x "$dsh_bin" ]; then
   command -v "$dsh_bin" >/dev/null 2>&1 ||
