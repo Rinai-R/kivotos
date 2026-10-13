@@ -58,6 +58,12 @@ export interface RelayView {
   registration?: string;
   /** Link that lets another device join; it contains the federation key. */
   invite?: string;
+  /**
+   * The link to the relay is plaintext (`ws://`), so anyone on the path reads
+   * the network id and relay token: enough to use the relay as this network,
+   * not to join it or read its traffic. False when not in a network.
+   */
+  plaintext: boolean;
   state?: LinkStatus["state"];
   error?: string;
   /** Other nodes online in the network. */
@@ -285,7 +291,7 @@ export class RelayHost {
   view(): RelayView {
     const node = this.identity === undefined ? "" : nodeIdOf(this.identity.certDer);
     const network = this.network;
-    if (network === undefined) return { joined: false, node, peers: 0 };
+    if (network === undefined) return { joined: false, node, plaintext: false, peers: 0 };
     return {
       joined: true,
       node,
@@ -293,6 +299,10 @@ export class RelayHost {
       networkId: network.id,
       registration: registrationOf(network),
       invite: inviteOf(network),
+      // `relayEndpoint` stores only `ws://` or `wss://`, so the scheme is the
+      // whole declaration: a relay behind an HTTPS proxy is a `wss://`
+      // address. On a plaintext link the token is readable on the path.
+      plaintext: network.relay.startsWith("ws://"),
       state: this.link?.status.state,
       error: this.link?.status.error,
       peers: this.peerCount,
