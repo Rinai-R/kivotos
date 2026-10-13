@@ -37,6 +37,7 @@
     "check:dsh": "node scripts/check-dsh-boundary.mjs",
     "typecheck": "npm run typecheck -w packages/kivotos && npm run typecheck -w packages/mobile",
     "build": "npm run build -w packages/kivotos",
+    "dev": "node scripts/dev.mjs",
     "test": "npm test -w packages/kivotos",
     "prepare": "node scripts/install-hooks.mjs"
   },

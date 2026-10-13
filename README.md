@@ -72,7 +72,7 @@ npm run apk -w packages/mobile     # Android APK (JDK 17, Android SDK)
 cd packages/relay && go test ./...
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) to build, test and contribute, and `scripts/lab.sh` to start a relay and two dsh instances locally. Architecture and conventions are in [AGENTS.md](AGENTS.md); report vulnerabilities through [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) to build, test and contribute, and `npm run dev` to start a relay and two dsh instances locally. Architecture and conventions are in [AGENTS.md](AGENTS.md); report vulnerabilities through [SECURITY.md](SECURITY.md).
 
 ## License
 
