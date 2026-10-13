@@ -69,13 +69,15 @@ const en = {
   "status.via": "Via {via}",
   "status.viaOnly": "Via {via} only",
   "status.only": "{via} only · {status}",
-  "status.fallback": "Via {via} · {down}: {reason}",
   "status.offline": "Offline",
   "status.offlineSince": "Offline · last seen {ago}",
   "status.unreachable": "Unreachable: {reason}",
   "status.lastSeen": "last seen {ago}",
   "mode.title": "How this phone reaches it",
   "mode.auto": "Auto",
+  "mode.unavailable": "Unavailable: {reason}",
+  "chip.noTailnet": "Not on tailnet",
+  "chip.noNetwork": "Not in network",
   streamDown: "Notifications not connected",
   connections: "Connections",
   connectionsMeta: "Tailscale · Own relay",
@@ -88,15 +90,19 @@ const en = {
     "Machines added by pairing code or address are reached over the tailnet, through the computer's Kivotos listener.",
   linksRelay: "Own relay",
   linksRelayIntro:
-    "Connect through a relay server you run, without Tailscale. On a computer, open Machines → Connections → Own relay to get the invite.",
+    "Connect through a relay server you run, without Tailscale. On a computer, open Settings → Remote access → Own relay → Manage to get the invite.",
   linksRelayAddress: "Relay",
   linksRelayNetwork: "Network",
   linksStatus: "Status",
   linksRelayMachines: "Machines online",
+  linksManage: "Manage",
+  linksSetUp: "Set up",
+  linksRelayNone: "Not in a network",
+  linksRelayPeers: "Machines online: {count}",
   "relayState.connecting": "Connecting…",
-  "relayState.online": "Connected",
-  "relayState.denied": "The relay does not know this network",
-  "relayState.unreachable": "Cannot reach the relay",
+  "relayState.online": "Online",
+  "relayState.denied": "Not registered on the relay",
+  "relayState.unreachable": "Relay unreachable",
   linksInvitePlaceholder: "kivotos://join?…",
   linksJoin: "Join",
   linksScan: "Scan invite code",
@@ -174,13 +180,15 @@ const zhText: typeof en = {
   "status.via": "经由 {via}",
   "status.viaOnly": "仅经由 {via}",
   "status.only": "仅 {via} · {status}",
-  "status.fallback": "经由 {via} · {down}：{reason}",
   "status.offline": "离线",
   "status.offlineSince": "离线 · 最后在线 {ago}",
   "status.unreachable": "无法连接：{reason}",
   "status.lastSeen": "最后在线 {ago}",
   "mode.title": "这台手机如何连接它",
   "mode.auto": "自动",
+  "mode.unavailable": "不可用：{reason}",
+  "chip.noTailnet": "不在 tailnet 中",
+  "chip.noNetwork": "不在网络中",
   streamDown: "通知未连接",
   connections: "连接",
   connectionsMeta: "Tailscale · 自建中继",
@@ -191,14 +199,18 @@ const zhText: typeof en = {
   linksTailscaleHint: "用配对码或地址添加的机器经 tailnet 连接，通过电脑上的 Kivotos 监听。",
   linksRelay: "自建中继",
   linksRelayIntro:
-    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 机器 → 连接 → 自建中继 获取邀请。",
+    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 设置 → 远程连接 → 自建中继 → 管理 获取邀请。",
   linksRelayAddress: "中继",
   linksRelayNetwork: "网络",
   linksStatus: "状态",
   linksRelayMachines: "在线机器",
+  linksManage: "管理",
+  linksSetUp: "配置",
+  linksRelayNone: "未加入网络",
+  linksRelayPeers: "在线机器：{count}",
   "relayState.connecting": "正在连接…",
-  "relayState.online": "已连接",
-  "relayState.denied": "中继不认识这个网络",
+  "relayState.online": "在线",
+  "relayState.denied": "中继尚未登记这个网络",
   "relayState.unreachable": "无法连接中继",
   linksInvitePlaceholder: "kivotos://join?…",
   linksJoin: "加入",
@@ -231,12 +243,12 @@ function agoText(time: number, now: number): string {
   return ago.unit === "now" ? t("ago.now") : t(`ago.${ago.unit}`, { count: String(ago.count) });
 }
 
-/** One link's state: why it fails, else its state. */
-function linkState(link: MachineLink): string {
+/** One link's state: why it fails, else its state (a chip's words, like the computer's). */
+export function linkState(link: MachineLink): string {
   return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
 }
 
-/** One link's line in the mode sheet, worded like the computer's mode menu (`linkText`). */
+/** One link's line in the mode sheet: its state with any reason, and when it last worked. */
 export function linkLine(link: MachineLink, now: number): string {
   const state =
     link.state === "unreachable" && link.reason !== undefined
@@ -248,8 +260,10 @@ export function linkLine(link: MachineLink, now: number): string {
 }
 
 /**
- * How the phone reaches a machine in `mode`, worded like the computer's
- * switcher (packages/kivotos/src/connections.tsx `statusText`).
+ * How the phone reaches a machine in `mode`, worded like a machine row of the
+ * computer's Settings (packages/kivotos/src/settings.tsx `routeText`): the
+ * route alone when there is one (the row's link chips say why another link
+ * is not used), else why there is none.
  */
 export function routeLine(probe: PhoneMachineProbe, mode: RouteMode, now: number): string {
   const pinned = pinnedVia(probe, mode);
@@ -258,14 +272,7 @@ export function routeLine(probe: PhoneMachineProbe, mode: RouteMode, now: number
   switch (status.kind) {
     case "online": {
       const via = t(`via.${status.via}`);
-      if (pinned !== null) return t("status.viaOnly", { via });
-      return status.down === undefined
-        ? t("status.via", { via })
-        : t("status.fallback", {
-            via,
-            down: t(`via.${status.down.via}`),
-            reason: linkState(status.down),
-          });
+      return pinned === null ? t("status.via", { via }) : t("status.viaOnly", { via });
     }
     case "offline":
       line =

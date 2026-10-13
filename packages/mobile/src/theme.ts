@@ -22,6 +22,8 @@ export function palette(scheme: ColorSchemeName) {
         link: "#7AAAFF", // link
         danger: "#F25A5A", // state-error-primary
         dangerSoft: "rgba(242,90,90,0.12)",
+        success: "#22C55E", // state-success-primary
+        warn: "#F59E0B", // state-warn-primary
         scrim: "rgba(0,0,0,0.55)",
       }
     : {
@@ -38,6 +40,8 @@ export function palette(scheme: ColorSchemeName) {
         link: "#4176E6",
         danger: "#EC1313",
         dangerSoft: "#FEF2F2", // red-50
+        success: "#22C55E", // state-success-primary
+        warn: "#F59E0B", // state-warn-primary
         scrim: "rgba(15,17,21,0.45)",
       };
 }

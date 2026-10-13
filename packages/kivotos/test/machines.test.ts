@@ -11,6 +11,7 @@ import {
   addPhoneMachines,
   applyPhoneProbe,
   leavePhoneNetwork,
+  modeOptions,
   pinnedVia,
   ROUTE_MODES,
   routeOf,
@@ -20,6 +21,7 @@ import {
   type MachineLink,
   type PhoneMachine,
   type PhoneProbe,
+  type RouteMode,
   type Via,
 } from "../src/machines.ts";
 
@@ -224,6 +226,33 @@ test("a machine held to one link shows that link's failure, never the other link
   ];
   assert.deepEqual(statusOf({ links: relayGone }, "relay"), { kind: "offline", lastSeen: T0 });
   assert.deepEqual(statusOf({ links: relayGone }, "auto"), { kind: "online", via: "tailscale" });
+});
+
+test("the mode control offers auto, the links that work, and the current choice even when down", () => {
+  const shown = (tailnet: MachineLink["state"], relay: MachineLink["state"], mode: RouteMode) =>
+    modeOptions({ links: [linkIn("tailscale", tailnet), linkIn("relay", relay)] }, mode).map(
+      (option) => (option.unavailable ? `${option.mode}!` : option.mode),
+    );
+  for (const mode of ROUTE_MODES)
+    assert.deepEqual(shown("online", "online", mode), ["auto", "tailscale", "relay"], mode);
+  for (const down of DOWN) {
+    assert.deepEqual(shown(down, "online", "auto"), ["auto", "relay"], down);
+    assert.deepEqual(shown(down, "online", "relay"), ["auto", "relay"], down);
+    assert.deepEqual(shown(down, "online", "tailscale"), ["auto", "tailscale!", "relay"], down);
+    assert.deepEqual(shown("online", down, "relay"), ["auto", "tailscale", "relay!"], down);
+    assert.deepEqual(shown(down, down, "auto"), ["auto"], down);
+    assert.deepEqual(shown(down, down, "tailscale"), ["auto", "tailscale!"], down);
+  }
+  // The unavailable choice carries its link, so the control can say why.
+  const links = [linkIn("tailscale", "unreachable"), linkIn("relay", "online")];
+  assert.deepEqual(modeOptions({ links }, "tailscale")[1], {
+    mode: "tailscale",
+    link: links[0],
+    unavailable: true,
+  });
+  // One link: nothing to choose, in any mode.
+  for (const mode of ROUTE_MODES)
+    assert.deepEqual(modeOptions({ links: [linkIn("relay", "online")] }, mode), []);
 });
 
 function bothLinksOfH(book: MachineBook<string>, now: number) {

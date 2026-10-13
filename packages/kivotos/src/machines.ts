@@ -113,6 +113,32 @@ export function routeOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): V
   return null;
 }
 
+/** One choice of a machine's mode control. */
+export interface ModeOption {
+  mode: RouteMode;
+  /** The link a Tailscale or Relay choice holds the machine to. */
+  link?: MachineLink;
+  /** The current choice, whose link does not work now: shown so the choice stays visible. */
+  unavailable: boolean;
+}
+
+/**
+ * The choices a machine's mode control offers: Auto, each link that works
+ * now, and the current choice even when its link is down (then marked
+ * unavailable). None for a machine with one link, which has nothing to choose.
+ */
+export function modeOptions(machine: Pick<MachineInfo, "links">, mode: RouteMode): ModeOption[] {
+  const options: ModeOption[] = [{ mode: "auto", unavailable: false }];
+  for (const via of VIAS) {
+    const link = machine.links.find((candidate) => candidate.via === via);
+    // One link per way: a machine reached one way only has nothing to choose.
+    if (link === undefined) return [];
+    const works = link.state === "online";
+    if (works || via === mode) options.push({ mode: via, link, unavailable: !works });
+  }
+  return options;
+}
+
 /** @returns the latest time any link reached the machine. */
 export function lastSeenOf(links: readonly MachineLink[]): number | undefined {
   let latest: number | undefined;
