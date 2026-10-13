@@ -1,14 +1,25 @@
 /**
- * The Kivotos section of dsh Settings: the machines this one reaches and how,
- * then one tab per way this machine can be reached. The links are
- * independent; a machine can use both at once. The text helpers here word the
- * machine model (machines.ts) for the switcher too.
+ * The Kivotos section of dsh Settings: the machines this one reaches and how
+ * (with each machine's connection mode), then one tab per way this machine
+ * can be reached. The links are independent; a machine can use both at once.
+ * The text helpers here word the machine model (machines.ts) for the
+ * switcher too.
  */
 import QrCode from "qrcode-generator";
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { agoOf, statusOf, type MachineInfo, type MachineLink, type Via } from "./machines.ts";
+import {
+  agoOf,
+  isRouteMode,
+  pinnedVia,
+  ROUTE_MODES,
+  statusOf,
+  type MachineInfo,
+  type MachineLink,
+  type RouteMode,
+  type Via,
+} from "./machines.ts";
 
 /** Locale lookup bound to the plugin's namespace. */
 export type Translate = (key: string, params?: Record<string, unknown>) => string;
@@ -46,14 +57,20 @@ export const SETTINGS_ZH = {
   "ago.hours": "{count} 小时前",
   "ago.days": "{count} 天前",
   "status.via": "经由 {via}",
+  "status.viaOnly": "仅经由 {via}",
+  "status.only": "仅 {via} · {status}",
   "status.fallback": "经由 {via} · {down}：{reason}",
   "status.down": "{down}：{reason}",
   "status.offline": "离线",
   "status.offlineSince": "离线 · 最后在线 {ago}",
   "status.unreachable": "无法连接：{reason}",
   "status.lastSeen": "最后在线 {ago}",
+  "mode.auto": "自动",
+  "mode.menu": "{name} 的连接方式：{mode}",
+  "mode.setOn": "{name} 上的设置",
+  "mode.failed": "无法更改连接方式",
   "machines.intro":
-    "每台机器只列一次，无论经由哪种方式连接。能直连时走 Tailscale，不通时自动改走中继。",
+    "每台机器只列一次，无论经由哪种方式连接。自动：能直连时走 Tailscale，不通时改走中继。选 Tailscale 或中继则只用那一种，不通时不会改道。",
   "machines.none": "还没有其它机器。用下面的 Tailscale 或自建中继连接它们。",
   "tailscale.intro": "登录同一个 tailnet 账号的手机和电脑可以直接打开这台机器，不需要额外设置。",
   "tailscale.state": "状态",
@@ -118,14 +135,20 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "ago.hours": "{count} h ago",
   "ago.days": "{count} d ago",
   "status.via": "Via {via}",
+  "status.viaOnly": "Via {via} only",
+  "status.only": "{via} only · {status}",
   "status.fallback": "Via {via} · {down}: {reason}",
   "status.down": "{down}: {reason}",
   "status.offline": "Offline",
   "status.offlineSince": "Offline · last seen {ago}",
   "status.unreachable": "Unreachable: {reason}",
   "status.lastSeen": "last seen {ago}",
+  "mode.auto": "Auto",
+  "mode.menu": "How to reach {name}: {mode}",
+  "mode.setOn": "Set on {name}",
+  "mode.failed": "Could not change how the machine is reached",
   "machines.intro":
-    "Each machine is listed once, whatever reaches it. Requests go over Tailscale when it works and over the relay when it does not.",
+    "Each machine is listed once, whatever reaches it. Auto goes over Tailscale when it works and over the relay when it does not; Tailscale or Relay uses only that link and is never rerouted.",
   "machines.none": "No other machines yet. Connect them with Tailscale or your own relay below.",
   "tailscale.intro":
     "Phones and computers signed in to the same tailnet account can open this machine directly. Nothing to set up.",
@@ -186,7 +209,7 @@ export const SETTINGS_CSS = `
 .kivotos-links-machines{display:flex;flex-direction:column;margin:0;padding:0;list-style:none;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md)}
 .kivotos-links-machine{display:flex;flex-direction:column;gap:4px;padding:12px 14px;min-width:0}
 .kivotos-links-machine + .kivotos-links-machine{border-top:0.5px solid var(--dsw-alias-border-l2)}
-.kivotos-links-machine-head{display:flex;align-items:baseline;gap:8px;min-width:0}
+.kivotos-links-machine-head{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;min-width:0}
 .kivotos-links-machine-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary);font-weight:500}
 .kivotos-links-machine[data-reachable="false"] .kivotos-links-machine-name{color:var(--dsw-alias-label-tertiary)}
 .kivotos-links-machine-os{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px}
@@ -195,6 +218,17 @@ export const SETTINGS_CSS = `
 .kivotos-links-machine-links dt{color:var(--dsw-alias-label-tertiary)}
 .kivotos-links-machine-links dd{margin:0;min-width:0;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
 .kivotos-links-machine-links dd[data-state="online"]{color:var(--dsw-alias-label-primary)}
+.kivotos-mode-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+.kivotos-mode-button:hover,.kivotos-mode-button[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.kivotos-mode-button[data-pinned]{color:var(--dsw-alias-label-secondary)}
+.kivotos-mode-menu{flex-basis:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;margin:6px 0 2px;padding:4px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm)}
+.kivotos-mode-hint{padding:2px 8px 4px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}
+.kivotos-mode-option{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:4px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:18px;text-align:left;cursor:pointer}
+.kivotos-mode-option:hover,.kivotos-mode-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover)}
+.kivotos-mode-check{flex:none;width:14px;height:14px;color:var(--dsw-alias-label-primary)}
+.kivotos-mode-text{display:flex;flex:1;flex-direction:column;min-width:0}
+.kivotos-mode-state{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px;overflow-wrap:anywhere}
+.kivotos-mode-option[aria-checked="true"] .kivotos-mode-name{font-weight:500}
 `;
 
 /**
@@ -273,20 +307,24 @@ export interface MachineList {
 /**
  * Read a `/kivotos/peers` body. A Host from before the machine model sends
  * only `peers`, its mounted machines: each becomes a machine online through
- * its one link.
+ * its one link. A Host from before modes reaches every machine in auto.
  */
 export function machineListOf(body: unknown): MachineList {
   const value = (typeof body === "object" && body !== null ? body : {}) as {
     self?: MachineList["self"];
-    machines?: MachineInfo[];
+    machines?: (Omit<MachineInfo, "mode"> & { mode?: unknown })[];
     peers?: { id: string; name: string; os: string; via?: Via }[];
   };
   const self = value.self ?? { name: "", os: "" };
-  if (Array.isArray(value.machines)) return { self, machines: value.machines };
+  if (Array.isArray(value.machines)) {
+    for (const machine of value.machines) if (!isRouteMode(machine.mode)) machine.mode = "auto";
+    return { self, machines: value.machines as MachineInfo[] };
+  }
   const machines = (value.peers ?? []).map(({ id, name, os, via = "tailscale" }) => ({
     id,
     name,
     os,
+    mode: "auto" as const,
     route: via,
     links: [{ via, state: "online" as const }],
   }));
@@ -304,14 +342,17 @@ function linkState(t: Translate, link: MachineLink): string {
   return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
 }
 
-/** @returns one link's line: its state with any reason, address, and when it last worked if it does not now. */
-export function linkText(t: Translate, link: MachineLink, now: number): string {
+/**
+ * @param brief - in the mode menu: leave the address out.
+ * @returns one link's line: its state with any reason, address, and when it last worked if it does not now.
+ */
+export function linkText(t: Translate, link: MachineLink, now: number, brief = false): string {
   const parts = [
     link.state === "unreachable" && link.reason !== undefined
       ? t("status.unreachable", { reason: t(`reason.${link.reason}`) })
       : t(`state.${link.state}`),
   ];
-  if (link.address !== undefined) parts.push(link.address);
+  if (!brief && link.address !== undefined) parts.push(link.address);
   if (link.state !== "online" && link.lastSeen !== undefined)
     parts.push(t("status.lastSeen", { ago: agoText(t, link.lastSeen, now) }));
   return parts.join(" · ");
@@ -319,18 +360,22 @@ export function linkText(t: Translate, link: MachineLink, now: number): string {
 
 /**
  * @param brief - next to a route tag (the switcher): leave the route out of a fallback.
- * @returns a machine's one-line status: its route, and why a preferred link is not used.
+ * @returns a machine's one-line status: its route by its mode, why a
+ *   preferred link is not used, and the one link a mode holds it to.
  */
 export function statusText(
   t: Translate,
-  machine: Pick<MachineInfo, "links">,
+  machine: Pick<MachineInfo, "links" | "mode">,
   now: number,
   brief = false,
 ): string {
-  const status = statusOf(machine);
+  const pinned = pinnedVia(machine, machine.mode);
+  const status = statusOf(machine, machine.mode);
+  let text: string;
   switch (status.kind) {
     case "online": {
       const via = t(`via.${status.via}`);
+      if (pinned !== null) return t("status.viaOnly", { via });
       if (status.down === undefined) return t("status.via", { via });
       const down = t(`via.${status.down.via}`);
       const reason = linkState(t, status.down);
@@ -339,14 +384,19 @@ export function statusText(
         : t("status.fallback", { via, down, reason });
     }
     case "offline":
-      return status.lastSeen === undefined
-        ? t("status.offline")
-        : t("status.offlineSince", { ago: agoText(t, status.lastSeen, now) });
+      text =
+        status.lastSeen === undefined
+          ? t("status.offline")
+          : t("status.offlineSince", { ago: agoText(t, status.lastSeen, now) });
+      break;
     case "unreachable":
-      return t("status.unreachable", { reason: linkState(t, status.link) });
+      text = t("status.unreachable", { reason: linkState(t, status.link) });
+      break;
     case "denied":
-      return t("state.denied");
+      text = t("state.denied");
+      break;
   }
+  return pinned === null ? text : t("status.only", { via: t(`via.${pinned}`), status: text });
 }
 
 /**
@@ -357,31 +407,188 @@ function linksUrl(name: string): string {
   return new URL(`kivotos/${name}`, document.baseURI).toString();
 }
 
-async function readBody(response: Response): Promise<Links> {
+async function readBody<T>(response: Response): Promise<T> {
   const body: unknown = await response.json();
   if (!response.ok) {
     const message: unknown =
       typeof body === "object" && body !== null ? Reflect.get(body, "error") : undefined;
     throw new Error(typeof message === "string" ? message : String(response.status));
   }
-  // The route is Kivotos' own (same version as this module), behind dsh's fence.
-  return body as Links;
+  // The routes are Kivotos' own (same version as this module), behind dsh's fence.
+  return body as T;
+}
+
+/** Mode glyph: two places joined by a path (original artwork, currentColor). */
+function ModeGlyph(): ReactNode {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="3.5" cy="4" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="12.5" cy="12" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M5.25 4h4.5a2.25 2.25 0 0 1 0 4.5h-3.5a2.25 2.25 0 0 0 0 4.5h4.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckGlyph(): ReactNode {
+  return (
+    <svg className="kivotos-mode-check" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M2.75 7.25 5.75 10.25 11.25 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** @returns what choosing a mode gives now: auto's status, or the one link's state. */
+function modeState(t: Translate, machine: MachineInfo, mode: RouteMode, now: number): string {
+  if (mode === "auto") return statusText(t, { links: machine.links, mode }, now);
+  const link = machine.links.find((candidate) => candidate.via === mode);
+  return link === undefined ? "" : linkText(t, link, now, true);
+}
+
+interface ModeMenuProps {
+  machine: MachineInfo;
+  /** Its menu is open; one at a time. */
+  open: boolean;
+  /** "Set on <computer>", where the page may be taken for the device's own setting. */
+  hint: string | null;
+  now: number;
+  t: Translate;
+  onToggle: (id: string) => void;
+  onChange: (id: string, mode: RouteMode) => void;
+}
+
+/**
+ * How a machine with two links is reached: a small button at the end of its
+ * card head, and below it while open, Auto / Tailscale / Relay with what each
+ * gives now. A machine with one link has nothing to choose and gets none.
+ * The parent lays it out in a wrapping flex row.
+ */
+function ModeMenu(props: ModeMenuProps): ReactNode {
+  const { machine, open, t, onToggle, onChange } = props;
+  const menuId = useId();
+  const hintId = useId();
+  const button = useRef<HTMLButtonElement | null>(null);
+  const menu = useRef<HTMLDivElement | null>(null);
+  const toggle = useCallback(() => onToggle(machine.id), [machine.id, onToggle]);
+  const choose = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const mode = event.currentTarget.value;
+      if (isRouteMode(mode)) onChange(machine.id, mode);
+      onToggle(machine.id);
+      button.current?.focus();
+    },
+    [machine.id, onChange, onToggle],
+  );
+  const onKey = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const items = [...(menu.current?.querySelectorAll("button") ?? [])];
+      const at = items.findIndex((item) => item === document.activeElement);
+      if (event.key === "Escape") {
+        // Close this menu only, not the Settings panel around it.
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle(machine.id);
+        button.current?.focus();
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : items.length - 1;
+        items[at < 0 ? 0 : (at + step) % items.length]?.focus();
+      }
+    },
+    [machine.id, onToggle],
+  );
+  useEffect(() => {
+    if (open) menu.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+  }, [open]);
+  // One link per way (machines.ts): two links are a choice.
+  if (machine.links.length < 2) return null;
+  const current = machine.mode === "auto" ? t("mode.auto") : t(`via.${machine.mode}`);
+  const label = t("mode.menu", { name: machine.name, mode: current });
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className="kivotos-mode-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-label={label}
+        title={label}
+        data-pinned={machine.mode === "auto" ? undefined : ""}
+        onClick={toggle}
+      >
+        <ModeGlyph />
+      </button>
+      {open ? (
+        <div className="kivotos-mode-menu">
+          {props.hint === null ? null : (
+            <span id={hintId} className="kivotos-mode-hint">
+              {props.hint}
+            </span>
+          )}
+          <div
+            ref={menu}
+            id={menuId}
+            role="menu"
+            aria-label={label}
+            aria-describedby={props.hint === null ? undefined : hintId}
+            onKeyDown={onKey}
+          >
+            {ROUTE_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="menuitemradio"
+                className="kivotos-mode-option"
+                aria-checked={machine.mode === mode}
+                value={mode}
+                onClick={choose}
+              >
+                {machine.mode === mode ? <CheckGlyph /> : <span className="kivotos-mode-check" />}
+                <span className="kivotos-mode-text">
+                  <span className="kivotos-mode-name">
+                    {mode === "auto" ? t("mode.auto") : t(`via.${mode}`)}
+                  </span>
+                  <span className="kivotos-mode-state">
+                    {modeState(t, machine, mode, props.now)}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 interface LinksState {
   links: Links | null;
   /** The machines this page's machine knows; null until read. */
-  machines: MachineInfo[] | null;
+  list: MachineList | null;
   failed: boolean;
-  /** Message of the last relay action that was refused. */
+  /** Message of the last relay action or mode change that was refused. */
   error: string | null;
   busy: boolean;
   act: (body: Record<string, string>) => void;
+  /** Set how this page's machine reaches one machine (index.ts `/kivotos/mode`). */
+  changeMode: (id: string, mode: RouteMode) => void;
 }
 
-function useLinks(): LinksState {
+function useLinks(t: Translate): LinksState {
   const [links, setLinks] = useState<Links | null>(null);
-  const [machines, setMachines] = useState<MachineInfo[] | null>(null);
+  const [list, setList] = useState<MachineList | null>(null);
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -394,11 +601,11 @@ function useLinks(): LinksState {
           fetch(linksUrl("links"), { headers: { accept: "application/json" } }),
           fetch(linksUrl("peers"), { headers: { accept: "application/json" } }),
         ]);
-        const next = await readBody(linksResponse);
-        const list = peersResponse.ok ? machineListOf(await peersResponse.json()) : null;
+        const next = await readBody<Links>(linksResponse);
+        const machines = peersResponse.ok ? machineListOf(await peersResponse.json()) : null;
         if (stopped) return;
         setLinks(next);
-        setMachines(list?.machines ?? null);
+        setList(machines);
         setFailed(false);
       } catch {
         if (!stopped) setFailed(true);
@@ -422,7 +629,7 @@ function useLinks(): LinksState {
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(body),
         });
-        setLinks(await readBody(response));
+        setLinks(await readBody<Links>(response));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
@@ -431,7 +638,26 @@ function useLinks(): LinksState {
     })();
   }, []);
 
-  return { links, machines, failed, error, busy, act };
+  const changeMode = useCallback(
+    (machine: string, mode: RouteMode) => {
+      setError(null);
+      void (async () => {
+        try {
+          const response = await fetch(linksUrl("mode"), {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ machine, mode }),
+          });
+          setList(machineListOf(await readBody<unknown>(response)));
+        } catch {
+          setError(t("mode.failed"));
+        }
+      })();
+    },
+    [t],
+  );
+
+  return { links, list, failed, error, busy, act, changeMode };
 }
 
 /** Text people copy out; the button appears only where the clipboard API exists. */
@@ -494,21 +720,28 @@ function TailscalePanel({ links, t }: { links: Links; t: Translate }): ReactNode
   );
 }
 
-/** One machine: its status line, then each link's state. */
-function MachineCard({
-  machine,
-  now,
-  t,
-}: {
-  machine: MachineInfo;
-  now: number;
-  t: Translate;
-}): ReactNode {
+interface MachineCardProps extends Omit<ModeMenuProps, "open"> {
+  /** Its mode menu is open. */
+  menu: boolean;
+}
+
+/** One machine: its status line and mode, then each link's state. */
+function MachineCard(props: MachineCardProps): ReactNode {
+  const { machine, now, t } = props;
   return (
     <li className="kivotos-links-machine" data-reachable={String(machine.route !== null)}>
       <div className="kivotos-links-machine-head">
         <span className="kivotos-links-machine-name">{machine.name}</span>
         {machine.os === "" ? null : <span className="kivotos-links-machine-os">{machine.os}</span>}
+        <ModeMenu
+          machine={machine}
+          open={props.menu}
+          hint={props.hint}
+          now={now}
+          t={t}
+          onToggle={props.onToggle}
+          onChange={props.onChange}
+        />
       </div>
       <p className="kivotos-links-machine-status">{statusText(t, machine, now)}</p>
       <dl className="kivotos-links-machine-links">
@@ -524,22 +757,42 @@ function MachineCard({
 }
 
 function MachinesPanel({
-  machines,
+  state,
+  inApp,
   t,
 }: {
-  machines: MachineInfo[] | null;
+  state: LinksState;
+  inApp: boolean;
   t: Translate;
 }): ReactNode {
+  const [menu, setMenu] = useState<string | null>(null);
+  const toggleMenu = useCallback(
+    (id: string) => setMenu((shown) => (shown === id ? null : id)),
+    [],
+  );
+  const { list, changeMode } = state;
   // Re-rendered on every poll, which also moves "last seen" along.
   const now = Date.now();
-  let list: ReactNode;
-  if (machines === null) list = <p className="kivotos-links-text">{t("settings.loading")}</p>;
-  else if (machines.length === 0) list = <p className="kivotos-links-text">{t("machines.none")}</p>;
+  // In the phone app, whose own machine list has modes too: these are this page's computer's.
+  const hint = inApp && list !== null ? t("mode.setOn", { name: list.self.name }) : null;
+  let body: ReactNode;
+  if (list === null) body = <p className="kivotos-links-text">{t("settings.loading")}</p>;
+  else if (list.machines.length === 0)
+    body = <p className="kivotos-links-text">{t("machines.none")}</p>;
   else {
-    list = (
+    body = (
       <ul className="kivotos-links-machines">
-        {machines.map((machine) => (
-          <MachineCard key={machine.id} machine={machine} now={now} t={t} />
+        {list.machines.map((machine) => (
+          <MachineCard
+            key={machine.id}
+            machine={machine}
+            menu={menu === machine.id}
+            hint={hint}
+            now={now}
+            t={t}
+            onToggle={toggleMenu}
+            onChange={changeMode}
+          />
         ))}
       </ul>
     );
@@ -547,7 +800,12 @@ function MachinesPanel({
   return (
     <div className="kivotos-links-panel" role="tabpanel">
       <p className="kivotos-links-text">{t("machines.intro")}</p>
-      {list}
+      {body}
+      {state.error === null ? null : (
+        <p className="kivotos-links-error" role="alert">
+          {state.error}
+        </p>
+      )}
     </div>
   );
 }
@@ -686,10 +944,13 @@ function RelayMembership({ state, t }: { state: LinksState; t: Translate }): Rea
 type Tab = "machines" | "tailscale" | "relay";
 const TABS: readonly Tab[] = ["machines", "tailscale", "relay"];
 
-/** The section body: the machines, then a tab per link. */
-export function LinksSection({ t }: { t: Translate }): ReactNode {
+/**
+ * The section body: the machines, then a tab per link.
+ * @param inApp - the page runs in the Kivotos phone app (client.tsx IN_APP).
+ */
+export function LinksSection({ t, inApp }: { t: Translate; inApp: boolean }): ReactNode {
   const [tab, setTab] = useState<Tab>("machines");
-  const state = useLinks();
+  const state = useLinks(t);
   const select = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     const next = TABS.find((id) => id === event.currentTarget.value);
     if (next !== undefined) setTab(next);
@@ -703,7 +964,7 @@ export function LinksSection({ t }: { t: Translate }): ReactNode {
       </p>
     );
   } else if (tab === "machines") {
-    body = <MachinesPanel machines={state.machines} t={t} />;
+    body = <MachinesPanel state={state} inApp={inApp} t={t} />;
   } else if (tab === "tailscale") {
     body = <TailscalePanel links={links} t={t} />;
   } else {

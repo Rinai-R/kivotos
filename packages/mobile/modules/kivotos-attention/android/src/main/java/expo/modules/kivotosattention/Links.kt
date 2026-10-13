@@ -21,9 +21,11 @@ import org.json.JSONObject
 
 /**
  * How the phone reaches each machine: one probe of every link at a time
- * ([probe], for the app's screens) and the route memory the doors use
- * ([prefersRelay]). The vocabulary (states, reasons, routes) is the shared
- * machine model of packages/kivotos/src/machines.ts.
+ * ([probe], for the app's screens) and the route memory the doors use in
+ * auto ([prefersRelay]). The vocabulary (states, reasons) is the shared
+ * machine model of packages/kivotos/src/machines.ts, whose `routeOf` gives
+ * each row its route by the machine's mode. Both links are probed whatever
+ * the mode, so every choice can show what it gives now.
  *
  * The phone holds no standing relay connection, so a relay network is
  * `online` when its relay answered this probe, and a machine of it is online
@@ -33,13 +35,13 @@ object Links {
   private const val PREFS = "kivotos.links"
   private const val HELLO_TIMEOUT_MS = 4_000
   private const val PROBE_TIMEOUT_MS = 12_000L
-  /** After a failed tailnet dial, a machine with a relay goes through the relay first this long. */
+  /** In auto, after a failed tailnet dial, a machine with a relay goes through the relay first this long. */
   private const val RELAY_FIRST_MS = 2 * 60_000L
 
   /** When each machine's tailnet listener last failed a door's dial (elapsed realtime). */
   private val tailnetFailed = ConcurrentHashMap<String, Long>()
 
-  /** Whether a door should dial the relay before the tailnet listener. */
+  /** Whether a door in auto should dial the relay before the tailnet listener. */
   fun prefersRelay(machine: Machine): Boolean {
     if (!machine.viaRelay) return false
     if (!machine.viaTailnet) return true
@@ -47,7 +49,7 @@ object Links {
     return SystemClock.elapsedRealtime() - failed < RELAY_FIRST_MS
   }
 
-  /** A door reached, or failed to reach, a machine over one link. */
+  /** A door in auto reached, or failed to reach, a machine over one link. */
   fun dialed(machine: Machine, tailnet: Boolean, ok: Boolean) {
     if (!tailnet) return
     if (ok) tailnetFailed.remove(machine.id) else tailnetFailed[machine.id] = SystemClock.elapsedRealtime()
@@ -171,14 +173,12 @@ object Links {
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     val now = System.currentTimeMillis()
     val links = JSONArray()
-    var route: String? = null
     if (said != null) {
       val link = JSONObject().put("via", "tailscale").put("state", said.state).put("address", authority(machine.url))
       if (said.reason != null) link.put("reason", said.reason)
       if (said.state == "online") {
         prefs.edit().putLong("seen.tailscale.${machine.id}", now).apply()
         tailnetFailed.remove(machine.id)
-        route = "tailscale"
       }
       prefs.getLong("seen.tailscale.${machine.id}", 0).takeIf { it > 0 }?.let { link.put("lastSeen", it) }
       links.put(link)
@@ -191,10 +191,7 @@ object Links {
       }
       val link = JSONObject().put("via", "relay").put("state", state).put("address", authority(machine.relay))
       if (state == "unreachable") link.put("reason", "relay-unreachable")
-      if (state == "online") {
-        prefs.edit().putLong("seen.relay.${machine.id}", now).apply()
-        if (route == null) route = "relay"
-      }
+      if (state == "online") prefs.edit().putLong("seen.relay.${machine.id}", now).apply()
       prefs.getLong("seen.relay.${machine.id}", 0).takeIf { it > 0 }?.let { link.put("lastSeen", it) }
       links.put(link)
     }
@@ -203,7 +200,7 @@ object Links {
       machine.id in AttentionService.live -> "live"
       else -> "down"
     }
-    val json = JSONObject().put("id", machine.id).put("route", route ?: JSONObject.NULL).put("links", links).put("stream", stream)
+    val json = JSONObject().put("id", machine.id).put("links", links).put("stream", stream)
     said?.node?.let { json.put("node", it) }
     return json
   }

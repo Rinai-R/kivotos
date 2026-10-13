@@ -12,6 +12,7 @@
 import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import { performance } from "node:perf_hooks";
 import type { AttentionFrame } from "./attention.ts";
+import type { Via } from "./machines.ts";
 import { forwardHeaders, upstreamRequest, type Upstream } from "./proxy.ts";
 import { SseReader } from "./sse.ts";
 import type { TraceLog } from "./trace.ts";
@@ -192,6 +193,8 @@ export interface FollowedPeer {
   id: string;
   name: string;
   upstream: Upstream;
+  /** The link {@link upstream} goes through, for the trace. */
+  via: Via;
 }
 
 /** One peer's `/kivotos/events` subscription, reconnecting until stopped. */
@@ -211,7 +214,7 @@ class PeerFeed {
   }
 
   start(): void {
-    const { id, upstream } = this.peer();
+    const { id, upstream, via } = this.peer();
     const query = `epoch=${encodeURIComponent(this.epoch)}&after=${this.after}`;
     const headers = forwardHeaders({ accept: "text/event-stream" }, upstream);
     const opened = performance.now();
@@ -261,6 +264,7 @@ class PeerFeed {
       this.request = undefined;
       this.hub.traceFeed({
         peer: id,
+        via,
         status,
         frames,
         durationMs: Math.round(performance.now() - opened),
@@ -271,6 +275,18 @@ class PeerFeed {
       this.retryMs = Math.min(this.retryMs * 2, RETRY_MAX_MS);
     });
     request.end();
+  }
+
+  /** Drop the stream and open it again through the peer's upstream now, after the shortest retry. */
+  reconnect(): void {
+    if (this.stopped) return;
+    this.retryMs = RETRY_MIN_MS;
+    // The close handler opens it again; without a request, a retry is waiting.
+    if (this.request !== undefined) this.request.destroy();
+    else {
+      clearTimeout(this.timer);
+      this.start();
+    }
   }
 
   stop(): void {
@@ -355,6 +371,11 @@ export class AttentionHub {
     this.feeds.delete(id);
     this.board.drop(id);
     this.changed();
+  }
+
+  /** A followed peer's route changed: follow it through the new link now. */
+  reconnect(id: string): void {
+    this.feeds.get(id)?.feed.reconnect();
   }
 
   /** A page opened this machine. */

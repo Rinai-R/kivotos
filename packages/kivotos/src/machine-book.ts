@@ -4,18 +4,20 @@
  * Each link reports what it sees on every refresh (`update`): the tailnet
  * (static peers and same-user nodes, probed) and the relay network (online
  * members, probed through the relay). The book merges the entries of one
- * Kivotos node into one machine, picks its route, and remembers machines
- * after their link stops listing them, so a machine that goes away stays
- * listed as offline instead of vanishing. Pure: the caller probes, stores
- * and mounts.
+ * Kivotos node into one machine, picks its route by the machine's mode, and
+ * remembers machines after their link stops listing them, so a machine that
+ * goes away stays listed as offline instead of vanishing. Pure: the caller
+ * probes, stores and mounts.
  */
 import {
+  isRouteMode,
   routeOf,
   VIAS,
   type LinkReason,
   type LinkState,
   type MachineInfo,
   type MachineLink,
+  type RouteMode,
   type Via,
 } from "./machines.ts";
 
@@ -126,6 +128,8 @@ export class MachineBook<T> {
   private readonly memory = new Map<string, Remembered>();
   private readonly current = new Map<Via, Map<string, Sighting<T>>>();
   private readonly absent = new Map<Via, Absent>();
+  /** Modes other than auto, by machine id. */
+  private readonly modes = new Map<string, Via>();
   private readonly retentionMs: number;
 
   /** @param retentionMs - how long a machine no link reports stays listed after it was last seen. */
@@ -133,20 +137,52 @@ export class MachineBook<T> {
     this.retentionMs = retentionMs;
   }
 
-  /** Load entries an earlier run kept; malformed ones and ones seen since are skipped. */
-  restore(entries: unknown): void {
-    if (!Array.isArray(entries)) return;
-    for (const raw of entries as unknown[]) {
-      const entry = rememberedOf(raw);
-      if (entry === undefined) continue;
-      const slot = `${entry.via}\n${entry.key}`;
-      if (!this.memory.has(slot)) this.memory.set(slot, entry);
+  /**
+   * Load what an earlier run kept; malformed entries and ones seen since are skipped.
+   * @param modes - `{ <machine id>: mode }`, as {@link storedModes} gave it.
+   */
+  restore(entries: unknown, modes?: unknown): void {
+    if (Array.isArray(entries)) {
+      for (const raw of entries as unknown[]) {
+        const entry = rememberedOf(raw);
+        if (entry === undefined) continue;
+        const slot = `${entry.via}\n${entry.key}`;
+        if (!this.memory.has(slot)) this.memory.set(slot, entry);
+      }
+    }
+    if (typeof modes !== "object" || modes === null) return;
+    for (const [id, mode] of Object.entries(modes)) {
+      if (isRouteMode(mode) && mode !== "auto" && !this.modes.has(id)) this.modes.set(id, mode);
     }
   }
 
   /** What to keep for the next run. */
   entries(): Remembered[] {
     return [...this.memory.values()];
+  }
+
+  /** The modes to keep for the next run, by machine id in id order; auto is left out. */
+  storedModes(): Record<string, RouteMode> {
+    return Object.fromEntries([...this.modes].sort(([a], [b]) => a.localeCompare(b)));
+  }
+
+  /**
+   * Set how a machine is reached. A mode outlives a link that goes away, for
+   * when it comes back; it goes with the machine.
+   * @returns false when no machine has this id.
+   */
+  setMode(id: string, mode: RouteMode): boolean {
+    if (![...this.memory.values()].some((entry) => idOf(entry) === id)) return false;
+    if (mode === "auto") this.modes.delete(id);
+    else this.modes.set(id, mode);
+    return true;
+  }
+
+  /** Drop the modes of machines no entry is kept for any more. */
+  private pruneModes(): void {
+    if (this.modes.size === 0) return;
+    const ids = new Set([...this.memory.values()].map((entry) => idOf(entry)));
+    for (const id of this.modes.keys()) if (!ids.has(id)) this.modes.delete(id);
   }
 
   /** Whether a link's entry has ever been a Kivotos machine. */
@@ -172,6 +208,7 @@ export class MachineBook<T> {
       // A pinned entry the link no longer reports was removed from the config.
       if (entry.pinned === true || !this.retained(entry, now)) this.memory.delete(slot);
     }
+    this.pruneModes();
   }
 
   /** Fold a sighting into what is kept: what it does not say, an earlier one may have. */
@@ -201,6 +238,7 @@ export class MachineBook<T> {
     for (const [slot, entry] of this.memory) if (entry.via === via) this.memory.delete(slot);
     this.current.delete(via);
     this.absent.delete(via);
+    this.pruneModes();
   }
 
   private retained(entry: Remembered, now: number): boolean {
@@ -213,13 +251,15 @@ export class MachineBook<T> {
     for (const entry of this.memory.values()) {
       const sighting = this.current.get(entry.via)?.get(entry.key);
       if (sighting === undefined && entry.pinned !== true && !this.retained(entry, now)) continue;
-      const id = entry.node === undefined ? entry.id : machineIdOf(entry.node);
+      const id = idOf(entry);
       const link = this.linkOf(entry, sighting);
       const group = groups.get(id);
       if (group === undefined) groups.set(id, [{ entry, sighting, link }]);
       else group.push({ entry, sighting, link });
     }
-    const machines = [...groups].map(([id, group]) => machineOf(id, group));
+    const machines = [...groups].map(([id, group]) =>
+      machineOf(id, group, this.modes.get(id) ?? "auto"),
+    );
     return machines.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }
 
@@ -234,6 +274,11 @@ export class MachineBook<T> {
   }
 }
 
+/** @returns the machine an entry belongs to: its node's, else the link's own id. */
+function idOf(entry: Remembered): string {
+  return entry.node === undefined ? entry.id : machineIdOf(entry.node);
+}
+
 /** Better candidate first: working, reported now, configured. */
 function byUse<T>(a: Candidate<T>, b: Candidate<T>): number {
   return (
@@ -243,7 +288,7 @@ function byUse<T>(a: Candidate<T>, b: Candidate<T>): number {
   );
 }
 
-function machineOf<T>(id: string, group: Candidate<T>[]): BookMachine<T> {
+function machineOf<T>(id: string, group: Candidate<T>[], mode: RouteMode): BookMachine<T> {
   const best = new Map<Via, Candidate<T>>();
   for (const candidate of [...group].sort(byUse)) {
     if (!best.has(candidate.entry.via)) best.set(candidate.entry.via, candidate);
@@ -258,11 +303,12 @@ function machineOf<T>(id: string, group: Candidate<T>[]): BookMachine<T> {
       Number(a.entry.pinned !== true) - Number(b.entry.pinned !== true) ||
       VIAS.indexOf(a.entry.via) - VIAS.indexOf(b.entry.via),
   );
-  const route = routeOf(links);
+  const route = routeOf({ links }, mode);
   const machine: BookMachine<T> = {
     id,
     name: named.find((candidate) => candidate.entry.name !== "")?.entry.name ?? id,
     os: named.find((candidate) => candidate.entry.os !== "")?.entry.os ?? "",
+    mode,
     route,
     links,
   };

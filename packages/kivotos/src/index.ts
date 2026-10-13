@@ -30,7 +30,14 @@ import {
   type BookMachine,
   type Sighting,
 } from "./machine-book.ts";
-import type { LinkReason, MachineInfo, Via } from "./machines.ts";
+import {
+  isRouteMode,
+  pinnedVia,
+  type LinkReason,
+  type MachineInfo,
+  type RouteMode,
+  type Via,
+} from "./machines.ts";
 import {
   forwardHttp,
   forwardUpgrade,
@@ -59,6 +66,9 @@ const PENDING_PATH = "/kivotos/events/pending";
 /** SSE comment interval; keeps NAT and mobile radios from dropping an idle stream. */
 const HEARTBEAT_MS = 25_000;
 const PEERS_PATH = "/kivotos/peers";
+/** Set how this computer reaches one machine. */
+const MODE_PATH = "/kivotos/mode";
+const MODE_BODY_MAX_BYTES = 1024;
 /** Which ways this computer is reachable, for the settings page. */
 const LINKS_PATH = "/kivotos/links";
 /** Create, join or leave a relay network. */
@@ -904,6 +914,8 @@ interface Peer {
   upstream: Upstream;
   /** The link {@link upstream} goes through. */
   via: Via;
+  /** The one link the machine's mode holds it to; null in auto. */
+  pinned: Via | null;
 }
 
 /** What this computer tells its peers (`/kivotos/hello`) and its pages (`/kivotos/peers`). */
@@ -1005,9 +1017,17 @@ function rejected(ctx: HostContext, req: IncomingMessage, res: ServerResponse): 
   return true;
 }
 
+/** A mounted machine's routes on the webServer. */
+interface Mount {
+  peer: Peer;
+  /** Exchanges in flight through the mount (WebSockets, streams), and the link each runs over. */
+  open: Map<{ destroy(): unknown }, Via>;
+  dispose: () => void;
+}
+
 /** The machines this computer knows, their mounts, and the per-peer webServer routes. */
-class PeerRoutes {
-  private readonly mounted = new Map<string, { peer: Peer; dispose: () => void }>();
+export class PeerRoutes {
+  private readonly mounted = new Map<string, Mount>();
   private readonly ctx: HostContext;
   private readonly trace: TraceLog;
   private readonly cache: MountCache;
@@ -1052,12 +1072,19 @@ class PeerRoutes {
       try {
         const stored: unknown = JSON.parse(text);
         if (typeof stored === "object" && stored !== null)
-          this.book.restore(Reflect.get(stored, "machines"));
+          this.book.restore(Reflect.get(stored, "machines"), Reflect.get(stored, "modes"));
         this.saved = text;
       } catch (error) {
         this.ctx.logger.warn("kivotos: machines.json unreadable; starting over", error);
       }
+      // A link may have reported before the file was read: apply the kept modes to its mounts.
+      this.reconcile(this.book.machines(Date.now()));
     })();
+  }
+
+  /** @returns when the file has been read and every change so far written. */
+  settled(): Promise<void> {
+    return this.saving;
   }
 
   /** Whether a tailnet entry has been a Kivotos machine before. */
@@ -1085,23 +1112,52 @@ class PeerRoutes {
     this.save();
   }
 
+  /**
+   * Set how this computer reaches a machine; its mount follows at once.
+   * @returns false when no machine has this id.
+   */
+  setMode(id: string, mode: RouteMode): boolean {
+    if (!this.book.setMode(id, mode)) return false;
+    this.reconcile(this.book.machines(Date.now()));
+    this.save();
+    return true;
+  }
+
   private reconcile(machines: BookMachine<Upstream>[]): void {
     const next = new Map<string, Peer>();
+    /** The one link each machine's mode holds it to, mounted or not. */
+    const pins = new Map<string, Via | null>();
     for (const machine of machines) {
       const { id, route, target } = machine;
-      if (route !== null && target !== undefined)
-        next.set(id, { id, name: machine.name, os: machine.os, upstream: target, via: route });
+      const pinned = pinnedVia(machine, machine.mode);
+      pins.set(id, pinned);
+      if (route === null || target === undefined) continue;
+      next.set(id, {
+        id,
+        name: machine.name,
+        os: machine.os,
+        upstream: target,
+        via: route,
+        pinned,
+      });
     }
     for (const [id, entry] of this.mounted) {
+      // Held to one link: nothing in flight through the mount stays on the other,
+      // also when the chosen link does not work and the mount goes.
+      const pinned = pins.get(id) ?? null;
+      if (pinned !== null)
+        for (const [exchange, via] of entry.open) if (via !== pinned) exchange.destroy();
       const peer = next.get(id);
-      // A new route keeps the mount: same machine, same cache, same attention feed,
-      // which reads the upstream anew on its next connection.
-      if (peer !== undefined) {
-        entry.peer = peer;
+      if (peer === undefined) {
+        entry.dispose();
+        this.mounted.delete(id);
         continue;
       }
-      entry.dispose();
-      this.mounted.delete(id);
+      // A new route keeps the mount: same machine, same cache, same attention
+      // feed, which reconnects through the new link now.
+      const rerouted = peer.via !== entry.peer.via;
+      entry.peer = peer;
+      if (rerouted) this.attention.reconnect(id);
     }
     for (const peer of next.values()) {
       if (!this.mounted.has(peer.id)) this.mount(peer);
@@ -1116,7 +1172,11 @@ class PeerRoutes {
   }
 
   private async write(): Promise<void> {
-    const text = JSON.stringify({ machines: this.book.entries() }, toTheMinute, 2);
+    const text = JSON.stringify(
+      { machines: this.book.entries(), modes: this.book.storedModes() },
+      toTheMinute,
+      2,
+    );
     if (text === this.saved) return;
     this.saved = text;
     await mkdir(path.dirname(this.file), { recursive: true });
@@ -1125,7 +1185,7 @@ class PeerRoutes {
 
   private mount(peer: Peer): void {
     const prefix = `${PEER_PREFIX}/${peer.id}`;
-    const entry = { peer, dispose: (): void => {} };
+    const entry: Mount = { peer, open: new Map(), dispose: (): void => {} };
     const disposeHttp = this.ctx.webServer.register({
       kind: "prefix",
       path: prefix,
@@ -1143,9 +1203,12 @@ class PeerRoutes {
           return;
         }
         const rest = `${url.pathname.slice(prefix.length)}${url.search}`;
+        entry.open.set(res, entry.peer.via);
+        res.once("close", () => entry.open.delete(res));
         const base = {
           id: this.trace.id(),
           peer: peer.id,
+          via: entry.peer.via,
           method: req.method,
           path: tracePath(rest),
         };
@@ -1156,8 +1219,13 @@ class PeerRoutes {
             credentialedManifest(injectStorageNamespace(guardDesktopBoot(body, prefix), peer.id)),
           onDone: (stats) => {
             // No answer through the tailnet: look again now rather than at the next refresh,
-            // so the relay takes over within seconds.
-            if (stats.ttfbMs < 0 && stats.error !== undefined && entry.peer.via === "tailscale")
+            // so the relay takes over within seconds. A machine held to Tailscale has no detour.
+            if (
+              stats.ttfbMs < 0 &&
+              stats.error !== undefined &&
+              entry.peer.via === "tailscale" &&
+              entry.peer.pinned === null
+            )
               this.onTailnetFailure?.();
             if (this.trace.level !== "off")
               this.trace.record("peer.http", { ...base, ...roundStats(stats) });
@@ -1178,8 +1246,10 @@ class PeerRoutes {
           return;
         }
         const search = new URL(req.url ?? "/", "http://x").search;
-        const base = { id: this.trace.id(), peer: peer.id, path: MUX_PATH };
+        const base = { id: this.trace.id(), peer: peer.id, via: entry.peer.via, path: MUX_PATH };
         this.trace.record("peer.ws.open", base);
+        entry.open.set(socket, entry.peer.via);
+        socket.once("close", () => entry.open.delete(socket));
         forwardUpgrade(
           req,
           socket,
@@ -1201,24 +1271,59 @@ class PeerRoutes {
     this.attention.follow(() => entry.peer);
   }
 
-  /** @returns disposer of the peers route. */
+  /** The `/kivotos/peers` body. */
+  private list(): unknown {
+    const machines = this.book.machines(Date.now()).map((machine) => infoOf(machine));
+    // `peers`, the mounted machines only, is what clients before `machines` read.
+    const peers = [...this.mounted.values()].map(({ peer }) => ({
+      id: peer.id,
+      name: peer.name,
+      os: peer.os,
+      via: peer.via,
+    }));
+    return { self: this.self, peers, machines };
+  }
+
+  /** @returns disposer of the peers route and the route that sets a machine's mode. */
   registerList(): () => void {
-    return this.ctx.webServer.register({
+    const disposeList = this.ctx.webServer.register({
       kind: "exact",
       path: PEERS_PATH,
       handler: (req, res) => {
         if (rejected(this.ctx, req, res)) return;
-        const machines = this.book.machines(Date.now()).map((machine) => infoOf(machine));
-        // `peers`, the mounted machines only, is what clients before `machines` read.
-        const peers = [...this.mounted.values()].map(({ peer }) => ({
-          id: peer.id,
-          name: peer.name,
-          os: peer.os,
-          via: peer.via,
-        }));
-        sendJson(res, 200, { self: this.self, peers, machines });
+        sendJson(res, 200, this.list());
       },
     });
+    const disposeMode = this.ctx.webServer.register({
+      kind: "exact",
+      path: MODE_PATH,
+      handler: async (req, res) => {
+        if (rejected(this.ctx, req, res)) return;
+        if (req.method !== "POST") {
+          res.writeHead(405, { allow: "POST" });
+          res.end();
+          return;
+        }
+        const body = await readJsonBody(req, MODE_BODY_MAX_BYTES);
+        const { machine, mode } = (typeof body === "object" && body !== null ? body : {}) as {
+          machine?: unknown;
+          mode?: unknown;
+        };
+        if (typeof machine !== "string" || !isRouteMode(mode)) {
+          sendJson(res, 400, { error: "expected {machine, mode: auto | tailscale | relay}" });
+          return;
+        }
+        if (!this.setMode(machine, mode)) {
+          sendJson(res, 404, { error: "no such machine" });
+          return;
+        }
+        sendJson(res, 200, this.list());
+      },
+    });
+    return () => {
+      disposeMode();
+      disposeList();
+    };
   }
 
   dispose(): void {
@@ -1229,8 +1334,8 @@ class PeerRoutes {
 
 /** A machine as `/kivotos/peers` lists it: without where its route goes. */
 function infoOf(machine: BookMachine<Upstream>): MachineInfo {
-  const { id, route, links } = machine;
-  const info: MachineInfo = { id, name: machine.name, os: machine.os, route, links };
+  const { id, mode, route, links } = machine;
+  const info: MachineInfo = { id, name: machine.name, os: machine.os, mode, route, links };
   if (machine.node !== undefined) info.node = machine.node;
   return info;
 }

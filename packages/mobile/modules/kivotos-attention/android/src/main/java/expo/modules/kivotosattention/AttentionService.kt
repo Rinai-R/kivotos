@@ -18,11 +18,24 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Foreground service holding one Server-Sent Events connection per machine to
- * its Kivotos (`/kivotos/events`), over the tailnet or through a relay. Each frame becomes a
- * system notification unless the user is looking at that session.
+ * its Kivotos (`/kivotos/events`), over the tailnet or through a relay as the
+ * machine's mode allows. Each frame becomes a system notification unless the
+ * user is looking at that session.
  */
 class AttentionService : Service() {
-  private val workers = ConcurrentHashMap<String, Thread>()
+  /** One machine's stream, as it was when the worker started. */
+  private class Worker(val machine: Machine) {
+    lateinit var thread: Thread
+    @Volatile var connection: HttpURLConnection? = null
+
+    /** Interrupt, and drop the connection so a blocked read ends now. */
+    fun stop() {
+      thread.interrupt()
+      connection?.disconnect()
+    }
+  }
+
+  private val workers = ConcurrentHashMap<String, Worker>()
   private val main = Handler(Looper.getMainLooper())
   @Volatile private var stopping = false
 
@@ -55,7 +68,7 @@ class AttentionService : Service() {
 
   override fun onDestroy() {
     stopping = true
-    workers.values.forEach { it.interrupt() }
+    workers.values.forEach { it.stop() }
     workers.clear()
     connected.clear()
     super.onDestroy()
@@ -90,36 +103,46 @@ class AttentionService : Service() {
     main.post { if (!stopping) goForeground() }
   }
 
-  /** Start a worker for each followed machine and stop workers for removed ones. */
+  /**
+   * Start a worker for each followed machine; stop the workers of removed
+   * machines and restart those whose links or mode changed, so no stream stays
+   * on a link the machine no longer uses.
+   */
   private fun reconcile() {
     val machines = AttentionState.machines(this).associateBy { it.id }
+    var dropped = false
     for ((id, worker) in workers) {
-      if (id !in machines) {
-        worker.interrupt()
-        workers.remove(id)
-        connected.remove(id)
-      }
+      val machine = machines[id]
+      if (machine != null && worker.machine.copy(name = machine.name) == machine) continue
+      worker.stop()
+      workers.remove(id)
+      dropped = connected.remove(id) || dropped
     }
+    if (dropped) refreshServiceNotification()
     for (machine in machines.values) {
-      if (workers[machine.id]?.isAlive == true) continue
-      val worker = Thread({ follow(machine) }, "kivotos-events-${machine.id}")
+      if (workers[machine.id]?.thread?.isAlive == true) continue
+      val worker = Worker(machine)
+      worker.thread = Thread({ follow(worker) }, "kivotos-events-${machine.id}")
       workers[machine.id] = worker
-      worker.start()
+      worker.thread.start()
     }
   }
 
-  /** Keep the stream open, reconnecting with capped backoff. */
-  private fun follow(machine: Machine) {
+  /** Keep the stream open, reconnecting with capped backoff, until the worker is stopped. */
+  private fun follow(worker: Worker) {
+    val machine = worker.machine
     var delayMs = 1_000L
     while (!stopping && !Thread.currentThread().isInterrupted) {
       try {
-        stream(machine)
+        stream(worker)
         delayMs = 1_000L
       } catch (_: InterruptedException) {
         return
       } catch (_: Exception) {
         // Unreachable machine, phone offline, listener restarting: retry below.
       }
+      // Stopped: its replacement owns the machine's connected mark now.
+      if (Thread.currentThread().isInterrupted) return
       if (connected.remove(machine.id)) refreshServiceNotification()
       try {
         Thread.sleep(delayMs)
@@ -130,15 +153,19 @@ class AttentionService : Service() {
     }
   }
 
-  private fun stream(machine: Machine) {
+  private fun stream(worker: Worker) {
+    val machine = worker.machine
     val (epoch, after) = AttentionState.cursor(this, machine.id)
     val query = "after=$after&epoch=" + java.net.URLEncoder.encode(epoch, "UTF-8")
-    // A machine with a relay link is reached through its local door, which wants the
-    // door's cookie and falls back from the tailnet to the relay. A tailnet-only machine
-    // is followed directly: the stream needs nothing the door adds.
-    val base = if (machine.viaRelay) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
+    // A machine that may go over the relay is reached through its local door, which
+    // wants the door's cookie and dials as the mode says (auto falls back from the
+    // tailnet to the relay). A machine reached only over the tailnet is followed
+    // directly: the stream needs nothing the door adds.
+    val door = machine.usesRelay
+    val base = if (door) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
     val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection
-    if (machine.viaRelay) connection.setRequestProperty("Cookie", MachineProxy.cookie)
+    worker.connection = connection
+    if (door) connection.setRequestProperty("Cookie", MachineProxy.cookie)
     connection.connectTimeout = 10_000
     // The listener sends a comment every 25 s; silence beyond this means a dead link.
     connection.readTimeout = 70_000
@@ -167,6 +194,7 @@ class AttentionService : Service() {
         }
       }
     } finally {
+      worker.connection = null
       connection.disconnect()
     }
   }

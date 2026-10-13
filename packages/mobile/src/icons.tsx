@@ -117,3 +117,17 @@ export function BackGlyph({ size = 20, color }: GlyphProps) {
     </Svg>
   );
 }
+
+export function CheckGlyph({ size = 18, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M4.5 10.5l3.75 3.75L15.5 6"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

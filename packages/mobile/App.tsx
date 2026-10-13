@@ -6,7 +6,9 @@ import {
   addPhoneMachines,
   applyPhoneProbe,
   leavePhoneNetwork,
+  setPhoneMode,
   type PhoneProbe,
+  type RouteMode,
 } from "../kivotos/src/machines";
 import * as Attention from "./modules/kivotos-attention/src/KivotosAttentionModule";
 import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionModule";
@@ -167,6 +169,11 @@ export default function App() {
     },
     [leaveNetwork, persist],
   );
+  /** How the phone reaches a machine: its door and its event stream follow (native setMachines). */
+  const changeMode = useCallback(
+    (id: string, mode: RouteMode) => persist(setPhoneMode(machinesRef.current, id, mode)),
+    [persist],
+  );
   const showLinks = useCallback(() => setScreen("links"), []);
   const showMachines = useCallback(() => setScreen("machines"), []);
   const showScanner = useCallback(() => setScreen("scan"), []);
@@ -224,6 +231,7 @@ export default function App() {
             batteryRestricted={batteryRestricted}
             onAdd={addMachines}
             onRemove={removeMachine}
+            onMode={changeMode}
             onOpen={openMachine}
             onToggleNotifications={onToggleNotifications}
             onFixBattery={fixBattery}
