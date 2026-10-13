@@ -27,9 +27,16 @@ class AttentionService : Service() {
   private class Worker(val machine: Machine) {
     lateinit var thread: Thread
     @Volatile var connection: HttpURLConnection? = null
+    /**
+     * Set once by [stop]. The thread's interrupt flag is not enough: the HTTP
+     * stack swallows it, and a stopped worker reconnecting would keep a
+     * stream on the link the machine no longer uses.
+     */
+    @Volatile var stopped = false
 
-    /** Interrupt, and drop the connection so a blocked read ends now. */
+    /** Stop for good, and drop the connection so a blocked read ends now. */
     fun stop() {
+      stopped = true
       thread.interrupt()
       connection?.disconnect()
     }
@@ -132,7 +139,7 @@ class AttentionService : Service() {
   private fun follow(worker: Worker) {
     val machine = worker.machine
     var delayMs = 1_000L
-    while (!stopping && !Thread.currentThread().isInterrupted) {
+    while (!stopping && !worker.stopped) {
       try {
         stream(worker)
         delayMs = 1_000L
@@ -142,7 +149,7 @@ class AttentionService : Service() {
         // Unreachable machine, phone offline, listener restarting: retry below.
       }
       // Stopped: its replacement owns the machine's connected mark now.
-      if (Thread.currentThread().isInterrupted) return
+      if (worker.stopped) return
       if (connected.remove(machine.id)) refreshServiceNotification()
       try {
         Thread.sleep(delayMs)
@@ -165,6 +172,8 @@ class AttentionService : Service() {
     val base = if (door) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
     val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection
     worker.connection = connection
+    // Stopped while this connection was made: stop() saw no connection to drop.
+    if (worker.stopped) return
     if (door) connection.setRequestProperty("Cookie", MachineProxy.cookie)
     connection.connectTimeout = 10_000
     // The listener sends a comment every 25 s; silence beyond this means a dead link.
@@ -179,7 +188,7 @@ class AttentionService : Service() {
       }
       BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
         val data = StringBuilder()
-        while (!Thread.currentThread().isInterrupted) {
+        while (!worker.stopped) {
           val line = reader.readLine() ?: return
           when {
             line.isEmpty() -> {

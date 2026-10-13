@@ -48,6 +48,8 @@ export default function App() {
   const view = useRef<MachineViewHandle>(null);
   const currentRef = useRef<Machine | null>(null);
   const machinesRef = useRef<Machine[]>([]);
+  /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
+  const restored = useRef(false);
   currentRef.current = current;
   machinesRef.current = machines;
 
@@ -73,14 +75,13 @@ export default function App() {
   useEffect(() => {
     const restore = async (): Promise<void> => {
       const stored = await loadMachines();
+      machinesRef.current = stored;
+      restored.current = true;
       setMachines(stored);
       Attention.setMachines(stored);
       // A tap that launched the app before this listener existed.
       const pending = Attention.takePendingOpen();
-      if (pending !== null) {
-        machinesRef.current = stored;
-        openSession(pending.machineId, pending.sessionId);
-      }
+      if (pending !== null) openSession(pending.machineId, pending.sessionId);
     };
     void restore();
     setNotifications(Attention.isEnabled() ? "on" : "off");
@@ -131,6 +132,7 @@ export default function App() {
       // The native side never rejects on a link failure; this is the bridge itself.
       return;
     }
+    if (!restored.current) return;
     setProbe(found);
     const next = applyPhoneProbe(machinesRef.current, found);
     if (next !== machinesRef.current) persist(next);
