@@ -83,14 +83,17 @@ object MachineProxy {
     val upstreamOrigin: String = "${uri?.scheme}://$authority"
     /** Open WebView connections; closed with the door so none keeps using a removed machine. */
     val clients: MutableSet<Socket> = ConcurrentHashMap.newKeySet()
+    /** Its connections to the machine; closed with the door so none stays on a link it no longer uses. */
+    val upstreams: MutableSet<Closeable> = ConcurrentHashMap.newKeySet()
 
     fun close() {
       server.close()
       for (client in clients) runCatching { client.close() }
+      for (upstream in upstreams) runCatching { upstream.close() }
     }
   }
 
-  /** One connection to a machine. */
+  /** One connection to a machine; it leaves its door's set when closed. */
   private class Upstream(
     val input: InputStream,
     val output: OutputStream,
@@ -99,7 +102,10 @@ object MachineProxy {
     val tailnet: Boolean,
   ) : Closeable {
     var idleSince = SystemClock.elapsedRealtime()
+    /** The set it is kept in while open (its door's). */
+    var owner: MutableSet<Closeable>? = null
     override fun close() {
+      owner?.remove(this)
       try {
         closer.close()
       } catch (_: IOException) {
@@ -202,6 +208,10 @@ object MachineProxy {
       try {
         val upstream = if (tailnet) dialTailnet(door) else dialRelay(door)
         if (auto) Links.dialed(machine, tailnet, ok = true)
+        upstream.owner = door.upstreams
+        door.upstreams.add(upstream)
+        // Closed while dialing: the door's close did not see it.
+        if (door.server.isClosed) upstream.close()
         return upstream
       } catch (error: Exception) {
         if (auto) Links.dialed(machine, tailnet, ok = false)
