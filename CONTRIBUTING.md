@@ -25,11 +25,14 @@ npm install            # installs tooling, sets up the git hooks, builds package
 npm run build          # rebuild dist/ after changing packages/kivotos/src
 npm run typecheck      # tsc for packages/kivotos and packages/mobile
 npm run lint           # oxlint
+npm run check:dsh      # dsh internals only inside packages/kivotos/src/dsh/
 npm run format         # oxfmt, in place; `npm run format:check` only reports
 npm test               # node --test on packages/kivotos/test/*.test.ts
 ```
 
 `npm test` runs the plugin's regression tests directly on the TypeScript sources (Node type stripping): the admission fences, index rewrites, the federation derivation, relay sessions, the phone's machine list, the mount cache, the trace log and the proxy helpers.
+
+Kivotos relies on some dsh internals that are not plugin API (the phone stylesheet's class names, the index markup it rewrites, a localStorage key). All of them live in `packages/kivotos/src/dsh/`, each probed where it is used; code anywhere else must call that adapter and never write a dsh selector, page global or storage key itself — `npm run check:dsh` fails if it does. When dsh is upgraded, run `node scripts/dsh-compat.mjs --tag <dist-tag>` and fix what it reports inside `src/dsh/`. [CLAUDE.md](CLAUDE.md#the-dsh-adapter-packageskivotossrcdsh) has the details.
 
 The relay is its own Go module and its own test run:
 
@@ -75,7 +78,7 @@ Federation, the wire protocol and the relay's security invariants are documented
 ## Commits
 
 - Write commit messages in English, imperative mood, one line (`Add the relay's member roster`). Add a body when the reason is not obvious from the diff.
-- The lefthook pre-commit hook runs the formatter check, the linter and the typecheck on what you staged, and it runs by itself after `npm install`. Fix what it reports and re-stage; never commit with `--no-verify` or similar.
+- The lefthook pre-commit hook runs the formatter check, the linter, the dsh boundary check and the typecheck on what you staged, and it runs by itself after `npm install`. Fix what it reports and re-stage; never commit with `--no-verify` or similar.
 - Format the files you touched before committing: `npx oxfmt <files>` (or `npm run format`).
 - Add a line under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) for anything a user can notice.
 - Update [CLAUDE.md](CLAUDE.md) when you change the area it describes — architecture, conventions, invariants, or the lab.
@@ -88,7 +91,7 @@ A PR runs these CI jobs; all of them must pass:
 
 | Job                                  | What it checks                                                                                               |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `check (node 22)`, `check (node 24)` | format, lint, typecheck, the built `dist/`, `npm test`                                                       |
+| `check (node 22)`, `check (node 24)` | format, lint, typecheck, the dsh boundary, the built `dist/`, `npm test`                                     |
 | `relay (go)`                         | `gofmt -l`, `go vet`, `go test -race`, a build, the container image starting, and the compose file           |
 | `relay image`                        | the relay image builds for amd64 and arm64 (pushed only on `main` and tags)                                  |
 | `android apk`                        | `expo prebuild` and `gradlew assembleRelease`; uploads the APK as an artifact                                |
