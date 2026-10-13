@@ -20,7 +20,17 @@ import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
 import { AttentionHub } from "./attention-hub.ts";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
-import { HASHED_ASSET, markImmutable, MountCache } from "./cache.ts";
+import { markImmutable, MountCache } from "./cache.ts";
+import { CompatWatch, injectCompatReport, injectHead, type CompatReport } from "./dsh/compat.ts";
+import { guardDesktopBoot } from "./dsh/desktop.ts";
+import {
+  bootGraphOf,
+  coverViewport,
+  credentialedManifest,
+  injectOwnsHost,
+} from "./dsh/index-html.ts";
+import { injectStorageNamespace } from "./dsh/sessions.ts";
+import { HASHED_ASSET, REMOTE_MUX_PATH } from "./dsh/web-server.ts";
 import type { HostContext } from "./dsh.ts";
 import {
   MachineBook,
@@ -79,15 +89,6 @@ const RELAY_BODY_MAX_BYTES = 4096;
 const ATTENTION_PATH = "/kivotos/attention";
 /** A page says it opened a machine: its finished turns are no longer news. */
 const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
-const MUX_PATH = "/api/remote.mux";
-const OWNS_HOST =
-  "<script>globalThis.__DSH_TRANSPORT__=Object.assign(globalThis.__DSH_TRANSPORT__||{},{ownsHost:true})</script>";
-const VIEWPORT_FROM = '<meta name="viewport" content="width=device-width, initial-scale=1" />';
-const VIEWPORT_TO =
-  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />';
-const MANIFEST_FROM = '<link rel="manifest" href="./manifest.webmanifest" />';
-const MANIFEST_TO =
-  '<link rel="manifest" href="./manifest.webmanifest" crossorigin="use-credentials" />';
 const PEER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
 const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
@@ -279,94 +280,37 @@ function choiceOf<T extends string>(
 export const Config = { "~standard": { version: 1, vendor: "kivotos", validate } } as const;
 
 /**
- * Insert the ownsHost transport global right after the opening head tag.
- * A page served through a Kivotos hop belongs to the same tailnet user as the
- * host, so it gets the operator surface (host-persisted settings) that a
- * loopback page gets.
- * @param html - index html.
- * @returns html with the global.
+ * The host's own index, with the viewport rewrite when its markup is dsh's.
+ * @param html - index html as dsh served it.
+ * @param compat - reporter for the probe result.
+ * @returns html to serve, carrying the failed probe for the client module.
  */
-export function injectOwnsHost(html: string): string {
-  return injectHead(html, OWNS_HOST);
+function hostIndex(html: string, compat: CompatWatch): string {
+  const viewport = coverViewport(html);
+  const report: CompatReport = { viewport: viewport.probe };
+  compat.observe(report);
+  return injectCompatReport(viewport.html, report);
 }
 
 /**
- * Give a mounted peer page its own localStorage namespace. Every peer UI is
- * served from the host page's origin, and dsh persists client stores
- * (current Session, layout, drafts) in localStorage by fixed keys, so
- * without a namespace two machines' UIs overwrite each other's state.
- *
- * A navigation to `#kivotos-session=<id>` also makes that Session the
- * current one before dsh restores it, then drops the fragment: this is how a
- * page on another machine opens this one on a Session (client.tsx), since
- * from there it can reach only its own namespace.
- * @param html - peer index html.
- * @param peerId - URL-safe peer id.
- * @returns html with the namespace installed before any app script.
- */
-export function injectStorageNamespace(html: string, peerId: string): string {
-  // `<` is escaped so the id cannot close the script element, whatever the caller validated.
-  const prefix = JSON.stringify(`kivotos:${peerId}:`).replaceAll("<", "\\u003c");
-  const script = `<script>(()=>{const s=window.localStorage,p=${prefix},own=()=>{const k=[];for(let i=0;i<s.length;i++){const n=s.key(i);if(n!==null&&n.startsWith(p))k.push(n.slice(p.length))}return k};const v={getItem:k=>s.getItem(p+k),setItem:(k,x)=>s.setItem(p+k,String(x)),removeItem:k=>s.removeItem(p+k),key:i=>own()[i]??null,clear:()=>{for(const k of own())s.removeItem(p+k)},get length(){return own().length}};Object.defineProperty(window,"localStorage",{configurable:true,get:()=>v});const o=/^#kivotos-session=([^&]+)$/.exec(location.hash);if(o!==null){try{s.setItem(p+"dsh.sessions.current",JSON.stringify({sessionId:decodeURIComponent(o[1])}))}catch{}history.replaceState(history.state,"",location.pathname+location.search)}})()</script>`;
-  return injectHead(html, script);
-}
-
-/**
- * Keep the desktop app's own boot out of a mounted peer page.
- *
- * The dsh desktop shell (0.2.0-rc.2) exposes `dshDesktopBoot` to every page of
- * its `dsh-app://app` origin, and dsh's web entry, finding it, fetches the boot
- * rows of the local Host and applies them to the page: the local
- * `__ModuleLoader__` registration facade replaces the page's, and the
- * transport points the page's WebSocket at the local Host. On a peer's page
- * that races the peer's own boot. Bundles that execute after the replacement
- * register with the local facade, the page's module system never sees them,
- * and the window dies with "web boot: N entries did not activate"; when the
- * boot wins instead, the page's streams belong to the wrong machine.
- *
- * The guard runs before every other page script. It takes the desktop
- * handshake itself, keeps only its Host origin and rebases the WebSocket under
- * this mount, so the streams reach the peer through it. It holds the page's
- * boot until the handshake settles, and refuses the web entry's own transport,
- * which stops the entry before it applies the local rows. Without
- * `dshDesktopBoot` (browser, phone) it does nothing.
- * @param html - peer index html.
+ * A mounted peer's index: its own localStorage namespace, the desktop guard,
+ * the manifest rewrite, and the probe results they and the warm-up depend on.
+ * @param html - peer index html as it arrived.
  * @param prefix - the mount's path prefix, e.g. `/kivotos/peer/<id>`.
- * @returns html with the guard first in its head.
+ * @param peerId - URL-safe peer id.
+ * @param compat - reporter for the probe results.
+ * @returns html to serve.
  */
-export function guardDesktopBoot(html: string, prefix: string): string {
-  // `<` is escaped so the prefix cannot close the script element.
-  const mount = JSON.stringify(`${prefix}/`).replaceAll("<", "\\u003c");
-  const script = `<script>(()=>{const d=globalThis.dshDesktopBoot;if(typeof d!=="object"||d===null||typeof d.ready!=="function")return;const m=${mount},b=Promise.withResolvers();let t=globalThis.__DSH_TRANSPORT__;Object.defineProperty(globalThis,"__DSH_TRANSPORT__",{configurable:true,enumerable:true,get:()=>t,set(n){if(n!==t&&typeof n==="object"&&n!==null&&"streamBaseUrl" in n)throw new Error("kivotos: a mounted machine's page keeps its own boot");t=n}});globalThis.__DSH_BOOT_READY__={promise:b.promise,resolve(){},reject(){}};d.ready().then(r=>{t={...t,ownsHost:true,streamBaseUrl:new URL(m,r.streamBaseUrl).href};b.resolve()},b.reject)})()</script>`;
-  return injectHead(html, script);
-}
-
-function injectHead(html: string, markup: string): string {
-  const open = /<head(?:\s[^>]*)?>/i.exec(html);
-  if (open === null) return `${markup}${html}`;
-  const at = open.index + open[0].length;
-  return `${html.slice(0, at)}${markup}${html.slice(at)}`;
-}
-
-/**
- * Let the page draw under the phone's safe areas (notch, home indicator).
- * @param html - index html.
- * @returns html with a safe-area viewport.
- */
-export function coverViewport(html: string): string {
-  return html.replace(VIEWPORT_FROM, VIEWPORT_TO);
-}
-
-/**
- * Make a mounted peer page fetch its web manifest with credentials. Browsers
- * request a manifest link without cookies, dsh serves it publicly, but every
- * path under a peer mount sits behind the dsh connection fence, so the
- * uncredentialed fetch would answer 401.
- * @param html - peer index html.
- * @returns html whose manifest link carries credentials.
- */
-export function credentialedManifest(html: string): string {
-  return html.replace(MANIFEST_FROM, MANIFEST_TO);
+function mountPage(html: string, prefix: string, peerId: string, compat: CompatWatch): string {
+  const manifest = credentialedManifest(html);
+  const guarded = guardDesktopBoot(manifest.html, prefix);
+  const report: CompatReport = {
+    manifest: manifest.probe,
+    "boot-graph": bootGraphOf(html).probe,
+    "desktop-boot": guarded.probe,
+  };
+  compat.observe(report);
+  return injectCompatReport(injectStorageNamespace(guarded.html, peerId), report);
 }
 
 /**
@@ -717,7 +661,7 @@ export class Frontend {
       html:
         trace.level === "off"
           ? injectOwnsHost
-          : (html: string) => injectHead(html, OWNS_HOST + TRACE_FLAG),
+          : (html: string) => injectHead(injectOwnsHost(html), TRACE_FLAG),
       onDone:
         trace.level === "off"
           ? undefined
@@ -1032,6 +976,8 @@ export class PeerRoutes {
   private readonly trace: TraceLog;
   private readonly cache: MountCache;
   private readonly attention: AttentionHub;
+  /** Reports each coupling point once per state change (compat.ts). */
+  private readonly compat: CompatWatch;
   private readonly book: MachineBook<Upstream>;
   /** `machines.json`: the book, kept across restarts. */
   private readonly file: string;
@@ -1049,12 +995,14 @@ export class PeerRoutes {
     trace: TraceLog,
     cache: MountCache,
     attention: AttentionHub,
+    compat: CompatWatch,
     options: { file: string; retentionMs: number },
   ) {
     this.ctx = ctx;
     this.trace = trace;
     this.cache = cache;
     this.attention = attention;
+    this.compat = compat;
     this.file = options.file;
     this.book = new MachineBook(options.retentionMs);
   }
@@ -1215,8 +1163,7 @@ export class PeerRoutes {
         this.cache.forward(req, res, peer.id, entry.peer.upstream, {
           path: rest,
           prefix,
-          html: (body) =>
-            credentialedManifest(injectStorageNamespace(guardDesktopBoot(body, prefix), peer.id)),
+          html: (body) => mountPage(body, prefix, peer.id, this.compat),
           onDone: (stats) => {
             // No answer through the tailnet: look again now rather than at the next refresh,
             // so the relay takes over within seconds. A machine held to Tailscale has no detour.
@@ -1234,7 +1181,7 @@ export class PeerRoutes {
       },
     });
     const disposeUpgrade = this.ctx.webServer.registerUpgrade({
-      path: `${prefix}${MUX_PATH}`,
+      path: `${prefix}${REMOTE_MUX_PATH}`,
       handler: (req, socket, head) => {
         const rejection = this.ctx.connection.requestRejection(req);
         if (rejection !== undefined) {
@@ -1246,7 +1193,12 @@ export class PeerRoutes {
           return;
         }
         const search = new URL(req.url ?? "/", "http://x").search;
-        const base = { id: this.trace.id(), peer: peer.id, via: entry.peer.via, path: MUX_PATH };
+        const base = {
+          id: this.trace.id(),
+          peer: peer.id,
+          via: entry.peer.via,
+          path: REMOTE_MUX_PATH,
+        };
         this.trace.record("peer.ws.open", base);
         entry.open.set(socket, entry.peer.via);
         socket.once("close", () => entry.open.delete(socket));
@@ -1255,7 +1207,7 @@ export class PeerRoutes {
           socket,
           head,
           entry.peer.upstream,
-          `${MUX_PATH}${search}`,
+          `${REMOTE_MUX_PATH}${search}`,
           socketTrace(this.trace, base),
         );
       },
@@ -1573,7 +1525,11 @@ function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => voi
  * @param config - validated config.
  */
 export function apply(ctx: HostContext, config: KivotosConfig): void {
-  ctx.effect(() => ctx.webServer.tapIndex(coverViewport), "kivotos: viewport-fit=cover");
+  const compat = new CompatWatch((message) => ctx.logger.warn(message));
+  ctx.effect(
+    () => ctx.webServer.tapIndex((html) => hostIndex(html, compat)),
+    "kivotos: index rewrites and dsh compatibility report",
+  );
 
   const trace = new TraceLog(path.join(dshHome(), "kivotos", "logs"), config.trace);
   ctx.effect(() => {
@@ -1608,7 +1564,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     waiting: config.notify,
     finished: config.notify && config.notifyFinished,
   });
-  const routes = new PeerRoutes(ctx, trace, cache, hub, {
+  const routes = new PeerRoutes(ctx, trace, cache, hub, compat, {
     file: path.join(dshHome(), "kivotos", "machines.json"),
     retentionMs: config.offlineDays * DAY_MS,
   });

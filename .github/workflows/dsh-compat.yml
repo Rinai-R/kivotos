@@ -1,0 +1,42 @@
+# Does Kivotos still fit the dsh that users get? The stable channel only:
+# `latest` and `next` (the rc line the desktop app ships), never `alpha`.
+# A failure here means an upstream change broke a coupling point
+# (packages/kivotos/src/compat.ts) before a user ran into it.
+name: dsh compatibility
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - packages/kivotos/src/compat.ts
+      - scripts/dsh-compat.mjs
+      - .github/workflows/dsh-compat.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compat:
+    name: dsh latest and next
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      # npm ci runs the plugin's prepare script, which builds dist/.
+      - name: Install and build
+        run: npm ci
+
+      # `dsh plugin add` runs pnpm from PATH.
+      - name: Install pnpm
+        run: npm install -g pnpm@11
+
+      - name: Boot dsh with the plugin and check the coupling points
+        run: node scripts/dsh-compat.mjs --tag latest --tag next

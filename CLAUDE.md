@@ -32,7 +32,8 @@ Kivotos has no UI of its own for sessions. It adds four things:
 - `packages/kivotos/src/attention.ts`: `AttentionTracker`, which folds every Session's log (`approval/asked`, `approval/decided`, `ask_user_question` calls and answers, `turn/end`) into attention frames for `/kivotos/events`.
 - `packages/kivotos/src/attention-hub.ts`: `AttentionHub` and `AttentionBoard`, the other machines' attention gathered on this Host for its own pages. See "Desktop attention" below.
 - `packages/kivotos/src/sse.ts`: `SseReader`, the Server-Sent Events parser both the hub and the client module use (no Node imports).
-- `packages/kivotos/src/client.tsx`: client module (machine switcher, pairing QR, drawer toggle, phone stylesheet and backdrop).
+- `packages/kivotos/src/client.tsx`: client module (machine switcher, pairing QR, drawer toggle, phone shell and backdrop, the dsh compatibility notice).
+- `packages/kivotos/src/dsh/`: the dsh adapter, the only code that knows dsh internals. See "The dsh adapter" below.
 - `packages/kivotos/scripts/build.mjs`: esbuild build. `dist/index.js` is one ESM file for Node; `dist/client.js` is wrapped in `window.__ModuleLoader__.load` with `react` taken from dsh's module `require`.
 - `packages/kivotos/locale/en.json`, `packages/kivotos/locale/zh.json`: locale dictionaries.
 - `packages/kivotos/icon.svg`, `packages/kivotos/cordis.patch.yml`, `packages/kivotos/package.json`: plugin icon, dsh config patch, plugin manifest.
@@ -142,20 +143,39 @@ Android app:
 - Opening a Session works by writing `localStorage['dsh.sessions.current'] = {"sessionId": ...}` and reloading (dsh restores it at startup). This is another dsh 0.2.0-rc.2 internal; re-verify on upgrade.
 - React Native components keep props stable (memoized style sheets via `useStyles`, `useCallback` handlers); the repo's react-perf lint rules apply here too.
 
-## Deliberate exception: version-pinned phone stylesheet
+## The dsh adapter (`packages/kivotos/src/dsh/`)
 
-dsh ships no phone layout and no slot owns the frame grid. The phone stylesheet in `src/client.tsx` therefore reads dsh 0.2.0-rc.2 internals, which breaks the dsh plugin rule "do not read another plugin's DOM or stylesheet". This is intentional and pinned to dsh 0.2.0-rc.2.
+Kivotos proxies dsh's own UI, so it relies on some dsh 0.2.0-rc.2 internals that are not plugin API. `src/dsh/` is the **only** place that may know one. Everything else calls its functions and never writes a dsh selector, page global, storage key, API path or asset pattern itself; `npm run check:dsh` (`scripts/check-dsh-boundary.mjs`, in the pre-commit hook and the `check` job) fails on one. dsh's plugin API (`ctx.slots`, `ctx.webServer`, `ctx.layout`, typed in `src/dsh.ts`) is not an internal and is used directly.
 
-It depends on:
+| Module          | dsh part it owns                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `compat.ts`     | the machinery: coupling points, `Probe`, `CompatWatch` (host log), `PageVerdicts` (page probes), the `__KIVOTOS_COMPAT__` page report |
+| `index-html.ts` | the served index: viewport and manifest rewrites, `__DSH_BOOT__` graph, `__DSH_BOOT_READY__` gate, `__DSH_TRANSPORT__`/`ownsHost`     |
+| `desktop.ts`    | the desktop shell's `dshDesktopBoot` bridge and `guardDesktopBoot` (#3)                                                               |
+| `sessions.ts`   | `localStorage["dsh.sessions.current"]`, the per-peer storage namespace, `#kivotos-session=`                                           |
+| `frame.ts`      | the rendered frame, conversation and Settings panel, and the phone stylesheet built from them                                         |
+| `web-server.ts` | `/api/remote.mux` and the Vite asset naming (not probed; degrades by itself)                                                          |
 
-- CSS-module class suffixes `_sidebarCol`, `_centerCol`, `_rightbarCol`, `_handle`, `_root`, `_header`, `_composerSeat` (matched with `[class*="..."]`).
-- The frame, found as `div:has(> [data-shell-overlay])`.
-- The attributes `[data-sidebar-collapsed]`, `[data-conversation-header-leading]`, `[data-conversation-scroll]`.
-- The Settings panel, found as `[data-shortcut-modal="settings"]`, its direct `nav` child, and the class suffixes `_navList`, `_navCell`, `_navLabel`, `_content`, `_header`, `_options`, `_themeCube`. On phones the panel fills the screen and its section rail becomes a horizontally scrolling tab row; the markup stays dsh's.
+Every function that relies on an internal probes it in the same place it uses it, so the two cannot disagree: a rewrite returns `{ html, probe }` and leaves the page as dsh served it when the probe fails; the phone stylesheet is built from `frame.ts` `PARTS`, and a test fails if it uses a selector that is not a declared part.
 
-The index rewrites in `src/index.ts` (`coverViewport` for the viewport meta, `credentialedManifest` for the manifest link) match the exact dsh 0.2.0-rc.2 `index.html` markup and silently do nothing if it changes.
+The phone stylesheet is a deliberate, version-pinned exception to the dsh plugin rule "do not read another plugin's DOM": dsh ships no phone layout and no slot owns the frame grid. It matches CSS-module class suffixes (`[class*="_sidebarCol"]`; the prefix is a build hash) and data attributes, in three groups, one per point.
 
-Re-verify all of the above on every dsh upgrade. Keep the exception confined to these places; everything else follows the dsh plugin rules.
+| Point                | Judged on                                                                                                 | Off when it fails                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `viewport`           | host, the served index                                                                                    | the safe-area viewport rewrite                                   |
+| `manifest`           | host, a mounted peer's index                                                                              | the credentialed manifest rewrite                                |
+| `boot-graph`         | host, a mounted peer's index (same parser as the warm-up)                                                 | the mount cache's warm-up                                        |
+| `desktop-boot`       | host, the `__DSH_BOOT_READY__` tail; desktop window, the handshake answering `streamBaseUrl`              | opening another machine inside the desktop window                |
+| `phone-layout`       | the frame: `[data-shell-overlay]` beside the three `_*Col` columns, `_root` in the sidebar                | the drawer layout and the drawer toggle                          |
+| `phone-conversation` | an open conversation: header leading inside `_header`, `_composerSeat`, `[data-conversation-scroll]`      | header, composer and scroller spacing                            |
+| `phone-settings`     | the Settings panel while open: `nav > _navList`, `_navCell`, `_navLabel`, `_content > _header`/`_options` | the full-screen Settings panel                                   |
+| `session-store`      | while dsh shows a Session: the key holds `{ sessionId }`                                                  | opening a machine on a Session (it opens at its own current one) |
+
+A failed point turns off only its feature, logs once on the host, and shows a dismissible notice in `shell.overlay` naming it. Host results travel into the page as `__KIVOTOS_COMPAT__` (failures only; an `ok` page is served unchanged). Page probes run after DOM changes, in the next frame, until each point is settled: a probe whose subject is not on the page (Settings closed, no Session shown) waits; `ok` settles at once; a failure settles only when the next frame agrees; a settled point is final.
+
+`test/compat.test.ts` runs the index rewrites against `test/fixtures/dsh-0.2.0-rc.2.index.html` (the index rc.2 serves, byte for byte; excluded from formatting) and altered copies, and the page probes against the rc.2 frame, conversation and Settings markup and renamed copies. `scripts/dsh-compat.mjs` installs dsh from npm into a scratch directory, installs this checkout's plugin into a scratch `DSH_HOME`, boots `dsh web` relay-only, signs in, and checks that the plugin applied, that every index rewrite's probe passes on the served index, and that every adapter `MARKERS` string is still in dsh's bundles. `.github/workflows/dsh-compat.yml` runs it nightly (and on changes to it) against the npm `latest` and `next` dist-tags — the rc line the desktop app ships, never `alpha`.
+
+On a dsh upgrade: run `node scripts/dsh-compat.mjs --tag <tag>`, fix what fails inside `src/dsh/`, re-capture the fixture.
 
 ## Desktop app (DeepSeek Harness 0.2.0-rc.2)
 

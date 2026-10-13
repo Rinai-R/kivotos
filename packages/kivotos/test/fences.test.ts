@@ -1,13 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  Config,
-  coverViewport,
-  credentialedManifest,
-  injectOwnsHost,
-  injectStorageNamespace,
-  sameSite,
-} from "../src/index.ts";
+import { injectOwnsHost } from "../src/dsh/index-html.ts";
+import { injectStorageNamespace } from "../src/dsh/sessions.ts";
+import { Config, sameSite } from "../src/index.ts";
 import { forwardHeaders, HOP_HEADER, hostnameOf, mountLocation, remoteIp } from "../src/proxy.ts";
 
 const AUTHORITY = "100.64.0.1:7380";
@@ -98,13 +93,6 @@ test("head injections land before every document script", () => {
 test("injectStorageNamespace cannot be broken out of by a peer id", () => {
   const out = injectStorageNamespace("<head></head>", '"</script><script>alert(1)//');
   assert.equal(out.split("</script>").length, 2);
-});
-
-test("index rewrites match the dsh 0.2.0-rc.2 index.html markup", () => {
-  const viewport = '<meta name="viewport" content="width=device-width, initial-scale=1" />';
-  assert.match(coverViewport(viewport), /viewport-fit=cover/);
-  const manifest = '<link rel="manifest" href="./manifest.webmanifest" />';
-  assert.match(credentialedManifest(manifest), /crossorigin="use-credentials"/);
 });
 
 test("Config fills defaults and reports invalid rows", () => {

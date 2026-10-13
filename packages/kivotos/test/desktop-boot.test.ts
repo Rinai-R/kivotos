@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate as tick } from "node:timers/promises";
 import { createContext, runInContext } from "node:vm";
-import { guardDesktopBoot, injectOwnsHost } from "../src/index.ts";
+import { guardDesktopBoot } from "../src/dsh/desktop.ts";
+import { injectOwnsHost } from "../src/dsh/index-html.ts";
 
 /** Text of the first inline script the transform put into an empty head. */
 function scriptOf(html: string): string {
@@ -11,7 +12,7 @@ function scriptOf(html: string): string {
   return match[1];
 }
 
-const GUARD = scriptOf(guardDesktopBoot("<head></head>", "/kivotos/peer/b"));
+const GUARD = scriptOf(guardDesktopBoot("<head></head>", "/kivotos/peer/b").html);
 const OWNS_HOST = scriptOf(injectOwnsHost("<head></head>"));
 /** The tail script dsh's webServer renders into every index it serves. */
 const READY_MARKUP = "(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()";
@@ -110,9 +111,12 @@ test("without the desktop shell the guard leaves the page alone", () => {
 
 test("guardDesktopBoot runs first and cannot be broken out of by a prefix", () => {
   const html = '<head><script src="app.js"></script></head>';
-  const out = guardDesktopBoot(html, "/kivotos/peer/b");
+  const out = guardDesktopBoot(html, "/kivotos/peer/b").html;
   assert.ok(out.startsWith("<head><script>"));
   assert.ok(out.indexOf("<script>") < out.indexOf('<script src="app.js">'));
-  const hostile = guardDesktopBoot("<head></head>", '/kivotos/peer/"</script><script>alert(1)//');
+  const hostile = guardDesktopBoot(
+    "<head></head>",
+    '/kivotos/peer/"</script><script>alert(1)//',
+  ).html;
   assert.equal(hostile.split("</script>").length, 2);
 });

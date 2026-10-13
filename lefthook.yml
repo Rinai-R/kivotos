@@ -11,5 +11,8 @@ pre-commit:
     lint:
       glob: "*.{js,jsx,ts,tsx}"
       run: npm run lint -- {staged_files}
+    dsh-boundary:
+      glob: "packages/kivotos/src/**/*.{ts,tsx}"
+      run: npm run check:dsh -- {staged_files}
     typecheck:
       run: npm run typecheck
