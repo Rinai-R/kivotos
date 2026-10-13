@@ -6,6 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { AttentionHub } from "../src/attention-hub.ts";
 import { MountCache } from "../src/cache.ts";
+import { CompatWatch } from "../src/dsh/compat.ts";
 import type { HostContext, WebRoute } from "../src/dsh.ts";
 import { PeerRoutes } from "../src/index.ts";
 import { machineIdOf } from "../src/machine-book.ts";
@@ -75,7 +76,10 @@ async function host(file: string, dir: string, links: { tailnet: number; relay: 
   const trace = new TraceLog(dir, "off");
   const cache = new MountCache({ dir, maxBytes: 0, warm: false, trace, warn: () => undefined });
   const hub = new AttentionHub(trace, { waiting: false, finished: false });
-  const peers = new PeerRoutes(ctx, trace, cache, hub, { file, retentionMs: 86_400_000 });
+  const peers = new PeerRoutes(ctx, trace, cache, hub, new CompatWatch(() => undefined), {
+    file,
+    retentionMs: 86_400_000,
+  });
   peers.load();
   await peers.settled();
   const disposeList = peers.registerList();

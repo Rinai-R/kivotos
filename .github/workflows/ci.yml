@@ -46,6 +46,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # dsh internals are read only through packages/kivotos/src/dsh/, where each is probed.
+      - name: dsh adapter boundary
+        run: npm run check:dsh
+
       - name: Check build output
         run: test -s packages/kivotos/dist/index.js && test -s packages/kivotos/dist/client.js
 

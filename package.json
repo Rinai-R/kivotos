@@ -34,6 +34,7 @@
     "format:check": "oxfmt --check",
     "format:check:files": "oxfmt --check",
     "lint": "oxlint",
+    "check:dsh": "node scripts/check-dsh-boundary.mjs",
     "typecheck": "npm run typecheck -w packages/kivotos && npm run typecheck -w packages/mobile",
     "build": "npm run build -w packages/kivotos",
     "test": "npm test -w packages/kivotos",

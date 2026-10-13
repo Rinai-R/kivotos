@@ -17,8 +17,36 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { AttentionNotice, AttentionState, PeerAttention } from "./attention-hub.ts";
 import type { AttentionFrame } from "./attention.ts";
+import {
+  compatReportOf,
+  COMPAT_GLOBAL,
+  failedPoints,
+  mergeCompat,
+  PageVerdicts,
+  usable,
+  type CompatPoint,
+  type CompatReport,
+} from "./dsh/compat.ts";
+import { DESKTOP_SCHEME, desktopBridge, probeDesktopBridge } from "./dsh/desktop.ts";
+import {
+  onSessionRowTap,
+  phoneStylesheet,
+  probePhoneConversation,
+  probePhoneLayout,
+  probePhoneSettings,
+  shellRendered,
+  watchSidebarCollapsed,
+} from "./dsh/frame.ts";
+import {
+  currentSession,
+  probeSessionStore,
+  rawSelection,
+  selectSession,
+  SESSION_FRAGMENT,
+} from "./dsh/sessions.ts";
 import { statusOf, type MachineInfo } from "./machines.ts";
 import {
   LinksSection,
@@ -89,6 +117,18 @@ const ZH = {
   "attention.untitled": "未命名会话",
   "drawer.open": "打开侧边栏",
   "drawer.close": "关闭侧边栏",
+  "compat.notice": "dsh 的内部结构有变，Kivotos 已停用：{features}。",
+  "compat.separator": "、",
+  "compat.dismiss": "知道了",
+  "compat.viewport": "手机安全区域布局",
+  "compat.manifest": "被挂载机器的 Web 清单",
+  "compat.bootGraph": "被挂载机器的缓存预热",
+  "compat.desktopBoot": "桌面应用中的其它机器",
+  "compat.phoneLayout": "手机抽屉布局",
+  "compat.phoneConversation": "手机上的会话页边距",
+  "compat.phoneSettings": "手机全屏设置页",
+  "compat.sessionStore": "按会话打开机器",
+  "machines.blockedDesktop": "已停用：桌面应用的启动方式已变化",
 };
 const EN: Record<keyof typeof ZH, string> = {
   "machines.label": "Machines",
@@ -109,15 +149,22 @@ const EN: Record<keyof typeof ZH, string> = {
   "attention.untitled": "Untitled session",
   "drawer.open": "Open sidebar",
   "drawer.close": "Close sidebar",
+  "compat.notice": "Part of dsh changed, so Kivotos turned off: {features}.",
+  "compat.separator": ", ",
+  "compat.dismiss": "Dismiss",
+  "compat.viewport": "Safe-area layout on phones",
+  "compat.manifest": "The web manifest of a mounted machine",
+  "compat.bootGraph": "Cache warm-up for a mounted machine",
+  "compat.desktopBoot": "Other machines in the desktop app",
+  "compat.phoneLayout": "The phone drawer layout",
+  "compat.phoneConversation": "Conversation spacing on phones",
+  "compat.phoneSettings": "Full-screen Settings on phones",
+  "compat.sessionStore": "Opening a machine on a Session",
+  "machines.blockedDesktop": "Off: the desktop app's boot changed",
 };
 
-/**
- * Phone layout. AppFrame and SidebarRoot class names are CSS-module hashes
- * of dsh 0.2.0-rc.2; selectors match the stable `_<name>` suffix. This
- * is a deliberate, version-pinned exception to "do not read another
- * plugin's DOM": dsh ships no phone layout and no slot owns the frame grid.
- */
-const CSS = `
+/** The machine switcher, the drawer toggle and the backdrop: Kivotos' own markup. */
+const BASE_CSS = `
 .kivotos-machines{position:relative;display:flex;width:100%;margin:8px 0 0}
 .kivotos-machines-trigger{display:inline-flex;align-items:center;gap:8px;width:calc(100% + 4px);height:42px;margin:0 -2px;padding:0 10px 0 8px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;cursor:pointer;overflow:hidden}
 .kivotos-machines-trigger:hover,.kivotos-machines-trigger[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover)}
@@ -144,37 +191,58 @@ const CSS = `
 .kivotos-machines-trigger[data-narrow] .kivotos-attention-dot{position:absolute;top:8px;right:8px;width:7px;height:7px}
 .kivotos-drawer-toggle{display:none;width:28px;height:28px;align-items:center;justify-content:center;margin-right:8px;padding:0;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .kivotos-drawer-toggle:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.kivotos-backdrop{position:fixed;inset:0;z-index:29;border:none;padding:0;background:var(--dsw-alias-bg-mask-1);cursor:default}
-@media ${PHONE}{
-  html{--dsh-frame-top-clearance:env(safe-area-inset-top,0px);--dsh-frame-overlay-top:calc(env(safe-area-inset-top,0px) + 12px);--dsh-frame-chrome-top:env(safe-area-inset-top,0px)}
-  html,body{overscroll-behavior:none}
-  div:has(> [data-shell-overlay]){grid-template-columns:0 minmax(0,1fr) 0!important;height:100dvh;box-sizing:border-box;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);transition:none!important}
-  div:has(> [data-shell-overlay]) > [class*="_handle"]{display:none}
-  div:has(> [data-shell-overlay]) > [class*="_centerCol"]{grid-column:2;grid-row:1}
-  div:has(> [data-shell-overlay]) > [class*="_rightbarCol"]{grid-column:3;grid-row:1}
-  div:has(> [data-shell-overlay]) > [class*="_sidebarCol"]{position:fixed;inset:0 auto 0 0;z-index:30;box-sizing:border-box;width:min(86vw,320px);padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);box-shadow:var(--dsw-shadow-lv3);transition:transform var(--ds-transition-duration-slow,240ms) var(--ds-ease-in-out,ease)}
-  div:has(> [data-shell-overlay])[data-sidebar-collapsed] > [class*="_sidebarCol"]{transform:translateX(calc(-100% - 24px));box-shadow:none}
-  div:has(> [data-shell-overlay]) > [class*="_sidebarCol"] > * > [class*="_root"]{width:100%!important}
-  [data-conversation-header-leading] .kivotos-drawer-toggle{display:inline-flex}
-  [class*="_header"]:has(> [data-conversation-header-leading]){padding-left:12px!important;padding-right:12px!important}
-  [class*="_composerSeat"]{padding-bottom:env(safe-area-inset-bottom,0px)}
-  [data-conversation-scroll]{overscroll-behavior:contain}
-  button,[role="button"],[role="treeitem"]{touch-action:manipulation}
-  input,textarea,select,[contenteditable="true"]{font-size:max(16px,1em)}
-  [data-shortcut-modal="settings"]{flex-direction:column;width:100vw;max-width:100vw;height:100dvh;box-sizing:border-box;border-radius:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
-  [data-shortcut-modal="settings"] > nav{width:auto;gap:10px;padding:14px 12px 8px}
-  [data-shortcut-modal="settings"] > nav > [class*="_navList"]{flex-direction:row;overflow:auto hidden;scrollbar-width:none}
-  [data-shortcut-modal="settings"] > nav [class*="_navCell"],[data-shortcut-modal="settings"] > nav [class*="_navLabel"]{flex:none}
-  [data-shortcut-modal="settings"] > [class*="_content"]{min-height:0}
-  [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_header"]{position:absolute;top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);height:auto;padding:12px 12px 0 0}
-  [data-shortcut-modal="settings"] > [class*="_content"] > [class*="_options"]{padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}
-  [data-shortcut-modal="settings"] [class*="_themeCube"]{flex:1 1 0;min-width:0;padding:14px 8px}
-  [data-shortcut-modal="settings"] .kivotos-mode-button{width:36px;height:36px}
-  [data-shortcut-modal="settings"] .kivotos-mode-option{min-height:44px}
-}
-@media ${PHONE} and (prefers-reduced-motion:reduce){
-  div:has(> [data-shell-overlay]) > [class*="_sidebarCol"]{transition:none}
-}`;
+.kivotos-backdrop{position:fixed;inset:0;z-index:29;border:none;padding:0;background:var(--dsw-alias-bg-mask-1);cursor:default}`;
+
+/**
+ * The notice a failed point raises: dsh's own toast (ui-primitives Toast,
+ * markup and CSS copied under `kivotos-`), rendered into `document.body` like
+ * dsh's, so no stacking context traps it under a modal. It holds for
+ * {@link COMPAT_HOLD_MS} with a Dismiss action, then fades; the host log keeps
+ * the record.
+ */
+/** How long the notice stays at full opacity: it names features, so it reads longer than dsh's 3 s. */
+const COMPAT_HOLD_MS = 8_000;
+/** The notice's fade; the `kivotos-compat-fade` duration below. */
+const COMPAT_FADE_MS = 1_000;
+const COMPAT_CSS = `
+.kivotos-compat{position:fixed;top:calc(40px + env(safe-area-inset-top,0px));left:50%;z-index:1100;pointer-events:none;display:flex;align-items:center;gap:10px;box-sizing:border-box;width:max-content;max-width:min(640px,calc(100vw - 48px));padding:12px 16px;border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-toast-bg);color:var(--dsw-alias-toast-label);font-size:14px;line-height:22px;box-shadow:var(--dsw-shadow-lv3);transform:translateX(-50%);animation:kivotos-compat-in 160ms ease-out,kivotos-compat-fade ${COMPAT_FADE_MS}ms ease ${COMPAT_HOLD_MS}ms forwards}
+.kivotos-compat-icon{display:grid;place-items:center;flex:none;color:var(--dsw-alias-state-warn-label)}
+.kivotos-compat-text{min-width:0}
+.kivotos-compat-action{display:inline;padding:0;margin-inline:3px;border:0;background:none;color:var(--dsw-alias-link);font:inherit;cursor:pointer;pointer-events:auto}
+.kivotos-compat-action:hover{opacity:.8}
+@keyframes kivotos-compat-in{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes kivotos-compat-fade{to{opacity:0;visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.kivotos-compat{animation:kivotos-compat-fade ${COMPAT_FADE_MS}ms ease ${COMPAT_HOLD_MS}ms forwards}}
+`;
+/**
+ * Where a point's feature does anything: the notice names a failure only
+ * there. The phone layout and the safe-area viewport change nothing on a
+ * computer, and the desktop guard only runs inside the desktop app.
+ */
+const FELT_ON: Record<CompatPoint, (phone: boolean, desktop: boolean) => boolean> = {
+  viewport: (phone) => phone,
+  manifest: () => true,
+  "boot-graph": () => true,
+  "desktop-boot": (_phone, desktop) => desktop,
+  "phone-layout": (phone) => phone,
+  "phone-conversation": (phone) => phone,
+  "phone-settings": (phone) => phone,
+  "session-store": () => true,
+};
+/** This tab's last announced failures, so a navigation does not repeat the notice. */
+const COMPAT_SHOWN_KEY = "kivotos:compat-shown";
+
+/** The locale key naming each coupling point in the notice. */
+const COMPAT_KEYS: Record<CompatPoint, keyof typeof EN> = {
+  viewport: "compat.viewport",
+  manifest: "compat.manifest",
+  "boot-graph": "compat.bootGraph",
+  "desktop-boot": "compat.desktopBoot",
+  "phone-layout": "compat.phoneLayout",
+  "phone-conversation": "compat.phoneConversation",
+  "phone-settings": "compat.phoneSettings",
+  "session-store": "compat.sessionStore",
+};
 
 /** @returns peer id of the current page, or null on the serving host. */
 function currentPeer(): string | null {
@@ -194,32 +262,16 @@ function useMedia(query: string): boolean {
   return matches;
 }
 
-/** Track the AppFrame's collapsed-sidebar attribute. */
+/** Track whether dsh's sidebar is collapsed (dsh/frame.ts). */
 function useSidebarCollapsed(): boolean {
   const [collapsed, setCollapsed] = useState(true);
-  useEffect(() => {
-    const frame = document.querySelector("[data-shell-overlay]")?.parentElement;
-    if (frame === null || frame === undefined) return undefined;
-    const read = (): void => setCollapsed(frame.hasAttribute("data-sidebar-collapsed"));
-    read();
-    const observer = new MutationObserver(read);
-    observer.observe(frame, { attributes: true, attributeFilter: ["data-sidebar-collapsed"] });
-    return () => observer.disconnect();
-  }, []);
+  useEffect(() => watchSidebarCollapsed(setCollapsed), []);
   return collapsed;
 }
-
-/**
- * dsh's current-Session store (ui-workspace snapshot store, dsh 0.2.0-rc.2):
- * it rewrites this localStorage key whenever the selection changes.
- */
-const CURRENT_SESSION_KEY = "dsh.sessions.current";
 
 /** The serving host's merged stream of the other machines' attention (attention-hub.ts). */
 const ATTENTION_PATH = "/kivotos/attention";
 const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
-/** Read by the namespace script of a mounted page (index.ts injectStorageNamespace). */
-const SESSION_FRAGMENT = "#kivotos-session=";
 const ATTENTION_RETRY_MIN_MS = 1_000;
 const ATTENTION_RETRY_MAX_MS = 60_000;
 const NO_ATTENTION: AttentionState = { notify: { waiting: false, finished: false }, peers: [] };
@@ -238,33 +290,127 @@ function setAttention(next: AttentionState): void {
   for (const listener of attentionListeners) listener();
 }
 
-/** @returns the Session dsh shows on this page, "" when none. */
-function currentSession(): string {
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(CURRENT_SESSION_KEY) ?? "{}");
-    const id: unknown =
-      typeof value === "object" && value !== null ? Reflect.get(value, "sessionId") : undefined;
-    return typeof id === "string" ? id : "";
-  } catch {
-    // An unreadable selection means none is open.
-    return "";
+/** The latest dsh compatibility report, shared by the page's Kivotos surfaces. */
+let compat: CompatReport = {};
+const compatListeners = new Set<() => void>();
+
+function subscribeCompat(listener: () => void): () => void {
+  compatListeners.add(listener);
+  return () => compatListeners.delete(listener);
+}
+
+function setCompat(next: CompatReport): void {
+  compat = next;
+  for (const listener of compatListeners) listener();
+}
+
+/** @returns the page's compat report; a point that was not probed is absent. */
+function useCompat(): CompatReport {
+  return useSyncExternalStore(subscribeCompat, () => compat);
+}
+
+/** The page probes, by the point each judges (dsh/frame.ts, dsh/sessions.ts). */
+const PAGE_PROBES = {
+  "phone-layout": () => probePhoneLayout(document),
+  "phone-conversation": () => probePhoneConversation(document),
+  "phone-settings": () => probePhoneSettings(document),
+  "session-store": () => probeSessionStore(window.localStorage, document),
+} satisfies Partial<Record<CompatPoint, () => unknown>>;
+/** The Session store changes without touching the DOM: read it this often as well. */
+const STORE_RECHECK_MS = 2_000;
+
+/**
+ * Settle the page's side of the coupling points. The host's results ride in
+ * on the page; these judge what only the browser sees, as dsh renders it: the
+ * frame, an open conversation, the Settings panel when it opens, the Session
+ * store once a Session is shown. Each is read after the DOM changes, in the
+ * next frame, until {@link PageVerdicts} has settled it; then the observer
+ * stops.
+ * @returns the cleanup.
+ */
+function watchCompat(): () => void {
+  const host = compatReportOf(Reflect.get(globalThis, COMPAT_GLOBAL));
+  const verdicts = new PageVerdicts();
+  let desktop: CompatReport = {};
+  let frame = 0;
+  const publish = (): void => setCompat(mergeCompat(mergeCompat(host, desktop), verdicts.report()));
+  const open = (): CompatPoint[] =>
+    (Object.keys(PAGE_PROBES) as (keyof typeof PAGE_PROBES)[]).filter(
+      (point) => !verdicts.isSettled(point),
+    );
+  const read = (): void => {
+    frame = 0;
+    const readings: CompatReport = {};
+    for (const point of open()) {
+      const probe = PAGE_PROBES[point as keyof typeof PAGE_PROBES]();
+      if (probe !== undefined) readings[point] = probe;
+    }
+    if (verdicts.read(readings)) publish();
+    if (open().length === 0) stop();
+    // A failure waits for the next frame's reading to agree.
+    else if (Object.keys(readings).some((point) => !verdicts.isSettled(point as CompatPoint)))
+      schedule();
+  };
+  const schedule = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(read);
+  };
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  const timer = window.setInterval(schedule, STORE_RECHECK_MS);
+  const stop = (): void => {
+    observer.disconnect();
+    window.clearInterval(timer);
+    cancelAnimationFrame(frame);
+    frame = 0;
+  };
+  publish();
+  schedule();
+  // Only the desktop window has a shell to ask, and its answer is final.
+  if (window.location.protocol === DESKTOP_SCHEME) {
+    void (async () => {
+      desktop = { "desktop-boot": await probeDesktopBridge(desktopBridge()) };
+      publish();
+    })();
   }
+  return stop;
 }
 
 /**
  * Open a mounted machine on one Session. This page's localStorage is its own
  * machine's namespace only, so another machine gets the Session in the URL
  * fragment, which its namespace script stores before dsh starts.
+ *
+ * `session-store` not being `ok` means dsh no longer reads the key Kivotos
+ * writes (compat.ts): the machine opens at its own current Session instead of
+ * at this one, rather than reloading to the same page forever.
+ * @param peer - peer id of the machine to open.
+ * @param sessionId - the Session to open on it.
  */
 function openSession(peer: string, sessionId: string): void {
+  if (!usable(compat, "session-store")) {
+    openMachine(peer);
+    return;
+  }
   if (peer === currentPeer()) {
-    window.localStorage.setItem(CURRENT_SESSION_KEY, JSON.stringify({ sessionId }));
+    selectSession(window.localStorage, sessionId);
     window.location.reload();
     return;
   }
   window.location.assign(
     `/kivotos/peer/${encodeURIComponent(peer)}/${SESSION_FRAGMENT}${encodeURIComponent(sessionId)}`,
   );
+}
+
+/**
+ * Open a machine at whatever it was last showing.
+ * @param peer - peer id, or null for the serving host.
+ */
+function openMachine(peer: string | null): void {
+  if (peer === currentPeer()) {
+    window.location.reload();
+    return;
+  }
+  window.location.assign(peer === null ? "/" : `/kivotos/peer/${encodeURIComponent(peer)}/`);
 }
 
 /**
@@ -291,7 +437,7 @@ function notifyFrame(
   const onScreen =
     document.visibilityState === "visible" &&
     peer === currentPeer() &&
-    frame.sessionId === currentSession();
+    frame.sessionId === currentSession(window.localStorage);
   if (onScreen) return;
   const name = attention.peers.find((row) => row.id === peer)?.name ?? peer;
   const body = [frame.title || t("attention.untitled"), frame.detail].filter(Boolean).join("\n");
@@ -376,9 +522,8 @@ function followAttention(t: Translate): () => void {
  * it, or starting a new one, should close it, as native apps do; dsh's own
  * layout collapses the sidebar only on a width change. Two signals, because
  * neither covers every case:
- * - a tap on a Session row, which also catches the Session already open.
- *   In dsh 0.2.0-rc.2 Session rows are `[role=treeitem]` without
- *   `aria-expanded`; workspace folders carry it and only toggle.
+ * - a tap on a Session row, which also catches the Session already open
+ *   (dsh/frame.ts `onSessionRowTap`).
  * - a change of the current Session, which catches New Session and any
  *   other way dsh switches. The store writes synchronously in dsh's click
  *   handler, and same-document storage writes fire no event, so it is polled.
@@ -388,21 +533,13 @@ function followAttention(t: Translate): () => void {
 function useCloseDrawerOnSelect(active: boolean, close: () => void): void {
   useEffect(() => {
     if (!active) return undefined;
-    const sidebar = document.querySelector('[class*="_sidebarCol"]');
-    const onClick = (event: Event): void => {
-      const target = event.target as Element | null;
-      // Row menus and actions sit inside the row: those keep the drawer open.
-      if (target?.closest("button, [role=menuitem]")) return;
-      const row = target?.closest("[role=treeitem]");
-      if (row && !row.hasAttribute("aria-expanded")) requestAnimationFrame(close);
-    };
-    sidebar?.addEventListener("click", onClick);
-    const opened = window.localStorage.getItem(CURRENT_SESSION_KEY);
+    const stopTaps = onSessionRowTap(close);
+    const opened = rawSelection(window.localStorage);
     const timer = setInterval(() => {
-      if (window.localStorage.getItem(CURRENT_SESSION_KEY) !== opened) close();
+      if (rawSelection(window.localStorage) !== opened) close();
     }, 150);
     return () => {
-      sidebar?.removeEventListener("click", onClick);
+      stopTaps();
       clearInterval(timer);
     };
   }, [active, close]);
@@ -539,6 +676,8 @@ interface MachineRowProps {
   note: boolean;
   /** No link reaches it: shown, dimmed, but not openable. */
   unavailable: boolean;
+  /** Why opening it is off for now (a failed probe); undefined when it can open. */
+  blocked: string | undefined;
   current: boolean;
   /** What the machine waits for and finished; undefined for the serving host. */
   attention: PeerAttention | undefined;
@@ -546,22 +685,28 @@ interface MachineRowProps {
 }
 
 function MachineRow(props: MachineRowProps): ReactNode {
-  const { id, name, meta, status, current, unavailable, attention: row, t } = props;
+  const { id, name, meta, status, current, attention: row, t } = props;
   const waiting = row?.pending.length ?? 0;
   const tone = finishedTone(row?.finished ?? []);
   // The oldest wait, else the latest finished turn.
   const target = row?.pending[0]?.sessionId ?? row?.finished.at(-1)?.sessionId;
+  const unavailable = props.unavailable || props.blocked !== undefined;
+  const title = props.blocked ?? props.title;
   let label = t("machines.open", { name });
-  if (unavailable) label = t("machines.unavailable", { name, status: props.title });
+  if (unavailable) label = t("machines.unavailable", { name, status: title });
   else if (waiting > 0) label = t("machines.openWaiting", { name, count: waiting });
   else if (tone !== undefined) label = t("machines.openFinished", { name });
   const onClick = useCallback(() => {
-    if (id !== null && target !== undefined && !(current && target === currentSession())) {
+    if (
+      id !== null &&
+      target !== undefined &&
+      !(current && target === currentSession(window.localStorage))
+    ) {
       openSession(id, target);
       return;
     }
     if (current) return;
-    window.location.assign(id === null ? "/" : `/kivotos/peer/${encodeURIComponent(id)}/`);
+    openMachine(id);
   }, [current, id, target]);
   return (
     <li>
@@ -570,7 +715,7 @@ function MachineRow(props: MachineRowProps): ReactNode {
         className="kivotos-machines-item"
         aria-current={current ? "true" : undefined}
         aria-label={label}
-        title={props.title}
+        title={title}
         disabled={unavailable}
         onClick={onClick}
       >
@@ -593,12 +738,15 @@ function PeerRow({
   machine,
   current,
   attention: row,
+  blocked,
   now,
   t,
 }: {
   machine: MachineInfo;
   current: boolean;
   attention: PeerAttention | undefined;
+  /** Why opening this machine is off (a failed probe); undefined when it can open. */
+  blocked: string | undefined;
   now: number;
   t: Translate;
 }): ReactNode {
@@ -615,6 +763,7 @@ function PeerRow({
       status={statusText(t, machine, now, true)}
       note={status.kind !== "online" || status.down !== undefined}
       unavailable={machine.route === null && !current}
+      blocked={blocked}
       current={current}
       attention={row}
       t={t}
@@ -710,6 +859,14 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   const phone = useMedia(PHONE);
   const peer = currentPeer();
   const summary = useAttentionSummary(t);
+  const report = useCompat();
+  // Inside the desktop window a mounted machine's page is only safe while the
+  // guard's handshake still answers what it rebases the page's streams onto
+  // (compat.ts, `desktop-boot`): opening one anyway takes the window down.
+  const blockedPeer =
+    window.location.protocol === DESKTOP_SCHEME && !usable(report, "desktop-boot")
+      ? t("machines.blockedDesktop")
+      : undefined;
   const toggle = useCallback(() => {
     setOpen((value) => !value);
     // Browsers ask for notifications only from a user gesture; this is the feature's own.
@@ -791,6 +948,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             status={undefined}
             note={false}
             unavailable={false}
+            blocked={undefined}
             current={peer === null}
             attention={undefined}
             t={t}
@@ -801,6 +959,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
               machine={row}
               current={row.id === peer}
               attention={summary.rows.get(row.id)}
+              blocked={blockedPeer}
               now={now}
               t={t}
             />
@@ -822,9 +981,17 @@ interface Injected {
   toggleSidebar: () => void;
 }
 
-/** Drawer toggle before the Session title; CSS shows it only on phones. */
+/**
+ * Drawer toggle before the Session title; CSS shows it only on phones.
+ *
+ * The phone stylesheet is what makes this button visible, and it is withheld
+ * when the frame it positions is not there (compat.ts, `phone-layout`): the
+ * button would be a control for a layout that no longer exists.
+ */
 function DrawerToggle({ t, toggleSidebar }: Injected): ReactNode {
   const collapsed = useSidebarCollapsed();
+  const report = useCompat();
+  if (!usable(report, "phone-layout")) return null;
   const label = collapsed ? t("drawer.open") : t("drawer.close");
   return (
     <button
@@ -840,15 +1007,21 @@ function DrawerToggle({ t, toggleSidebar }: Injected): ReactNode {
   );
 }
 
-/** Phone stylesheet plus the open-drawer backdrop. */
+/**
+ * Kivotos' stylesheet, the phone layout it only applies when the frame it
+ * positions is there, and the open-drawer backdrop.
+ */
 function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const phone = useMedia(PHONE);
   const collapsed = useSidebarCollapsed();
-  useCloseDrawerOnSelect(phone && !collapsed, toggleSidebar);
+  const report = useCompat();
+  const layout = usable(report, "phone-layout");
+  useCloseDrawerOnSelect(layout && phone && !collapsed, toggleSidebar);
   return (
     <>
-      <style>{CSS + SETTINGS_CSS}</style>
-      {phone && !collapsed ? (
+      <style>{BASE_CSS + SETTINGS_CSS}</style>
+      <style>{phoneStylesheet(report, PHONE)}</style>
+      {layout && phone && !collapsed ? (
         <button
           type="button"
           className="kivotos-backdrop"
@@ -857,6 +1030,76 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
         />
       ) : null}
     </>
+  );
+}
+
+/** Warning glyph (original artwork, currentColor). */
+function WarningGlyph(): ReactNode {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 2.2 14.3 13H1.7L8 2.2Z"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      <path d="M8 6.4v3.2" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+      <circle cx={8} cy={11.3} r={0.8} fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * What a failed point costs: one toast naming each part of Kivotos that is
+ * off, once per tab for each set of failures, and only the parts this device
+ * would have used ({@link FELT_ON}). The probe's own
+ * reason is a diagnostic: it goes to the console and, for the host's probes,
+ * the host's log.
+ */
+function CompatNotice({ t }: { t: Translate }): ReactNode {
+  const report = useCompat();
+  const phone = useMedia(PHONE);
+  const failed = useMemo(() => failedPoints(report), [report]);
+  const shown = useMemo(() => {
+    const desktop = window.location.protocol === DESKTOP_SCHEME;
+    return failed.map(({ point }) => point).filter((point) => FELT_ON[point](phone, desktop));
+  }, [failed, phone]);
+  const signature = shown.join(",");
+  const [visible, setVisible] = useState("");
+  const logged = useRef<CompatReport | null>(null);
+  useEffect(() => {
+    if (logged.current === report) return;
+    logged.current = report;
+    for (const { point, probe } of failed) console.warn(`kivotos: dsh ${point}: ${probe.reason}`);
+  }, [report, failed]);
+  useEffect(() => {
+    if (signature === "") return undefined;
+    // sessionStorage is this tab's, and no dsh store lives there.
+    if (window.sessionStorage.getItem(COMPAT_SHOWN_KEY) === signature) return undefined;
+    window.sessionStorage.setItem(COMPAT_SHOWN_KEY, signature);
+    setVisible(signature);
+    const timer = window.setTimeout(() => setVisible(""), COMPAT_HOLD_MS + COMPAT_FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [signature]);
+  const dismiss = useCallback(() => setVisible(""), []);
+  if (visible === "" || visible !== signature) return null;
+  const features = shown.map((point) => t(COMPAT_KEYS[point])).join(t("compat.separator"));
+  return createPortal(
+    <>
+      <style>{COMPAT_CSS}</style>
+      <div className="kivotos-compat" role="status">
+        <span className="kivotos-compat-icon">
+          <WarningGlyph />
+        </span>
+        <span className="kivotos-compat-text">
+          {t("compat.notice", { features })}
+          <button type="button" className="kivotos-compat-action" onClick={dismiss}>
+            {t("compat.dismiss")}
+          </button>
+        </span>
+      </div>
+    </>,
+    document.body,
   );
 }
 
@@ -951,7 +1194,7 @@ function reportLoadTiming(): () => void {
     }).catch(() => undefined);
   };
   const watch = (): void => {
-    if (document.querySelector("[data-shell-overlay]") === null) {
+    if (!shellRendered(document)) {
       frame = requestAnimationFrame(watch);
       return;
     }
@@ -986,6 +1229,8 @@ export function apply(ctx: ClientContext): void {
   }
   // The other machines' waits and finished turns: switcher badges and system notifications.
   ctx.effect(() => followAttention(t), "kivotos: attention");
+  // What dsh still looks like: which Kivotos features stay on (compat.ts).
+  ctx.effect(watchCompat, "kivotos: dsh compatibility probes");
   // One stable function for every render, injected as a slot prop.
   const injected = { toggleSidebar: (): void => ctx.layout.toggleSidebar() };
   const props = (): typeof injected => injected;
@@ -1022,5 +1267,8 @@ export function apply(ctx: ClientContext): void {
       { name: "shell.overlay", id: "kivotos-phone", locale: NS, inject: props },
       PhoneShell,
     ),
+  );
+  ctx.slots.inject("shell.overlay", () =>
+    ctx.slots.register({ name: "shell.overlay", id: "kivotos-compat", locale: NS }, CompatNotice),
   );
 }

@@ -28,7 +28,8 @@ await build({
 });
 
 // The Client bundle runs inside the loader's factory: `require` is the
-// loader's, so react resolves to the instance dsh renders with.
+// loader's, so react and react-dom (dsh seeds both into its module table)
+// resolve to the instances dsh renders with.
 const client = await build({
   absWorkingDir: here.pathname,
   entryPoints: ["src/client.tsx"],
@@ -40,7 +41,7 @@ const client = await build({
   jsx: "transform",
   jsxFactory: "React.createElement",
   jsxFragment: "React.Fragment",
-  external: ["react"],
+  external: ["react", "react-dom"],
   legalComments: "none",
 });
 

@@ -42,6 +42,8 @@ import type {
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { pipeline } from "node:stream";
+import { bootGraphOf } from "./dsh/index-html.ts";
+import { HASHED_ASSET, hashedAssetsOf } from "./dsh/web-server.ts";
 import {
   forwardHeaders,
   forwardHttp,
@@ -57,16 +59,6 @@ import type { TraceLog } from "./trace.ts";
 
 /** `cache-control` of a response that never changes at its URL. */
 const IMMUTABLE = "public, max-age=31536000, immutable";
-
-/**
- * A Vite build output, `/assets/[<dir>/…]<name>-<hash>.<ext>`, the hash being
- * Rollup's 8 base64url characters. One of them must be an uppercase letter or
- * a digit, which keeps kebab-case names such as `/assets/vue-language.js` out;
- * a real hash lacks both with probability (28/64)^8 ≈ 0.1%, and its file is then
- * merely not cached.
- */
-export const HASHED_ASSET =
-  /^\/assets\/(?:[\w.-]+\/)*[\w.-]+-(?=[\w-]{0,7}[A-Z\d])[\w-]{8}\.[A-Za-z\d]+$/;
 
 /**
  * The one encoding variant stored. Every cacheable request from a client that
@@ -100,11 +92,6 @@ const WARM_RECHECK_MS = 10 * 60_000;
 const WARM_INDEX_MAX_BYTES = 4 * 1024 * 1024;
 /** Socket idle time after which a warm request gives up. */
 const WARM_TIMEOUT_MS = 60_000;
-
-/** The boot graph global as dsh 0.2.0-rc.2 renders it (`webserver/injections.ts`): JSON with `<` escaped. */
-const BOOT_GRAPH = /<script>globalThis\["__DSH_BOOT__"\] = (.*?)<\/script>/s;
-/** `src` and `href` attributes naming a build asset, document-relative or root-relative. */
-const ASSET_REF = /\s(?:src|href)="(?:\.\/|\/)?(assets\/[^"?#]+)"/g;
 
 /** `<name>.json`: what a hit replays. */
 interface Meta {
@@ -173,25 +160,15 @@ export function acceptsGzip(header: string | undefined): boolean {
  * @returns the graph revision and the root-relative targets; undefined without a boot graph.
  */
 export function bootResources(html: string): { rev: string; targets: string[] } | undefined {
-  const json = BOOT_GRAPH.exec(html)?.[1];
-  if (json === undefined) return undefined;
-  const graph: unknown = JSON.parse(json);
-  if (typeof graph !== "object" || graph === null) return undefined;
-  const rev: unknown = Reflect.get(graph, "rev");
-  const batches: unknown = Reflect.get(graph, "batches");
-  if (typeof rev !== "string" || !Array.isArray(batches)) return undefined;
+  const { graph } = bootGraphOf(html);
+  if (graph === undefined) return undefined;
   const targets = new Set<string>();
-  for (const batch of batches as unknown[]) {
-    const url: unknown =
-      typeof batch === "object" && batch !== null ? Reflect.get(batch, "url") : "";
-    const target = typeof url === "string" ? rootTarget(url) : undefined;
+  for (const url of graph.urls) {
+    const target = rootTarget(url);
     if (target !== undefined) targets.add(target);
   }
-  for (const match of html.matchAll(ASSET_REF)) {
-    const target = `/${match[1]}`;
-    if (HASHED_ASSET.test(target)) targets.add(target);
-  }
-  return { rev, targets: [...targets] };
+  for (const target of hashedAssetsOf(html)) targets.add(target);
+  return { rev: graph.rev, targets: [...targets] };
 }
 
 /** A document-relative reference against the index at `/`, serialized as a browser requests it. */
