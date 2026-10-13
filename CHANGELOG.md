@@ -2,21 +2,31 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
-## Unreleased
+## v0.1.6
 
+- Each machine is listed once, wherever it is reached from, with how it is reached and, when it is not, why. A computer that is in your tailnet and in a relay network no longer shows up twice, and an unreachable one stays in the list with its reason instead of disappearing. (#11)
+- Choose how each machine is reached: Auto (Tailscale when it works, the relay when it does not), Tailscale only, or Relay only. A machine held to one link never falls back silently. On a computer it is in Settings → Remote access; on the phone, long-press a machine. (#16)
+- Settings → Remote access is one page: this computer's links (Tailscale and your own relay, each with its state), then every machine with a chip per link and its mode.
+- A computer now shows when a session on another machine is waiting for an approval or an answer, or has finished: a count and a dot in the machine switcher, and a system notification while the window is in the background. (#12)
+- Android: opening a machine is fast after the first time. The app keeps each machine's client files on disk and fetches them in the background when the machine appears, over Tailscale and over the relay alike. (#2)
 - Settings → Remote access warns when the relay address is plaintext (`ws://`): anyone on the path can read the relay token and use that relay as your network. Traffic stays end-to-end encrypted and they cannot join the network. (#19)
 - When a dsh update changes one of the internals Kivotos depends on, only that feature turns off and a notice names it, instead of the page breaking. A nightly check boots the newest stable dsh (`latest`/`next`) with the plugin and reports which points still fit. (#18)
-- Contributors no longer have to reverse-engineer the repository: `CONTRIBUTING.md` has the prerequisites, the build and test commands for the plugin, the relay and the Android app, the commit and PR conventions, and the CI jobs a pull request must pass.
-- `npm run dev` starts a local lab in one command — a relay built from `packages/relay` and two dsh instances, each with its own `DSH_HOME`, already members of one relay network — and prints each UI URL and the invite link. It is parameterisable (ports, data directory), cleans up after itself, and never touches `~/.dsh`, the installed app or the runner's own tailnet.
-- The four READMEs link both from their Development section. (#21)
+- Relay: run it with Docker Compose; the READMEs download `packages/relay/docker-compose.yml`.
+- Contributors: `CONTRIBUTING.md` has the prerequisites, the build and test commands for the plugin, the relay and the Android app, the conventions and the CI jobs a pull request must pass, and `npm run dev` starts a relay and two dsh instances joined to one relay network in one command. (#21)
+- LICENSE is the plain Apache License 2.0 text, so GitHub and package indexes detect it.
 
 ### 中文
 
+- 每台机器只列一次，无论从哪里连到它，并显示经由哪种方式连接；连不上时说明原因。同时在 tailnet 和中继网络里的电脑不再出现两次，连不上的机器也不会从列表里消失，而是显示原因。(#11)
+- 可以为每台机器选择连接方式：自动（能直连时走 Tailscale，不通时改走中继）、只用 Tailscale、只用中继。选定一种后不会悄悄改走另一种。电脑上在 设置 → 远程连接 中设置；手机上长按机器。(#16)
+- 设置 → 远程连接 合并为一页：先是本机的连接方式（Tailscale 和自建中继，各自带状态），然后是每台机器、每种连接方式的状态和连接模式。
+- 另一台机器上的会话等待审批或回答、或已完成时，电脑上也会提示：机器切换器里显示数量和圆点，窗口在后台时发系统通知。(#12)
+- 安卓 App：再次打开同一台机器很快。App 会把每台机器的客户端文件存在本地，并在机器出现时后台预先下载，Tailscale 和中继都适用。(#2)
 - 设置 → 远程连接：中继地址是明文（`ws://`）时会给出警告——路径上的任何人都能读到中继令牌，借这个中继冒充你的网络。流量仍是端到端加密的，对方也加入不了网络。(#19)
 - dsh 更新改动了 Kivotos 依赖的某处内部结构时，只停用对应的功能并提示是哪一项，页面不再整体出错。每晚的检查会用最新的稳定版 dsh（`latest`/`next`）加载插件，报告哪些依赖点仍然吻合。(#18)
-- 贡献者不必再逆向摸索这个仓库：`CONTRIBUTING.md` 写清了前置条件，插件、中继和安卓 App 的构建与测试命令，提交和 PR 约定，以及 PR 必须通过的 CI 任务。
-- `npm run dev` 一条命令就能起一个本地实验环境：用 `packages/relay` 构建的中继，加上两个各自拥有 `DSH_HOME` 的 dsh 实例，它们已经同属一个中继网络；脚本会打印两个界面的地址和邀请链接。端口和数据目录都可配置，退出时自行清理，不会碰 `~/.dsh`、已安装的 App，也不会碰运行者自己的 tailnet。
-- 四个 README 的开发章节都加上了这两处的链接。(#21)
+- 中继：可以用 Docker Compose 运行；README 改为下载 `packages/relay/docker-compose.yml`。
+- 贡献者：`CONTRIBUTING.md` 写清了前置条件、插件/中继/安卓 App 的构建与测试命令、约定和 PR 必须通过的 CI 任务；`npm run dev` 一条命令起一个中继和两个同属一个中继网络的 dsh 实例。(#21)
+- LICENSE 改为标准的 Apache License 2.0 原文，GitHub 和各包索引能正确识别。
 
 ## v0.1.5
 
