@@ -19,7 +19,15 @@ import {
 } from "./federation.ts";
 import { machineIdOf, probeFailure, type Absent, type Sighting } from "./machine-book.ts";
 import { getJson, type Upstream } from "./proxy.ts";
-import { relayAgent, RelayLink, type LinkStatus, type RelayPeer } from "./relay.ts";
+import {
+  relayAgent,
+  RelayLink,
+  relayReasonOf,
+  TLS_RESET,
+  type LinkStatus,
+  type RelayPeer,
+  type RelayReason,
+} from "./relay.ts";
 import type { TraceLog } from "./trace.ts";
 import { createIdentity, loadIdentity, type Identity } from "./x509.ts";
 
@@ -30,13 +38,14 @@ const FIRST_REFRESH_MS = 1_500;
 /** Longest wait for a member's `/kivotos/hello` through the relay. */
 const PROBE_TIMEOUT_MS = 6_000;
 
-/** How the members not online now show while this computer's own relay link is down. */
-function absentOf(state: Exclude<LinkStatus["state"], "online">): Absent {
+/**
+ * How the members not online now show while this computer's own relay link
+ * is down; a reset handshake is named, since it says why.
+ */
+function absentOf(state: Exclude<LinkStatus["state"], "online">, reason?: RelayReason): Absent {
   if (state === "denied") return { state: "denied" };
-  return {
-    state: "unreachable",
-    reason: state === "connecting" ? "relay-connecting" : "relay-unreachable",
-  };
+  if (state === "connecting") return { state: "unreachable", reason: "relay-connecting" };
+  return { state: "unreachable", reason: reason === "tls-reset" ? reason : "relay-unreachable" };
 }
 
 /** A relay session's caller, in the shape the dsh frontend traces. */
@@ -53,7 +62,6 @@ export interface RelayView {
   /** This computer's node id in any network it joins. */
   node: string;
   relay?: string;
-  networkId?: string;
   /** What the relay operator registers once: `kivotos-relay network add <this>`. */
   registration?: string;
   /** Link that lets another device join; it contains the federation key. */
@@ -66,6 +74,8 @@ export interface RelayView {
   plaintext: boolean;
   state?: LinkStatus["state"];
   error?: string;
+  /** Why the relay is unreachable, when it can be told (`tls-reset`). */
+  reason?: RelayReason;
   /** Other nodes online in the network. */
   peers: number;
 }
@@ -221,10 +231,10 @@ export class RelayHost {
     const network = this.network;
     if (link === undefined || network === undefined) return;
     try {
-      const state = link.status.state;
+      const { state, reason } = link.status;
       if (state !== "online") {
         this.peerCount = 0;
-        this.options.publish([], absentOf(state));
+        this.options.publish([], absentOf(state, reason));
         return;
       }
       const peers = await link.peers();
@@ -240,7 +250,8 @@ export class RelayHost {
       if (this.link === link) this.options.publish(sightings, { state: "offline" });
     } catch (error) {
       this.options.warn("kivotos: relay peer refresh failed", error);
-      if (this.link === link) this.options.publish([], absentOf("unreachable"));
+      if (this.link === link)
+        this.options.publish([], absentOf("unreachable", relayReasonOf(error)));
     } finally {
       if (this.link === link) {
         this.timer = setTimeout(() => void this.refresh(), this.options.refreshSeconds * 1000);
@@ -278,7 +289,8 @@ export class RelayHost {
       address: network.relay,
       state: hello === undefined ? "unreachable" : "online",
     };
-    if (hello === undefined) sighting.reason = probeFailure(answer);
+    if (hello === undefined)
+      sighting.reason = answer.code === TLS_RESET ? "tls-reset" : probeFailure(answer);
     else sighting.target = upstream;
     this.options.trace.record("relay.probe", {
       node: peer.node,
@@ -296,7 +308,6 @@ export class RelayHost {
       joined: true,
       node,
       relay: network.relay,
-      networkId: network.id,
       registration: registrationOf(network),
       invite: inviteOf(network),
       // `relayEndpoint` stores only `ws://` or `wss://`, so the scheme is the
@@ -305,6 +316,7 @@ export class RelayHost {
       plaintext: network.relay.startsWith("ws://"),
       state: this.link?.status.state,
       error: this.link?.status.error,
+      reason: this.link?.status.reason,
       peers: this.peerCount,
     };
   }

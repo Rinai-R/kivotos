@@ -104,6 +104,7 @@ const REASON_RANK: Partial<Record<LinkReason, number>> = {
   forbidden: 0,
   "not-kivotos": 1,
   tls: 2,
+  "tls-reset": 2,
   "no-listener": 3,
   timeout: 4,
   network: 5,
