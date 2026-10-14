@@ -1,5 +1,6 @@
 package expo.modules.kivotosattention
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -141,5 +142,29 @@ class KivotosAttentionModule : Module() {
       }
       context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+
+    /**
+     * Open the Tailscale app; when it is not installed, its store page (the
+     * Play Store, else the web). Needs the `<queries>` entry for its package.
+     */
+    Function("openTailscale") {
+      val launch = context.packageManager.getLaunchIntentForPackage(TAILSCALE)
+      val store = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$TAILSCALE"))
+      val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$TAILSCALE"))
+      // The first that some app handles; the store fallbacks only when Tailscale is not installed.
+      listOfNotNull(launch, store, web).any { intent ->
+        try {
+          context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+          true
+        } catch (_: ActivityNotFoundException) {
+          false
+        }
+      }
+    }
+  }
+
+  private companion object {
+    /** The Tailscale Android app's package. */
+    const val TAILSCALE = "com.tailscale.ipn"
   }
 }

@@ -67,6 +67,7 @@ declare class KivotosAttentionModule extends NativeModule<Events> {
   isBatteryRestricted(): boolean;
   requestBatteryExemption(): void;
   openNotificationSettings(): void;
+  openTailscale(): void;
 }
 
 const native = requireNativeModule<KivotosAttentionModule>("KivotosAttention");
@@ -91,6 +92,8 @@ export const takePendingOpen = (): OpenSession | null => native.takePendingOpen(
 export const isBatteryRestricted = (): boolean => native.isBatteryRestricted();
 export const requestBatteryExemption = (): void => native.requestBatteryExemption();
 export const openNotificationSettings = (): void => native.openNotificationSettings();
+/** Open the Tailscale app, or its Play Store page when it is not installed. */
+export const openTailscale = (): void => native.openTailscale();
 
 /** @returns unsubscribe. */
 export function onOpenSession(listener: (open: OpenSession) => void): () => void {
