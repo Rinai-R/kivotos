@@ -295,6 +295,7 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
 
 export const SETTINGS_CSS = `
 .kivotos-links{container-type:inline-size;display:flex;flex-direction:column;gap:16px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+.kivotos-title{margin:0;font-size:16px;font-weight:500;line-height:24px}
 .kivotos-group{display:flex;flex-direction:column;gap:8px;min-width:0}
 .kivotos-group-head{display:flex;align-items:baseline;gap:6px;margin:0}
 .kivotos-group-label{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px;font-weight:500;line-height:20px}
@@ -609,25 +610,28 @@ function cellOf(t: Translate, machine: MachineInfo, via: Via, host: string, now:
   return { state, word, qualifier, used, tip: lines.join("\n") };
 }
 
+/** A machine in one word, and the colour of its dot. */
+export interface MachineSummary {
+  state: "online" | "unstable" | "offline" | "unreachable";
+  text: string;
+}
+
 /**
- * @returns a machine's one-word summary (the switcher's meta): the route in
- *   use, else unstable, the short reason of the preferred link, or when it was
- *   last seen.
+ * @returns a machine's summary (the switcher's rows): the route in use, else
+ *   unstable; with no route, why its preferred link (the one its mode holds
+ *   it to, else the first) does not work, or when it was last seen.
  */
-export function machineMeta(t: Translate, machine: MachineInfo, now: number): string {
+export function machineSummary(t: Translate, machine: MachineInfo, now: number): MachineSummary {
   const status = statusOf(machine, machine.mode);
-  switch (status.kind) {
-    case "online":
-      return t(`via.${status.via}`);
-    case "unstable":
-      return t("state.unstable");
-    case "offline":
-      return status.lastSeen === undefined ? t("state.offline") : agoText(t, status.lastSeen, now);
-    case "unreachable":
-      return downText(t, downOf(status.link) ?? "unreachable");
-    case "denied":
-      return t("state.denied");
-  }
+  if (status.kind === "online") return { state: "online", text: t(`via.${status.via}`) };
+  if (status.kind === "unstable") return { state: "unstable", text: t("state.unstable") };
+  const pinned = pinnedVia(machine, machine.mode);
+  const link = machine.links.find((candidate) => pinned === null || candidate.via === pinned);
+  const down = link === undefined ? "offline" : (downOf(link) ?? "unreachable");
+  if (down !== "offline") return { state: "unreachable", text: downText(t, down) };
+  const lastSeen = link?.lastSeen ?? (status.kind === "offline" ? status.lastSeen : undefined);
+  const text = lastSeen === undefined ? t("state.offline") : agoText(t, lastSeen, now);
+  return { state: "offline", text };
 }
 
 /** @returns a machine in full (the switcher's tooltip): every link's tooltip, one after the other. */
@@ -808,6 +812,8 @@ function Dialog({
   useEffect(() => {
     const node = dialog.current;
     node?.showModal();
+    // React's autoFocus runs before the dialog opens, which moves focus again.
+    node?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => node?.close();
   }, []);
   const dismiss = useCallback(() => dialog.current?.close(), []);
@@ -874,7 +880,7 @@ export function PairDialog({
           type="button"
           className="kivotos-btn"
           data-kind="primary"
-          autoFocus
+          data-autofocus=""
           onClick={closeDialog}
         >
           {t("pair.close")}
@@ -921,7 +927,7 @@ function InviteDialog({
           type="button"
           className="kivotos-btn"
           data-kind="primary"
-          autoFocus
+          data-autofocus=""
           onClick={closeDialog}
         >
           {t("done")}
@@ -990,7 +996,13 @@ function LeaveDialog({
         )}
       </div>
       <div className="kivotos-dialog-foot">
-        <button type="button" className="kivotos-btn" data-kind="outline" onClick={closeDialog}>
+        <button
+          type="button"
+          className="kivotos-btn"
+          data-kind="outline"
+          data-autofocus=""
+          onClick={closeDialog}
+        >
           {t("cancel")}
         </button>
         <button
@@ -1352,6 +1364,10 @@ function RelayRow({
     setDialog(null);
   }, [dialog]);
   const { relay } = links;
+  // Leaving ends the row's network, and with it any dialog about it.
+  useEffect(() => {
+    if (!relay.joined) setDialog(null);
+  }, [relay.joined]);
   const { act, busy, list } = state;
   const lost = useMemo(
     () =>
@@ -1472,24 +1488,27 @@ function LinkCell({ cell, label }: { cell: Cell; label: string }): ReactNode {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
   const toggle = useCallback(() => setOpen((shown) => !shown), []);
+  // Escape closes the popover only, not the Settings panel around it.
+  const onKey = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!open || event.key !== "Escape") return;
+      event.stopPropagation();
+      setOpen(false);
+    },
+    [open],
+  );
   useEffect(() => {
     if (!open) return undefined;
     const onPointer = (event: PointerEvent): void => {
       if (root.current !== null && !root.current.contains(event.target as Node)) setOpen(false);
     };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setOpen(false);
-    };
     document.addEventListener("pointerdown", onPointer, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer, true);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("pointerdown", onPointer, true);
   }, [open]);
   return (
     <div
       ref={root}
+      onKeyDown={onKey}
       className="kivotos-cell"
       data-state={cell.state}
       data-used={cell.used ? "" : undefined}
@@ -1553,27 +1572,39 @@ function ModeMenu({
     },
     [machine.id, machine.mode, onChange],
   );
+  // Escape closes the menu only, not the Settings panel around it.
+  const onKey = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!open) return;
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      event.preventDefault();
+      const items = [
+        ...(root.current?.querySelectorAll<HTMLButtonElement>(".kivotos-menu-item:enabled") ?? []),
+      ];
+      const at = items.indexOf(document.activeElement as HTMLButtonElement);
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      items[(at + step + items.length) % items.length]?.focus();
+    },
+    [open],
+  );
   useEffect(() => {
     if (!open) return undefined;
     root.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
     const onPointer = (event: PointerEvent): void => {
       if (root.current !== null && !root.current.contains(event.target as Node)) setOpen(false);
     };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
     document.addEventListener("pointerdown", onPointer, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer, true);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("pointerdown", onPointer, true);
   }, [open]);
   const label = t("mode.menu.label", { name: machine.name });
   return (
-    <div ref={root} className="kivotos-mode">
+    <div ref={root} className="kivotos-mode" onKeyDown={onKey}>
       <button
         ref={trigger}
         type="button"
@@ -1771,6 +1802,7 @@ export function LinksSection({ t, inApp }: { t: Translate; inApp: boolean }): Re
   if (links === null) {
     return (
       <div className="kivotos-links">
+        <h2 className="kivotos-title">{t("settings.nav")}</h2>
         {state.failed ? (
           <Notice tone="danger" icon="warning" lead={t("settings.failed")} t={t} />
         ) : (
@@ -1788,6 +1820,7 @@ export function LinksSection({ t, inApp }: { t: Translate; inApp: boolean }): Re
   else if (links.relay.joined) vias = RELAY;
   return (
     <div className="kivotos-links">
+      <h2 className="kivotos-title">{t("settings.nav")}</h2>
       <section className="kivotos-group">
         <h3 id={headingId} className="kivotos-group-label">
           {t("links.label")}

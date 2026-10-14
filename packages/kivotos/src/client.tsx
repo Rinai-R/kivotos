@@ -47,7 +47,7 @@ import {
   selectSession,
   SESSION_FRAGMENT,
 } from "./dsh/sessions.ts";
-import { statusOf, type MachineInfo } from "./machines.ts";
+import type { MachineInfo } from "./machines.ts";
 import {
   LinksSection,
   machineListOf,
@@ -55,8 +55,9 @@ import {
   SETTINGS_CSS,
   SETTINGS_EN,
   SETTINGS_ZH,
-  machineMeta,
+  machineSummary,
   machineTip,
+  type MachineSummary,
   type MachineList,
   type Translate,
 } from "./settings.tsx";
@@ -167,7 +168,7 @@ const EN: Record<keyof typeof ZH, string> = {
 /** The machine switcher, the drawer toggle and the backdrop: Kivotos' own markup. */
 const BASE_CSS = `
 .kivotos-machines{position:relative;display:flex;width:100%;margin:8px 0 0}
-.kivotos-machines-trigger{display:flex;align-items:center;gap:10px;box-sizing:border-box;width:calc(100% + 4px);min-height:48px;margin:0 -2px;padding:6px 10px 6px 12px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;overflow:hidden}
+.kivotos-machines-trigger{display:flex;align-items:center;gap:10px;box-sizing:border-box;width:calc(100% + 4px);min-height:48px;margin:0 -2px;padding:6px 10px 6px 14px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;overflow:hidden}
 .kivotos-machines-trigger:hover,.kivotos-machines-trigger[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-machines-trigger[data-narrow]{position:relative;justify-content:center;width:40px;min-height:42px;padding:0;margin:0}
 .kivotos-machines-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -176,6 +177,7 @@ const BASE_CSS = `
 .kivotos-machines-list{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;box-sizing:border-box;width:max(100%,240px);max-height:min(60vh,420px);overflow-y:auto;margin:0;padding:4px;list-style:none;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);box-shadow:var(--dsw-elevation-prominent)}
 .kivotos-machines-heading{padding:6px 8px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:15px}
 .kivotos-machines-item{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;min-height:36px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-md);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
+.kivotos-machines-item > .kivotos-dot,.kivotos-machines-trigger > .kivotos-dot{margin:0 3px}
 .kivotos-machines-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-machines-item[aria-current="true"]{background:var(--dsw-alias-interactive-bg-hover);cursor:default}
 .kivotos-machines-text{display:flex;flex:1;flex-direction:column;min-width:0}
@@ -575,7 +577,7 @@ function DrawerGlyph(): ReactNode {
 /** QR glyph for the pairing action (original artwork, currentColor). */
 function QrGlyph(): ReactNode {
   return (
-    <svg width={18} height={18} viewBox="0 0 20 20" fill="none" aria-hidden>
+    <svg width={16} height={16} viewBox="0 0 20 20" fill="none" aria-hidden>
       <rect x={3} y={3} width={5.5} height={5.5} rx={1.2} stroke="currentColor" strokeWidth={1.4} />
       <rect
         x={11.5}
@@ -693,7 +695,7 @@ interface MachineRowProps {
   id: string | null;
   name: string;
   /** The dot: how the machine is reached now. */
-  state: DotState;
+  state: MachineSummary["state"];
   /** Right-aligned: "This computer", the route, unstable, or why there is none. */
   meta: string;
   /** How the machine is reached, in full: the tooltip and, when it cannot open, the accessible name. */
@@ -752,14 +754,6 @@ function MachineRow(props: MachineRowProps): ReactNode {
   );
 }
 
-/** A switcher dot's state, in the link cells' colours (settings.tsx `.kivotos-dot`). */
-type DotState = "online" | "unstable" | "offline" | "unreachable";
-
-function dotOf(machine: MachineInfo): DotState {
-  const { kind } = statusOf(machine, machine.mode);
-  return kind === "denied" ? "unreachable" : kind;
-}
-
 /** A peer's row in the switcher: one line, its route, unstable, or why it cannot open. */
 function PeerRow({
   machine,
@@ -777,12 +771,13 @@ function PeerRow({
   now: number;
   t: Translate;
 }): ReactNode {
+  const summary = machineSummary(t, machine, now);
   return (
     <MachineRow
       id={machine.id}
       name={machine.name}
-      state={dotOf(machine)}
-      meta={machineMeta(t, machine, now)}
+      state={summary.state}
+      meta={summary.text}
       title={machineTip(t, machine, now)}
       unavailable={machine.route === null && !current}
       blocked={blocked}
@@ -889,7 +884,7 @@ function SwitcherTrigger({
   /** The accessible name, with what waits. */
   label: string;
   name: string;
-  state: DotState;
+  state: MachineSummary["state"];
   /** "This computer · 4 ready"; null until the list is read. */
   status: string | null;
   waiting: number;
@@ -1006,8 +1001,10 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   const now = Date.now();
   // This computer and every machine a link reaches.
   const ready = 1 + machines.machines.filter((row) => row.route !== null).length;
-  const where =
-    currentMachine === undefined ? t("machines.local") : machineMeta(t, currentMachine, now);
+  const current: MachineSummary =
+    currentMachine === undefined
+      ? { state: "online", text: t("machines.local") }
+      : machineSummary(t, currentMachine, now);
 
   return (
     <div ref={root} className="kivotos-machines">
@@ -1017,8 +1014,12 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
         open={open}
         label={summary.label}
         name={currentName}
-        state={currentMachine === undefined ? "online" : dotOf(currentMachine)}
-        status={machines.state === "ready" ? t("machines.ready", { where, count: ready }) : null}
+        state={current.state}
+        status={
+          machines.state === "ready"
+            ? t("machines.ready", { where: current.text, count: ready })
+            : null
+        }
         waiting={summary.waiting}
         tone={summary.tone}
         onClick={toggle}
