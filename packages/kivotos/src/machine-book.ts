@@ -40,6 +40,8 @@ export interface Sighting<T> {
   pinned?: boolean;
   /** Where requests go; set when `state` is online. */
   target?: T;
+  /** Set by the book on a working entry whose latest checks failed (see {@link FAILURE_GRACE}). */
+  unstable?: true;
 }
 
 /** How a link shows the remembered entries it does not report now. */
@@ -67,6 +69,29 @@ export interface BookMachine<T> extends MachineInfo {
 }
 
 const OFFLINE: Absent = { state: "offline" };
+
+/**
+ * Failed checks in a row a working link survives: the third one in a row
+ * marks it down. Until then it keeps its route and shows `unstable`.
+ */
+export const FAILURE_GRACE = 3;
+/**
+ * The grace only covers a link seen working this recently: a check that
+ * fails after a long gap (a restart, a sleeping laptop) is believed at once.
+ */
+const GRACE_WINDOW_MS = 5 * 60_000;
+
+/**
+ * Failures that may be a passing hiccup, so a working link gets the grace
+ * above. A refusal, a wrong service, or the link saying the machine is
+ * offline is believed at once.
+ */
+const TRANSIENT: Partial<Record<LinkReason, true>> = {
+  timeout: true,
+  network: true,
+  "relay-unreachable": true,
+  "relay-connecting": true,
+};
 
 /** Order of a link's candidate entries: the one that works first. */
 const STATE_RANK: Record<LinkState, number> = { online: 0, unreachable: 1, denied: 2, offline: 3 };
@@ -128,6 +153,8 @@ export class MachineBook<T> {
   private readonly memory = new Map<string, Remembered>();
   private readonly current = new Map<Via, Map<string, Sighting<T>>>();
   private readonly absent = new Map<Via, Absent>();
+  /** Transient failures in a row of a link's entries that were working, by slot. */
+  private readonly failures = new Map<string, number>();
   /** Modes other than auto, by machine id. */
   private readonly modes = new Map<string, Via>();
   private readonly retentionMs: number;
@@ -196,10 +223,29 @@ export class MachineBook<T> {
    * @param absent - how this link's remembered entries that it does not report show.
    */
   update(via: Via, sightings: readonly Sighting<T>[], now: number, absent = OFFLINE): void {
+    const before = this.current.get(via);
     const current = new Map<string, Sighting<T>>();
     for (const sighting of sightings) {
-      current.set(sighting.key, sighting);
+      current.set(sighting.key, this.held(via, before?.get(sighting.key), sighting, now));
       this.remember(via, sighting, now);
+    }
+    // A working entry the link no longer reports, because the link itself is
+    // failing (the relay connection dropped), gets the same grace.
+    if (absent.state === "unreachable" && before !== undefined) {
+      for (const [key, previous] of before) {
+        if (current.has(key)) continue;
+        const held = this.held(
+          via,
+          previous,
+          { ...previous, state: "unreachable", reason: absent.reason },
+          now,
+        );
+        if (held.state === "online") current.set(key, held);
+      }
+    }
+    for (const slot of this.failures.keys()) {
+      const key = slot.slice(slot.indexOf("\n") + 1);
+      if (slot.startsWith(`${via}\n`) && !current.has(key)) this.failures.delete(slot);
     }
     this.current.set(via, current);
     this.absent.set(via, absent);
@@ -209,6 +255,43 @@ export class MachineBook<T> {
       if (entry.pinned === true || !this.retained(entry, now)) this.memory.delete(slot);
     }
     this.pruneModes();
+  }
+
+  /**
+   * What to show for a sighting given the one before it: a working entry
+   * whose check failed transiently stays online (marked unstable, same
+   * route) until {@link FAILURE_GRACE} checks in a row have failed. Only an
+   * entry seen working within {@link GRACE_WINDOW_MS} gets it: a failure
+   * after a long gap is believed at once.
+   */
+  private held(
+    via: Via,
+    previous: Sighting<T> | undefined,
+    sighting: Sighting<T>,
+    now: number,
+  ): Sighting<T> {
+    const slot = `${via}\n${sighting.key}`;
+    if (sighting.state === "online") {
+      this.failures.delete(slot);
+      return sighting;
+    }
+    const transient =
+      sighting.state === "unreachable" &&
+      sighting.reason !== undefined &&
+      TRANSIENT[sighting.reason] === true;
+    const seen = this.memory.get(slot)?.lastSeen;
+    const recent = seen !== undefined && now - seen <= GRACE_WINDOW_MS;
+    if (!transient || previous?.state !== "online" || !recent) {
+      this.failures.delete(slot);
+      return sighting;
+    }
+    const failed = (this.failures.get(slot) ?? 0) + 1;
+    if (failed >= FAILURE_GRACE) {
+      this.failures.delete(slot);
+      return sighting;
+    }
+    this.failures.set(slot, failed);
+    return { ...previous, unstable: true };
   }
 
   /** Fold a sighting into what is kept: what it does not say, an earlier one may have. */
@@ -267,6 +350,7 @@ export class MachineBook<T> {
     const shown = sighting ?? this.absent.get(entry.via) ?? OFFLINE;
     const link: MachineLink = { via: entry.via, state: shown.state };
     if (shown.reason !== undefined) link.reason = shown.reason;
+    if (sighting?.unstable === true) link.unstable = true;
     if (entry.lastSeen !== undefined) link.lastSeen = entry.lastSeen;
     const address = sighting?.address ?? entry.address;
     if (address !== undefined) link.address = address;

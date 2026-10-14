@@ -28,7 +28,7 @@ const RELAY_AUTHORITY = "relay.kivotos.invalid";
 /** First look for peers this soon after connecting, before the regular interval. */
 const FIRST_REFRESH_MS = 1_500;
 /** Longest wait for a member's `/kivotos/hello` through the relay. */
-const PROBE_TIMEOUT_MS = 5_000;
+const PROBE_TIMEOUT_MS = 6_000;
 
 /** How the members not online now show while this computer's own relay link is down. */
 function absentOf(state: Exclude<LinkStatus["state"], "online">): Absent {

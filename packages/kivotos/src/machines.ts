@@ -70,6 +70,11 @@ export interface MachineLink {
   lastSeen?: number;
   /** The tailnet listener's `host:port`, or the relay's address. */
   address?: string;
+  /**
+   * Still shown online, but its latest checks failed: it is given a few
+   * more before it counts as down, so one slow answer does not flip it.
+   */
+  unstable?: true;
 }
 
 /** A machine as `/kivotos/peers` lists it: one entry whatever links reach it. */

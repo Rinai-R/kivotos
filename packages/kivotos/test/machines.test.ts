@@ -118,6 +118,53 @@ test("a machine no link reports stays listed as offline until the retention ends
   assert.deepEqual(book.machines(T0 + 7 * DAY + 1), []);
 });
 
+test("a working link survives two failed checks in a row and is down at the third", () => {
+  const book = new MachineBook<string>(DAY);
+  const at = (n: number) => T0 + n * 30_000;
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], at(0));
+  for (const n of [1, 2]) {
+    book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(n));
+    const [machine] = book.machines(at(n));
+    assert.equal(machine.links[0].state, "online", `check ${n}`);
+    assert.equal(machine.links[0].unstable, true);
+    // It keeps its route: a mount is not torn down for one slow answer.
+    assert.equal(machine.target, "tailnet-h");
+  }
+  book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(3));
+  const [down] = book.machines(at(3));
+  assert.equal(down.links[0].state, "unreachable");
+  assert.equal(down.links[0].unstable, undefined);
+  assert.equal(down.target, undefined);
+  // One answer clears the count: the next failure starts the grace again.
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], at(4));
+  assert.equal(book.machines(at(4))[0].links[0].unstable, undefined);
+  book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(5));
+  assert.equal(book.machines(at(5))[0].links[0].state, "online");
+});
+
+test("a refusal, or a failure of a link not working before, is shown at once", () => {
+  const book = new MachineBook<string>(DAY);
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);
+  book.update("tailscale", [tailnetH("unreachable", { reason: "no-listener" })], T0 + 30_000);
+  assert.equal(book.machines(T0 + 30_000)[0].links[0].state, "unreachable");
+  const fresh = new MachineBook<string>(DAY);
+  fresh.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], T0);
+  assert.equal(fresh.machines(T0)[0].links[0].state, "unreachable");
+});
+
+test("a dropped relay connection gets the same grace for the machines it was reaching", () => {
+  const book = new MachineBook<string>(7 * DAY);
+  book.update("relay", [{ ...relayOf(NODE_I, "online"), target: "relay-i" }], T0);
+  const down = { state: "unreachable", reason: "relay-unreachable" } as const;
+  book.update("relay", [], T0 + 30_000, down);
+  const [held] = book.machines(T0 + 30_000);
+  assert.equal(held.links[0].state, "online");
+  assert.equal(held.links[0].unstable, true);
+  book.update("relay", [], T0 + 60_000, down);
+  book.update("relay", [], T0 + 90_000, down);
+  assert.equal(book.machines(T0 + 90_000)[0].links[0].state, "unreachable");
+});
+
 test("a static peer stays however long ago it was seen, and goes when unconfigured", () => {
   const book = new MachineBook<string>(DAY);
   book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);

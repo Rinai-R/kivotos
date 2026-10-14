@@ -872,8 +872,13 @@ interface SelfView {
   node?: string;
 }
 
-/** Longest wait for one `/kivotos/hello` answer. */
-const PROBE_TIMEOUT_MS = 3_000;
+/**
+ * Longest wait for one `/kivotos/hello` answer. Tailnet answers over a
+ * DERP relay take seconds at their slowest (p99 about 1.2 s, worst 5.9 s on
+ * a real two-machine tailnet); a failure counts only after several in a row
+ * (machine-book.ts FAILURE_GRACE).
+ */
+const PROBE_TIMEOUT_MS = 6_000;
 /** Tailscale OS names of devices that never run dsh with Kivotos. */
 const HANDHELD_OS = /^(android|ios|ipados)$/i;
 
