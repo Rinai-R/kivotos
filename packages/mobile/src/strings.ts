@@ -3,6 +3,7 @@ import {
   agoOf,
   pinnedVia,
   statusOf,
+  type LinkDown,
   type MachineLink,
   type PhoneMachineProbe,
   type RouteMode,
@@ -19,15 +20,13 @@ const en = {
   emptyStep2: "Tap Scan to pair below and point the camera at the code.",
   scan: "Scan to pair",
   scanHint: "Point the camera at the pairing or invite code Kivotos shows on your computer",
-  manual: "Enter address manually",
+  manual: "Enter address",
   manualShort: "Type address",
   manualHint: "Use the computer's Tailscale IP (not the phone's), or paste a relay invite link.",
   addPlaceholder: "100.64.0.1",
   add: "Add",
   adding: "Connecting…",
-  removeHint: "Long-press a machine to choose how it is reached, or to remove it",
-  remove: "Remove",
-  removeConfirm: "Remove {name}?",
+  removeHint: "Long-press a machine: route, remove",
   cancel: "Cancel",
   close: "Close",
   scanInvalid: "This is not a Kivotos pairing code.",
@@ -46,77 +45,81 @@ const en = {
   relayDenied: "The relay does not know this network. Register it on the relay server first.",
   relayUnreachable: "Cannot reach the relay server. Check its address and your connection.",
   relayEmpty: "No computer of this network is online. Start dsh with Kivotos on one and try again.",
-  checking: "Checking…",
   "via.tailscale": "Tailscale",
   "via.relay": "Relay",
   "state.online": "Online",
+  "state.unstable": "Unstable",
+  "state.checking": "Checking",
   "state.offline": "Offline",
   "state.unreachable": "Unreachable",
-  "state.denied": "Refused by the relay",
-  "reason.no-listener": "No Kivotos listener",
-  "reason.not-kivotos": "Another service answers",
-  "reason.forbidden": "Refused this device",
-  "reason.timeout": "Timed out",
+  "state.denied": "Not registered",
+  "reason.no-listener": "Not running",
+  "reason.not-kivotos": "Port in use",
+  "reason.forbidden": "Refused",
+  "reason.timeout": "No reply",
   "reason.tls": "TLS error",
-  "reason.tls-reset": "Connection reset",
-  "reason.network": "Connection failed",
-  "reason.not-on-tailnet": "Tailscale is not connected on this phone",
-  "reason.relay-connecting": "Connecting to the relay",
-  "reason.relay-unreachable": "Relay unreachable",
+  "reason.tls-reset": "Reset",
+  "reason.network": "Failed",
+  "reason.not-on-tailnet": "Off tailnet",
+  "reason.relay-connecting": "Relay connecting",
+  "reason.relay-unreachable": "Relay down",
   "ago.now": "just now",
   "ago.minutes": "{count} min ago",
   "ago.hours": "{count} h ago",
   "ago.days": "{count} d ago",
-  "status.via": "Via {via}",
-  "status.viaOnly": "Via {via} only",
-  "status.only": "{via} only · {status}",
-  "status.offline": "Offline",
-  "status.offlineSince": "Offline · last seen {ago}",
-  "status.unreachable": "Unreachable: {reason}",
-  "status.lastSeen": "last seen {ago}",
+  sheetLinks: "Links",
   "mode.title": "How this phone reaches it",
   "mode.auto": "Auto",
-  "mode.unavailable": "Unavailable: {reason}",
-  "chip.noTailnet": "Not on tailnet",
-  "chip.noNetwork": "Not in network",
-  streamDown: "Notifications not connected",
+  "mode.tailscale": "Tailscale only",
+  "mode.relay": "Relay only",
+  "modeDesc.auto": "Falls back to the relay",
+  "modeDesc.tailscale": "No fallback",
+  "modeDesc.relay": "No fallback",
+  "mode.unavailable": "Unavailable now: {reason}",
+  sheetSource: "Relay network",
+  sheetRemove: "Remove from this phone",
+  removeTitle: "Remove {name}?",
+  removeBody: "This phone forgets {address}. You can pair it again later.",
+  remove: "Remove",
   connections: "Connections",
   connectionsMeta: "Tailscale · Own relay",
-  linksTailscale: "Tailscale",
-  linksTailscaleNone: "No machine added by address",
-  linksTailscaleCount: "{count} of {total} reachable over Tailscale",
-  linksTailscaleDown:
-    "Tailscale is not connected on this phone. Open the Tailscale app and connect.",
-  linksTailscaleHint:
-    "Machines added by pairing code or address are reached over the tailnet, through the computer's Kivotos listener.",
-  linksRelay: "Own relay",
-  linksRelayIntro:
-    "Connect through a relay server you run, without Tailscale. On a computer, open Settings → Remote access → Own relay → Manage to get the invite.",
-  linksRelayAddress: "Relay",
-  linksRelayNetwork: "Network",
-  linksStatus: "Status",
-  linksRelayMachines: "Machines online",
-  linksManage: "Manage",
-  linksSetUp: "Set up",
-  linksRelayNone: "Not in a network",
-  linksRelayPeers: "Machines online: {count}",
-  "relayState.connecting": "Connecting…",
-  "relayState.online": "Online",
-  "relayState.denied": "Not registered on the relay",
-  "relayState.unreachable": "Relay unreachable",
-  linksInvitePlaceholder: "kivotos://join?…",
-  linksJoin: "Join",
-  linksScan: "Scan invite code",
-  linksLeave: "Leave network",
-  leaveConfirm: "Leave this network?",
-  leaveDetail:
-    "Computers only this network reaches leave the list; the others keep their Tailscale address.",
-  leave: "Leave",
+  tailscale: "Tailscale",
+  "tsTag.ok": "Answering",
+  "tsTag.down": "No answer",
+  tsDown: "No machine answers over Tailscale",
+  tsOpen: "Open Tailscale",
+  tsNone: "No machine added by address",
+  relay: "Own relay",
+  "relayTag.online": "Connected",
+  "relayTag.connecting": "Connecting",
+  "relayTag.denied": "Not registered",
+  "relayTag.unreachable": "Relay unreachable",
+  "relayTag.none": "Not joined",
+  resetLead: "Connection reset",
+  resetBody: "the host may be blocking this domain",
+  relayOnline: "Computers online",
+  relayLeave: "Leave network",
+  relayScan: "Scan invite code",
+  relayPaste: "Or paste an invite link",
+  invitePlaceholder: "kivotos://join?…",
+  relayJoin: "Join",
+  relayWhere: "Invites are in Remote access → Invite on a computer",
+  "joinError.invalid": "Not a Kivotos invite link",
+  "joinError.denied": "The relay hasn't registered this network",
+  "joinError.unreachable": "Can't reach the relay {host}",
+  "joinError.empty": "No computer in this network is online",
+  leaveTitle: "Leave this network?",
+  leaveBody: "This phone leaves the network on {host}.",
+  leaveLoseOne:
+    "{names}, reached only through the relay, leaves the list; the others keep their Tailscale address.",
+  leaveLoseMany:
+    "{names}, reached only through the relay, leave the list; the others keep their Tailscale address.",
+  leaveKeep: "Every machine keeps its Tailscale address.",
+  leaveConfirm: "Leave network",
+  nameSeparator: ", ",
   notifications: "Notifications",
-  notificationsOn: "Approvals, questions and finished tasks",
-  notificationsOff: "Off",
-  notificationsDenied: "Blocked in Android settings",
-  batteryHint: "Android may stop notifications to save battery.",
+  notificationsDenied: "Notifications are off in Android settings",
+  batteryHint: "Android's battery settings restrict background use",
   batteryFix: "Allow in background",
   loading: "Connecting to {name}…",
   offline: "Cannot load {name}",
@@ -139,9 +142,7 @@ const zhText: typeof en = {
   addPlaceholder: "100.64.0.1",
   add: "添加",
   adding: "连接中…",
-  removeHint: "长按机器可选择连接方式或移除",
-  remove: "移除",
-  removeConfirm: "移除 {name}？",
+  removeHint: "长按机器：连接方式、移除",
   cancel: "取消",
   close: "关闭",
   scanInvalid: "这不是 Kivotos 配对码。",
@@ -158,74 +159,79 @@ const zhText: typeof en = {
   relayDenied: "中继不认识这个网络。请先在中继服务器上登记。",
   relayUnreachable: "无法连接中继服务器。请检查地址和网络。",
   relayEmpty: "这个网络里没有在线的电脑。请先在一台电脑上运行装有 Kivotos 的 dsh。",
-  checking: "正在检查…",
   "via.tailscale": "Tailscale",
   "via.relay": "中继",
   "state.online": "在线",
+  "state.unstable": "不稳定",
+  "state.checking": "检查中",
   "state.offline": "离线",
   "state.unreachable": "无法连接",
-  "state.denied": "中继拒绝了这个网络",
-  "reason.no-listener": "没有 Kivotos 监听",
-  "reason.not-kivotos": "端口上不是 Kivotos",
-  "reason.forbidden": "拒绝了本设备",
-  "reason.timeout": "连接超时",
+  "state.denied": "网络未登记",
+  "reason.no-listener": "未运行 Kivotos",
+  "reason.not-kivotos": "端口被占用",
+  "reason.forbidden": "被拒绝",
+  "reason.timeout": "没有响应",
   "reason.tls": "TLS 错误",
   "reason.tls-reset": "连接被重置",
   "reason.network": "连接失败",
-  "reason.not-on-tailnet": "这台手机未连接 Tailscale",
-  "reason.relay-connecting": "正在连接中继",
-  "reason.relay-unreachable": "无法连接中继",
+  "reason.not-on-tailnet": "本机未连接",
+  "reason.relay-connecting": "中继连接中",
+  "reason.relay-unreachable": "连不上中继",
   "ago.now": "刚刚",
-  "ago.minutes": "{count} 分钟前",
-  "ago.hours": "{count} 小时前",
-  "ago.days": "{count} 天前",
-  "status.via": "经由 {via}",
-  "status.viaOnly": "仅经由 {via}",
-  "status.only": "仅 {via} · {status}",
-  "status.offline": "离线",
-  "status.offlineSince": "离线 · 最后在线 {ago}",
-  "status.unreachable": "无法连接：{reason}",
-  "status.lastSeen": "最后在线 {ago}",
+  "ago.minutes": "{count}\u00a0分钟前",
+  "ago.hours": "{count}\u00a0小时前",
+  "ago.days": "{count}\u00a0天前",
+  sheetLinks: "连接",
   "mode.title": "这台手机如何连接它",
   "mode.auto": "自动",
-  "mode.unavailable": "不可用：{reason}",
-  "chip.noTailnet": "不在 tailnet 中",
-  "chip.noNetwork": "不在网络中",
-  streamDown: "通知未连接",
+  "mode.tailscale": "仅 Tailscale",
+  "mode.relay": "仅中继",
+  "modeDesc.auto": "不通时改走中继",
+  "modeDesc.tailscale": "不改道",
+  "modeDesc.relay": "不改道",
+  "mode.unavailable": "现在不可用：{reason}",
+  sheetSource: "中继网络",
+  sheetRemove: "从这台手机移除",
+  removeTitle: "移除 {name}？",
+  removeBody: "这台手机会忘掉 {address}。以后可以重新扫码配对。",
+  remove: "移除",
   connections: "连接",
   connectionsMeta: "Tailscale · 自建中继",
-  linksTailscale: "Tailscale",
-  linksTailscaleNone: "没有按地址添加的机器",
-  linksTailscaleCount: "{total} 台中有 {count} 台可经 Tailscale 连接",
-  linksTailscaleDown: "这台手机未连接 Tailscale。请打开 Tailscale 应用并连接。",
-  linksTailscaleHint: "用配对码或地址添加的机器经 tailnet 连接，通过电脑上的 Kivotos 监听。",
-  linksRelay: "自建中继",
-  linksRelayIntro:
-    "通过你自己部署的中继服务器连接，不依赖 Tailscale。在电脑上打开 设置 → 远程连接 → 自建中继 → 管理 获取邀请。",
-  linksRelayAddress: "中继",
-  linksRelayNetwork: "网络",
-  linksStatus: "状态",
-  linksRelayMachines: "在线机器",
-  linksManage: "管理",
-  linksSetUp: "配置",
-  linksRelayNone: "未加入网络",
-  linksRelayPeers: "在线机器：{count}",
-  "relayState.connecting": "正在连接…",
-  "relayState.online": "在线",
-  "relayState.denied": "中继尚未登记这个网络",
-  "relayState.unreachable": "无法连接中继",
-  linksInvitePlaceholder: "kivotos://join?…",
-  linksJoin: "加入",
-  linksScan: "扫描邀请码",
-  linksLeave: "退出网络",
-  leaveConfirm: "退出这个网络？",
-  leaveDetail: "只经由这个网络连接的电脑会从列表中移除，其它电脑保留 Tailscale 地址。",
-  leave: "退出",
+  tailscale: "Tailscale",
+  "tsTag.ok": "有回应",
+  "tsTag.down": "无回应",
+  tsDown: "机器都没有回应 Tailscale",
+  tsOpen: "打开 Tailscale",
+  tsNone: "没有按地址添加的机器",
+  relay: "自建中继",
+  "relayTag.online": "已连接",
+  "relayTag.connecting": "连接中",
+  "relayTag.denied": "等待登记",
+  "relayTag.unreachable": "连不上中继",
+  "relayTag.none": "未加入",
+  resetLead: "连接被重置",
+  resetBody: "服务商可能在屏蔽此域名",
+  relayOnline: "在线的电脑",
+  relayLeave: "退出网络",
+  relayScan: "扫描邀请码",
+  relayPaste: "或粘贴邀请链接",
+  invitePlaceholder: "kivotos://join?…",
+  relayJoin: "加入",
+  relayWhere: "邀请在电脑的「远程连接」→「邀请设备」",
+  "joinError.invalid": "不是 Kivotos 邀请链接",
+  "joinError.denied": "中继没有登记这个网络",
+  "joinError.unreachable": "连不上中继 {host}",
+  "joinError.empty": "这个网络没有在线的电脑",
+  leaveTitle: "退出这个网络？",
+  leaveBody: "这台手机会离开 {host} 上的网络。",
+  leaveLoseOne: "只经中继连接的 {names} 会从列表中移除；其它机器保留 Tailscale 地址。",
+  leaveLoseMany: "只经中继连接的 {names} 会从列表中移除；其它机器保留 Tailscale 地址。",
+  leaveKeep: "所有机器保留 Tailscale 地址。",
+  leaveConfirm: "退出网络",
+  nameSeparator: "、",
   notifications: "通知",
-  notificationsOn: "审批、提问和任务完成时提醒你",
-  notificationsOff: "已关闭",
-  notificationsDenied: "已在系统设置中关闭",
-  batteryHint: "安卓可能为省电而停止通知。",
+  notificationsDenied: "通知已在系统设置中关闭",
+  batteryHint: "安卓的省电设置限制了后台运行",
   batteryFix: "允许后台运行",
   loading: "正在连接 {name}…",
   offline: "无法加载 {name}",
@@ -245,65 +251,78 @@ function agoText(time: number, now: number): string {
   return ago.unit === "now" ? t("ago.now") : t(`ago.${ago.unit}`, { count: String(ago.count) });
 }
 
-/** One link's state: why it fails, else its state (a chip's words, like the computer's). */
-export function linkState(link: MachineLink): string {
-  return link.reason === undefined ? t(`state.${link.state}`) : t(`reason.${link.reason}`);
+/**
+ * A state dot's tone: working, working but missing its latest checks, not
+ * working, away, or not known yet. `theme.ts` gives each its colour.
+ */
+export type Dot = "online" | "unstable" | "down" | "idle" | "checking";
+
+/** @returns the dot of one link; undefined is a link not probed yet. */
+export function dotOf(link: MachineLink | undefined): Dot {
+  if (link === undefined) return "checking";
+  if (link.state === "online") return link.unstable === true ? "unstable" : "online";
+  return link.state === "offline" ? "idle" : "down";
 }
 
-/** One link's line in the mode sheet: its state with any reason, and when it last worked. */
-export function linkLine(link: MachineLink, now: number): string {
-  const state =
-    link.state === "unreachable" && link.reason !== undefined
-      ? t("status.unreachable", { reason: t(`reason.${link.reason}`) })
-      : t(`state.${link.state}`);
-  return link.state !== "online" && link.lastSeen !== undefined
-    ? `${state} · ${t("status.lastSeen", { ago: agoText(link.lastSeen, now) })}`
-    : state;
+/** Why a link does not work, in a word or two (machines.ts `downOf`). */
+export function downText(down: LinkDown): string {
+  return down === "offline" || down === "unreachable" || down === "denied"
+    ? t(`state.${down}`)
+    : t(`reason.${down}`);
 }
 
 /**
- * How the phone reaches a machine in `mode`, worded like a machine row of the
- * computer's Settings (packages/kivotos/src/settings.tsx `routeText`): the
- * route alone when there is one (the row's link chips say why another link
- * is not used), else why there is none.
+ * One link of a machine in a few words: its state, then the short reason
+ * when it is unreachable, or when it was last seen when it is offline.
  */
-export function routeLine(probe: PhoneMachineProbe, mode: RouteMode, now: number): string {
-  const pinned = pinnedVia(probe, mode);
-  const status = statusOf(probe, mode);
-  let line: string;
-  switch (status.kind) {
+export function linkText(link: MachineLink, now: number): string {
+  switch (link.state) {
     case "online":
-    case "unstable": {
-      const via = t(`via.${status.via}`);
-      return pinned === null ? t("status.via", { via }) : t("status.viaOnly", { via });
-    }
+      return t(link.unstable === true ? "state.unstable" : "state.online");
     case "offline":
-      line =
-        status.lastSeen === undefined
-          ? t("status.offline")
-          : t("status.offlineSince", { ago: agoText(status.lastSeen, now) });
-      break;
-    case "unreachable":
-      line = t("status.unreachable", { reason: linkState(status.link) });
-      break;
+      return link.lastSeen === undefined
+        ? t("state.offline")
+        : `${t("state.offline")} · ${agoText(link.lastSeen, now)}`;
     case "denied":
-      line = t("state.denied");
-      break;
+      return t("state.denied");
+    case "unreachable":
+      return link.reason === undefined
+        ? t("state.unreachable")
+        : `${t("state.unreachable")} · ${t(`reason.${link.reason}`)}`;
   }
-  return pinned === null ? line : t("status.only", { via: t(`via.${pinned}`), status: line });
 }
 
-/** A machine row's status line: {@link routeLine}, plus its notification stream. */
-export function statusLine(
+/**
+ * A machine row's dot and word, as the computer's machine switcher says it
+ * (machines.ts `statusOf`): the route, or the mode when it holds the machine
+ * to one link; Unstable; how long ago it was seen when it is offline; else
+ * the short reason it is unreachable.
+ * @param probe - what the last probe found; undefined before the first one.
+ */
+export function summaryOf(
   probe: PhoneMachineProbe | undefined,
   mode: RouteMode,
   now: number,
-): string {
-  if (probe === undefined) return t("checking");
-  const line = routeLine(probe, mode, now);
-  return probe.stream === "down" && statusOf(probe, mode).kind === "online"
-    ? `${line} · ${t("streamDown")}`
-    : line;
+): { dot: Dot; text: string } {
+  if (probe === undefined) return { dot: "checking", text: t("state.checking") };
+  const status = statusOf(probe, mode);
+  switch (status.kind) {
+    case "online": {
+      const pinned = pinnedVia(probe, mode);
+      return { dot: "online", text: t(pinned === null ? `via.${status.via}` : `mode.${pinned}`) };
+    }
+    case "unstable":
+      return { dot: "unstable", text: t("state.unstable") };
+    case "offline":
+      return {
+        dot: "idle",
+        text: status.lastSeen === undefined ? t("state.offline") : agoText(status.lastSeen, now),
+      };
+    case "unreachable":
+      return { dot: "down", text: downText(status.link.reason ?? "unreachable") };
+    case "denied":
+      return { dot: "down", text: t("state.denied") };
+  }
 }
 
 /** The message for a failed attempt to add machines (`resolveMachines`). */
@@ -321,4 +340,16 @@ export function errorKey(error: unknown): Key {
     "relay-empty": "relayEmpty",
   };
   return known[message] ?? "errorUnreachable";
+}
+
+/** The one-line message for a failed join on the Connections screen (`resolveMachines`). */
+export function joinErrorKey(error: unknown): Key {
+  const message = error instanceof Error ? error.message : "";
+  const known: Record<string, Key> = {
+    duplicate: "duplicate",
+    "relay-invite": "joinError.invalid",
+    "relay-denied": "joinError.denied",
+    "relay-empty": "joinError.empty",
+  };
+  return known[message] ?? "joinError.unreachable";
 }

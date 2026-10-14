@@ -161,15 +161,10 @@ export default function App() {
     (key: string) => persist(leavePhoneNetwork(machinesRef.current, key)),
     [persist],
   );
-  /** Remove a machine; one a relay network reaches leaves the network (the computer's choice too). */
+  /** Remove a machine added by address; a relay network's machines leave with the network. */
   const removeMachine = useCallback(
-    (id: string) => {
-      const removed = machinesRef.current.find((machine) => machine.id === id);
-      if (removed === undefined) return;
-      if (removed.relay !== undefined) leaveNetwork(removed.relay.key);
-      else persist(machinesRef.current.filter((machine) => machine.id !== id));
-    },
-    [leaveNetwork, persist],
+    (id: string) => persist(machinesRef.current.filter((machine) => machine.id !== id)),
+    [persist],
   );
   /** How the phone reaches a machine: its door and its event stream follow (native setMachines). */
   const changeMode = useCallback(

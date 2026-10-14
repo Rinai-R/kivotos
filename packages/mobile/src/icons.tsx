@@ -1,4 +1,4 @@
-import Svg, { Path, Rect } from "react-native-svg";
+import Svg, { Circle, G, Path, Rect } from "react-native-svg";
 
 interface GlyphProps {
   size?: number;
@@ -55,19 +55,6 @@ export function ChevronGlyph({ size = 16, color }: GlyphProps) {
   );
 }
 
-export function BellGlyph({ size = 20, color }: GlyphProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path
-        d="M5 13.5V9a5 5 0 0110 0v4.5l1.5 1.5h-13L5 13.5zM8 17a2 2 0 004 0"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 export function CloseGlyph({ size = 18, color }: GlyphProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
@@ -90,16 +77,54 @@ export function KeyboardGlyph({ size = 18, color }: GlyphProps) {
   );
 }
 
-/** Two chain links: the Connections screen. */
-export function LinkGlyph({ size = 20, color }: GlyphProps) {
+/** The Tailscale grid: x, y and opacity of each dot. */
+const TAILSCALE_DOTS = [
+  [3.5, 3.5, 0.35],
+  [8, 3.5, 0.35],
+  [12.5, 3.5, 0.35],
+  [3.5, 8, 1],
+  [8, 8, 1],
+  [12.5, 8, 1],
+  [3.5, 12.5, 0.35],
+  [8, 12.5, 1],
+  [12.5, 12.5, 0.35],
+] as const;
+
+/** The Tailscale link: a grid of nine dots, as dsh's Remote access shows it. */
+export function TailscaleGlyph({ size = 20, color }: GlyphProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 16 16">
+      <G fill={color}>
+        {TAILSCALE_DOTS.map(([cx, cy, opacity]) => (
+          <Circle key={`${cx},${cy}`} cx={cx} cy={cy} r={1.3} opacity={opacity} />
+        ))}
+      </G>
+    </Svg>
+  );
+}
+
+/** The own relay: a box between two arrows. */
+export function RelayGlyph({ size = 20, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <Rect x={5.25} y={5.25} width={5.5} height={5.5} rx={1.2} stroke={color} strokeWidth={1.3} />
       <Path
-        d="M8.5 11.5a3 3 0 004.24 0l2.5-2.5a3 3 0 00-4.24-4.24l-.75.75M11.5 8.5a3 3 0 00-4.24 0l-2.5 2.5a3 3 0 004.24 4.24l.75-.75"
+        d="M1.5 8h3.75M10.75 8h3.75M3.5 6l-2 2 2 2M12.5 6l2 2-2 2"
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.3}
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
+    </Svg>
+  );
+}
+
+/** A circled exclamation mark: a failure callout. */
+export function ErrorGlyph({ size = 18, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <Circle cx={8} cy={8} r={6.5} stroke={color} strokeWidth={1.3} />
+      <Path d="M8 4.8v4M8 11.2h.01" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -111,20 +136,6 @@ export function BackGlyph({ size = 20, color }: GlyphProps) {
         d="M12.5 4.5L7 10l5.5 5.5"
         stroke={color}
         strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-export function CheckGlyph({ size = 18, color }: GlyphProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path
-        d="M4.5 10.5l3.75 3.75L15.5 6"
-        stroke={color}
-        strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
       />

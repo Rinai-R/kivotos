@@ -10,14 +10,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   modeOptions,
+  routeOf,
+  type MachineLink,
+  type ModeOption,
   type PhoneMachineProbe,
   type RouteMode,
   type Via,
 } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
-import { CheckGlyph } from "./icons";
-import { LinkChips } from "./LinkChips";
-import { linkLine, linkState, routeLine, statusLine, t } from "./strings";
+import { ChevronGlyph, RelayGlyph } from "./icons";
+import { relayHost } from "./machines";
+import { StateDot } from "./StateDot";
+import { dotOf, downText, linkText, t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 interface Props {
@@ -25,59 +29,101 @@ interface Props {
   machine: Machine | null;
   /** What the last probe found for it. */
   probe: PhoneMachineProbe | undefined;
-  /** The links the phone has: one chip each. */
-  vias: readonly Via[];
   onMode: (id: string, mode: RouteMode) => void;
+  /** Remove a machine added by address (the caller confirms). */
   onRemove: (machine: Machine) => void;
+  /** Open the Connections screen, where its relay network is. */
+  onLinks: () => void;
   onClose: () => void;
 }
 
+/** One link of the machine on one line: the link, its dot and state; the route in bold. */
+function LinkRow({
+  via,
+  link,
+  used,
+  last,
+}: {
+  via: Via;
+  /** undefined until the first probe. */
+  link: MachineLink | undefined;
+  used: boolean;
+  last: boolean;
+}) {
+  const styles = useStyles(createStyles);
+  const text = link === undefined ? t("state.checking") : linkText(link, Date.now());
+  return (
+    <View style={last ? styles.linkRow : styles.linkRowDivided} accessible>
+      <Text style={styles.linkVia}>{t(`via.${via}`)}</Text>
+      <StateDot dot={dotOf(link)} used={used} />
+      <Text style={used ? styles.linkUsed : styles.linkState} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 interface OptionProps {
-  mode: RouteMode;
+  option: ModeOption;
   checked: boolean;
-  /** What choosing it gives now, or why it does not work (`unavailable`). */
-  state: string;
-  unavailable: boolean;
   last: boolean;
   onChoose: (mode: RouteMode) => void;
 }
 
-function ModeOption({ mode, checked, state, unavailable, last, onChoose }: OptionProps) {
+/** One mode on one line: its radio, its name, and what it does or why it is unavailable now. */
+function ModeRow({ option, checked, last, onChoose }: OptionProps) {
   const styles = useStyles(createStyles);
-  const colors = useColors();
+  const { mode, disabled } = option;
   const choose = useCallback(() => onChoose(mode), [mode, onChoose]);
+  // A link that is down cannot be chosen; the current choice stays, and says why.
+  const off = disabled !== undefined && !checked;
   const rowStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.optionPressed : styles.option),
-    [styles],
+    ({ pressed }: PressableStateCallbackType) => [
+      last ? styles.option : styles.optionDivided,
+      off && styles.optionOff,
+      pressed && styles.pressed,
+    ],
+    [last, off, styles],
   );
-  const a11y = useMemo(() => ({ checked }), [checked]);
-  const name = mode === "auto" ? t("mode.auto") : t(`via.${mode}`);
+  const a11y = useMemo(() => ({ checked, disabled: off }), [checked, off]);
+  const name = t(`mode.${mode}`);
+  const detail =
+    disabled === undefined
+      ? t(`modeDesc.${mode}`)
+      : t("mode.unavailable", { reason: downText(disabled) });
   return (
     <Pressable
       onPress={choose}
+      disabled={off}
       style={rowStyle}
       accessibilityRole="radio"
       accessibilityState={a11y}
-      accessibilityLabel={`${name}, ${state}`}
+      accessibilityLabel={`${name}, ${detail}`}
     >
-      <View style={last ? styles.optionBodyLast : styles.optionBody}>
-        <View style={styles.optionText}>
-          <Text style={styles.optionName}>{name}</Text>
-          <Text style={unavailable ? styles.optionUnavailable : styles.optionState}>{state}</Text>
-        </View>
-        {checked ? <CheckGlyph color={colors.link} /> : <View style={styles.check} />}
+      <View style={checked ? styles.radioOn : styles.radio}>
+        {checked ? <View style={styles.radioDot} /> : null}
       </View>
+      <Text style={styles.optionName} numberOfLines={1}>
+        {name}
+      </Text>
+      <Text
+        style={disabled !== undefined && checked ? styles.optionDown : styles.optionDetail}
+        numberOfLines={1}
+      >
+        {detail}
+      </Text>
     </Pressable>
   );
 }
 
 /**
- * A machine's actions on the app's home: how the phone reaches it (for a
- * machine with both links: Auto, the links that work, and the current choice
- * even when its link is down, as on the computer), then removing it.
+ * A machine's actions on the app's home: its links, how the phone reaches it
+ * (a machine with both links), the relay network it is in, and removing a
+ * machine added by address. Leaving a network is on the Connections screen.
  */
-export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }: Props) {
+export function MachineSheet({ machine, probe, onMode, onRemove, onLinks, onClose }: Props) {
   const styles = useStyles(createStyles);
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const sheetStyle = useMemo(
     () => [styles.sheet, { paddingBottom: 12 + insets.bottom }],
@@ -94,58 +140,92 @@ export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }
     onClose();
     if (machine !== null) onRemove(machine);
   }, [machine, onClose, onRemove]);
-  const actionStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.actionPressed : styles.action),
+  const source = useCallback(() => {
+    onClose();
+    onLinks();
+  }, [onClose, onLinks]);
+  const sourceStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [styles.source, pressed && styles.pressed],
     [styles],
   );
-  const now = Date.now();
+  const removeStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [styles.remove, pressed && styles.removePressed],
+    [styles],
+  );
+  const cancelStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [styles.cancel, pressed && styles.pressed],
+    [styles],
+  );
   let body = null;
   if (machine !== null) {
     const mode = machine.mode ?? "auto";
+    const route = probe === undefined ? null : routeOf(probe, mode);
+    // Before the first probe: the links the machine was added with, still being checked.
+    const vias: Via[] = [];
+    if (machine.url !== "") vias.push("tailscale");
+    if (machine.relay !== undefined) vias.push("relay");
+    const links = probe?.links ?? [];
+    const shown = links.length > 0 ? links.map((link) => link.via) : vias;
     const options = probe === undefined ? [] : modeOptions(probe);
     body = (
       <View style={sheetStyle}>
+        <View style={styles.grab} />
         <Text style={styles.title} numberOfLines={1}>
           {machine.name}
         </Text>
-        <Text style={styles.subtitle}>{statusLine(probe, mode, now)}</Text>
-        <LinkChips machine={machine} probe={probe} vias={vias} />
-        {probe !== undefined && options.length > 0 ? (
+        <Text style={styles.section}>{t("sheetLinks")}</Text>
+        <View style={styles.group}>
+          {shown.map((via, index) => (
+            <LinkRow
+              key={via}
+              via={via}
+              link={links.find((link) => link.via === via)}
+              used={route === via}
+              last={index === shown.length - 1}
+            />
+          ))}
+        </View>
+        {options.length > 0 ? (
           <>
             <Text style={styles.section}>{t("mode.title")}</Text>
             <View style={styles.group} accessibilityRole="radiogroup">
-              {options.map((option, index) => {
-                let state = routeLine(probe, "auto", now);
-                if (option.link !== undefined)
-                  state =
-                    option.disabled !== undefined
-                      ? t("mode.unavailable", { reason: linkState(option.link) })
-                      : linkLine(option.link, now);
-                return (
-                  <ModeOption
-                    key={option.mode}
-                    mode={option.mode}
-                    checked={option.mode === mode}
-                    state={state}
-                    unavailable={option.disabled !== undefined}
-                    last={index === options.length - 1}
-                    onChoose={choose}
-                  />
-                );
-              })}
+              {options.map((option, index) => (
+                <ModeRow
+                  key={option.mode}
+                  option={option}
+                  checked={option.mode === mode}
+                  last={index === options.length - 1}
+                  onChoose={choose}
+                />
+              ))}
             </View>
           </>
         ) : null}
-        <View style={styles.actions}>
-          <Pressable onPress={remove} style={actionStyle} accessibilityRole="button">
-            <Text style={styles.danger}>
-              {machine.relay === undefined ? t("remove") : t("linksLeave")}
-            </Text>
+        {machine.relay === undefined ? null : (
+          <View style={styles.sourceGroup}>
+            <Pressable
+              onPress={source}
+              style={sourceStyle}
+              accessibilityRole="button"
+              accessibilityLabel={`${t("sheetSource")}, ${relayHost(machine.relay.endpoint)}`}
+            >
+              <RelayGlyph size={18} color={colors.textSecondary} />
+              <Text style={styles.sourceName}>{t("sheetSource")}</Text>
+              <Text style={styles.sourceHost} numberOfLines={1}>
+                {relayHost(machine.relay.endpoint)}
+              </Text>
+              <ChevronGlyph color={colors.textTertiary} />
+            </Pressable>
+          </View>
+        )}
+        {machine.url !== "" && machine.relay === undefined ? (
+          <Pressable onPress={remove} style={removeStyle} accessibilityRole="button">
+            <Text style={styles.removeText}>{t("sheetRemove")}</Text>
           </Pressable>
-          <Pressable onPress={onClose} style={actionStyle} accessibilityRole="button">
-            <Text style={styles.cancel}>{t("cancel")}</Text>
-          </Pressable>
-        </View>
+        ) : null}
+        <Pressable onPress={onClose} style={cancelStyle} accessibilityRole="button">
+          <Text style={styles.cancelText}>{t("cancel")}</Text>
+        </Pressable>
       </View>
     );
   }
@@ -167,16 +247,35 @@ export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }
 }
 
 function createStyles(c: Palette) {
-  const option = { paddingLeft: 16 } as const;
-  const optionBody = {
+  const divider = { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border };
+  const linkRow = {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  } as const;
+  const linkState = { flex: 1, fontSize: 14, lineHeight: 20 } as const;
+  const option = {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 60,
-    paddingRight: 16,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   } as const;
+  const radio = {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  } as const;
+  const detail = { fontSize: 13, lineHeight: 18, flexShrink: 1 } as const;
   const action = {
-    height: 52,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.md,
@@ -188,27 +287,28 @@ function createStyles(c: Palette) {
       width: "100%",
       maxWidth: 600,
       alignSelf: "center",
-      paddingTop: 20,
+      paddingTop: 8,
       paddingHorizontal: 16,
       borderTopLeftRadius: radius.xl,
       borderTopRightRadius: radius.xl,
       backgroundColor: c.bg,
     },
-    title: { fontSize: 18, fontWeight: "600", color: c.text, marginHorizontal: 4 },
-    subtitle: {
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: 4,
-      marginHorizontal: 4,
-      color: c.textTertiary,
+    grab: {
+      alignSelf: "center",
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      marginBottom: 12,
+      backgroundColor: c.border,
     },
+    title: { fontSize: 20, lineHeight: 28, fontWeight: "600", color: c.text, marginHorizontal: 4 },
     section: {
       fontSize: 13,
-      fontWeight: "500",
-      marginTop: 20,
-      marginBottom: 8,
-      marginLeft: 4,
-      color: c.textTertiary,
+      lineHeight: 18,
+      paddingTop: 16,
+      paddingBottom: 8,
+      paddingHorizontal: 4,
+      color: c.textSecondary,
     },
     group: {
       borderRadius: radius.lg,
@@ -217,23 +317,49 @@ function createStyles(c: Palette) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
+    pressed: { backgroundColor: c.pressed },
+    linkRow,
+    linkRowDivided: { ...linkRow, ...divider },
+    linkVia: { width: 72, fontSize: 14, lineHeight: 20, color: c.textSecondary },
+    linkState: { ...linkState, color: c.textSecondary },
+    linkUsed: { ...linkState, fontWeight: "600", color: c.text },
     option,
-    optionPressed: { ...option, backgroundColor: c.pressed },
-    optionBody: {
-      ...optionBody,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border,
+    optionDivided: { ...option, ...divider },
+    optionOff: { opacity: 0.45 },
+    radio: { ...radio, borderColor: c.textTertiary },
+    radioOn: { ...radio, borderColor: c.link },
+    radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.link },
+    optionName: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: "500", color: c.text },
+    optionDetail: { ...detail, color: c.textTertiary },
+    optionDown: { ...detail, color: c.danger },
+    sourceGroup: {
+      marginTop: 12,
+      borderRadius: radius.lg,
+      overflow: "hidden",
+      backgroundColor: c.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
     },
-    optionBodyLast: optionBody,
-    optionText: { flex: 1, paddingVertical: 10 },
-    optionName: { fontSize: 16, fontWeight: "500", color: c.text },
-    optionState: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.textTertiary },
-    optionUnavailable: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.danger },
-    check: { width: 18, height: 18 },
-    actions: { marginTop: 16, gap: 4 },
-    action,
-    actionPressed: { ...action, backgroundColor: c.pressed },
-    danger: { fontSize: 16, fontWeight: "600", color: c.danger },
-    cancel: { fontSize: 16, fontWeight: "500", color: c.textSecondary },
+    source: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      minHeight: 52,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+    },
+    sourceName: { flex: 1, fontSize: 16, lineHeight: 22, color: c.text },
+    sourceHost: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: "monospace",
+      color: c.textTertiary,
+      flexShrink: 1,
+    },
+    remove: { ...action, marginTop: 16, backgroundColor: c.dangerSoft },
+    removePressed: { opacity: 0.7 },
+    removeText: { fontSize: 15, fontWeight: "600", color: c.danger },
+    cancel: { ...action, marginTop: 8 },
+    cancelText: { fontSize: 15, fontWeight: "500", color: c.textSecondary },
   } as const;
 }
