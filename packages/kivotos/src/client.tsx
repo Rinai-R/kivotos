@@ -55,7 +55,8 @@ import {
   SETTINGS_CSS,
   SETTINGS_EN,
   SETTINGS_ZH,
-  statusText,
+  machineMeta,
+  machineTip,
   type MachineList,
   type Translate,
 } from "./settings.tsx";
@@ -759,8 +760,8 @@ function PeerRow({
       id={machine.id}
       name={machine.name}
       meta={meta}
-      title={statusText(t, machine, now)}
-      status={statusText(t, machine, now, true)}
+      title={machineTip(t, machine, now)}
+      status={machineMeta(t, machine, now)}
       note={status.kind !== "online" || status.down !== undefined}
       unavailable={machine.route === null && !current}
       blocked={blocked}
