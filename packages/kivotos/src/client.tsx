@@ -100,9 +100,9 @@ const IN_APP = /\bKivotos\b/.test(navigator.userAgent);
 const PHONE = IN_APP ? "(max-width: 767px)" : "(max-width: 767px) and (pointer: coarse)";
 const PEER_PATH = /^\/kivotos\/peer\/([^/]+)\//;
 const ZH = {
-  "machines.label": "机器",
   "machines.local": "本机",
-  "machines.current": "当前",
+  "machines.selfCurrent": "本机 · 当前",
+  "machines.ready": "{where} · {count} 台可用",
   "machines.empty": "未发现其它机器",
   "machines.failed": "无法读取机器列表",
   "machines.open": "打开 {name}",
@@ -132,9 +132,9 @@ const ZH = {
   "machines.blockedDesktop": "已停用：桌面应用的启动方式已变化",
 };
 const EN: Record<keyof typeof ZH, string> = {
-  "machines.label": "Machines",
-  "machines.local": "This machine",
-  "machines.current": "Current",
+  "machines.local": "This computer",
+  "machines.selfCurrent": "This computer · Current",
+  "machines.ready": "{where} · {count} ready",
   "machines.empty": "No other machines found",
   "machines.failed": "Could not load machines",
   "machines.open": "Open {name}",
@@ -167,21 +167,23 @@ const EN: Record<keyof typeof ZH, string> = {
 /** The machine switcher, the drawer toggle and the backdrop: Kivotos' own markup. */
 const BASE_CSS = `
 .kivotos-machines{position:relative;display:flex;width:100%;margin:8px 0 0}
-.kivotos-machines-trigger{display:inline-flex;align-items:center;gap:8px;width:calc(100% + 4px);height:42px;margin:0 -2px;padding:0 10px 0 8px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;cursor:pointer;overflow:hidden}
+.kivotos-machines-trigger{display:flex;align-items:center;gap:10px;box-sizing:border-box;width:calc(100% + 4px);min-height:48px;margin:0 -2px;padding:6px 10px 6px 12px;border:none;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;overflow:hidden}
 .kivotos-machines-trigger:hover,.kivotos-machines-trigger[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover)}
-.kivotos-machines-trigger[data-narrow]{position:relative;justify-content:center;width:40px;padding:0;margin:0}
+.kivotos-machines-trigger[data-narrow]{position:relative;justify-content:center;width:40px;min-height:42px;padding:0;margin:0}
 .kivotos-machines-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kivotos-machines-count{flex:none;margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:12px;font-variant-numeric:tabular-nums}
-.kivotos-machines-list{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;box-sizing:border-box;width:max(100%,240px);max-height:min(60vh,420px);overflow-y:auto;margin:0;padding:6px;list-style:none;border:0;border-radius:var(--dsw-radius-md);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);box-shadow:var(--dsw-elevation-panel)}
-.kivotos-machines-item{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.kivotos-machines-chevron{flex:none;margin-left:auto;color:var(--dsw-alias-label-tertiary);transition:transform 120ms}
+.kivotos-machines-trigger[aria-expanded="true"] .kivotos-machines-chevron{transform:rotate(180deg)}
+.kivotos-machines-list{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;box-sizing:border-box;width:max(100%,240px);max-height:min(60vh,420px);overflow-y:auto;margin:0;padding:4px;list-style:none;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);box-shadow:var(--dsw-elevation-prominent)}
+.kivotos-machines-heading{padding:6px 8px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:15px}
+.kivotos-machines-item{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;min-height:36px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-md);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
 .kivotos-machines-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .kivotos-machines-item[aria-current="true"]{background:var(--dsw-alias-interactive-bg-hover);cursor:default}
 .kivotos-machines-text{display:flex;flex:1;flex-direction:column;min-width:0}
-.kivotos-machines-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kivotos-machines-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kivotos-machines-status{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px}
-.kivotos-machines-meta{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px}
+.kivotos-machines-meta{flex:none;margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:12px}
 .kivotos-machines-note{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:13px}
-.kivotos-machines-separator{border-top:1px solid var(--dsw-alias-interactive-bg-hover);margin-top:4px;padding-top:4px}
+.kivotos-machines-separator{border-top:0.5px solid var(--dsw-alias-border-l2);margin-top:4px;padding-top:4px}
 .kivotos-machines-separator .kivotos-machines-note{display:block}
 .kivotos-machines-item:disabled{color:var(--dsw-alias-label-tertiary);cursor:not-allowed}
 .kivotos-machines-item:disabled:hover{background:transparent}
@@ -603,6 +605,28 @@ function QrGlyph(): ReactNode {
   );
 }
 
+/** Chevron of the switcher's trigger; it turns over while the menu is open (original artwork). */
+function ChevronGlyph(): ReactNode {
+  return (
+    <svg
+      className="kivotos-machines-chevron"
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 interface Machines extends MachineList {
   state: "loading" | "ready" | "failed";
 }
@@ -668,14 +692,13 @@ interface MachineRowProps {
   /** Peer id, or null for the serving host. */
   id: string | null;
   name: string;
-  /** The tag at the end: "Current", the route, or nothing. */
+  /** The dot: how the machine is reached now. */
+  state: DotState;
+  /** Right-aligned: "This computer", the route, unstable, or why there is none. */
   meta: string;
-  /** How the machine is reached, in full: the tooltip. */
+  /** How the machine is reached, in full: the tooltip and, when it cannot open, the accessible name. */
   title: string | undefined;
-  /** The same next to the tag: the second line, when `note`. */
-  status: string | undefined;
-  note: boolean;
-  /** No link reaches it: shown, dimmed, but not openable. */
+  /** No link reaches it: shown, but not openable. */
   unavailable: boolean;
   /** Why opening it is off for now (a failed probe); undefined when it can open. */
   blocked: string | undefined;
@@ -686,7 +709,7 @@ interface MachineRowProps {
 }
 
 function MachineRow(props: MachineRowProps): ReactNode {
-  const { id, name, meta, status, current, attention: row, t } = props;
+  const { id, name, state, meta, current, attention: row, t } = props;
   const waiting = row?.pending.length ?? 0;
   const tone = finishedTone(row?.finished ?? []);
   // The oldest wait, else the latest finished turn.
@@ -720,21 +743,24 @@ function MachineRow(props: MachineRowProps): ReactNode {
         disabled={unavailable}
         onClick={onClick}
       >
-        <MachineGlyph />
-        <span className="kivotos-machines-text">
-          <span className="kivotos-machines-name">{name}</span>
-          {props.note && status !== undefined ? (
-            <span className="kivotos-machines-status">{status}</span>
-          ) : null}
-        </span>
+        <span className="kivotos-dot" data-state={state} aria-hidden />
+        <span className="kivotos-machines-name">{name}</span>
         <AttentionMarks waiting={waiting} tone={tone} />
-        {meta === "" ? null : <span className="kivotos-machines-meta">{meta}</span>}
+        <span className="kivotos-machines-meta">{meta}</span>
       </button>
     </li>
   );
 }
 
-/** A peer's row in the switcher: its route as the tag, a second line when it is not plain. */
+/** A switcher dot's state, in the link cells' colours (settings.tsx `.kivotos-dot`). */
+type DotState = "online" | "unstable" | "offline" | "unreachable";
+
+function dotOf(machine: MachineInfo): DotState {
+  const { kind } = statusOf(machine, machine.mode);
+  return kind === "denied" ? "unreachable" : kind;
+}
+
+/** A peer's row in the switcher: one line, its route, unstable, or why it cannot open. */
 function PeerRow({
   machine,
   current,
@@ -751,18 +777,13 @@ function PeerRow({
   now: number;
   t: Translate;
 }): ReactNode {
-  const status = statusOf(machine, machine.mode);
-  let meta = "";
-  if (current) meta = t("machines.current");
-  else if (machine.route !== null) meta = t(`via.${machine.route}`);
   return (
     <MachineRow
       id={machine.id}
       name={machine.name}
-      meta={meta}
+      state={dotOf(machine)}
+      meta={machineMeta(t, machine, now)}
       title={machineTip(t, machine, now)}
-      status={machineMeta(t, machine, now)}
-      note={status.kind !== "online" || status.down !== undefined}
       unavailable={machine.route === null && !current}
       blocked={blocked}
       current={current}
@@ -849,6 +870,71 @@ function TriggerMarks({
   );
 }
 
+/** The switcher's trigger: when wide, the current machine's dot, name and where it is, and a chevron. */
+function SwitcherTrigger({
+  triggerRef,
+  wide,
+  open,
+  label,
+  name,
+  state,
+  status,
+  waiting,
+  tone,
+  onClick,
+}: {
+  triggerRef: React.MutableRefObject<HTMLButtonElement | null>;
+  wide: boolean;
+  open: boolean;
+  /** The accessible name, with what waits. */
+  label: string;
+  name: string;
+  state: DotState;
+  /** "This computer · 4 ready"; null until the list is read. */
+  status: string | null;
+  waiting: number;
+  tone: "done" | "failed" | undefined;
+  onClick: () => void;
+}): ReactNode {
+  if (!wide) {
+    return (
+      <button
+        ref={triggerRef}
+        type="button"
+        className="kivotos-machines-trigger"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={label}
+        title={name}
+        data-narrow=""
+        onClick={onClick}
+      >
+        <MachineGlyph />
+        <TriggerMarks wide={false} waiting={waiting} tone={tone} />
+      </button>
+    );
+  }
+  return (
+    <button
+      ref={triggerRef}
+      type="button"
+      className="kivotos-machines-trigger"
+      aria-haspopup="true"
+      aria-expanded={open}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <span className="kivotos-dot" data-state={state} aria-hidden />
+      <span className="kivotos-machines-text">
+        <span className="kivotos-machines-label">{name}</span>
+        {status === null ? null : <span className="kivotos-machines-status">{status}</span>}
+      </span>
+      <TriggerMarks wide waiting={waiting} tone={tone} />
+      <ChevronGlyph />
+    </button>
+  );
+}
+
 /** Machine switcher in the sidebar foot. */
 function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -906,48 +992,48 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
     };
   }, [open]);
 
-  const currentName = useMemo(() => {
-    if (peer === null) return t("machines.local");
-    return machines.machines.find((row) => row.id === peer)?.name ?? peer;
-  }, [machines.machines, peer, t]);
-
+  const currentMachine = useMemo(
+    () => (peer === null ? undefined : machines.machines.find((row) => row.id === peer)),
+    [machines.machines, peer],
+  );
   const selfName = machines.self.name || t("machines.local");
+  const currentName = peer === null ? selfName : (currentMachine?.name ?? peer);
   let note: string | null = null;
   if (machines.state === "failed") note = t("machines.failed");
   else if (machines.state === "ready" && machines.machines.length === 0) note = t("machines.empty");
   const pairReady = machines.state === "ready" && Boolean(machines.self.url);
   // Rendered on open and on every list read, which keeps "last seen" current enough.
   const now = Date.now();
+  // This computer and every machine a link reaches.
+  const ready = 1 + machines.machines.filter((row) => row.route !== null).length;
+  const where =
+    currentMachine === undefined ? t("machines.local") : machineMeta(t, currentMachine, now);
 
   return (
     <div ref={root} className="kivotos-machines">
-      <button
-        ref={trigger}
-        type="button"
-        className="kivotos-machines-trigger"
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-label={summary.label}
-        title={wide ? undefined : currentName}
-        data-narrow={wide ? undefined : ""}
+      <SwitcherTrigger
+        triggerRef={trigger}
+        wide={wide}
+        open={open}
+        label={summary.label}
+        name={currentName}
+        state={currentMachine === undefined ? "online" : dotOf(currentMachine)}
+        status={machines.state === "ready" ? t("machines.ready", { where, count: ready }) : null}
+        waiting={summary.waiting}
+        tone={summary.tone}
         onClick={toggle}
-      >
-        <MachineGlyph />
-        {wide ? <span className="kivotos-machines-label">{currentName}</span> : null}
-        <TriggerMarks wide={wide} waiting={summary.waiting} tone={summary.tone} />
-        {wide && machines.state === "ready" ? (
-          <span className="kivotos-machines-count">{String(machines.machines.length + 1)}</span>
-        ) : null}
-      </button>
+      />
       {open ? (
         <ul className="kivotos-machines-list" aria-label={t("machines.label")}>
+          <li className="kivotos-machines-heading" aria-hidden>
+            {t("machines.label")}
+          </li>
           <MachineRow
             id={null}
             name={selfName}
-            meta={peer === null ? t("machines.current") : t("machines.local")}
+            state="online"
+            meta={peer === null ? t("machines.selfCurrent") : t("machines.local")}
             title={undefined}
-            status={undefined}
-            note={false}
             unavailable={false}
             blocked={undefined}
             current={peer === null}
