@@ -4,9 +4,13 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.SystemClock
+import android.system.ErrnoException
+import android.system.OsConstants
 import java.io.IOException
 import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URL
@@ -117,10 +121,8 @@ object Links {
       Hello("unreachable", "timeout")
     } catch (_: SSLException) {
       Hello("unreachable", "tls")
-    } catch (failure: ConnectException) {
-      // Android words a refused connection "ECONNREFUSED (Connection refused)".
-      val refused = failure.message.orEmpty().contains("refused", ignoreCase = true)
-      Hello("unreachable", if (refused) "no-listener" else "network")
+    } catch (_: ConnectException) {
+      Hello("unreachable", if (refused(connection.url)) "no-listener" else "network")
     } catch (_: JSONException) {
       Hello("unreachable", "not-kivotos")
     } catch (_: IOException) {
@@ -128,6 +130,20 @@ object Links {
     } finally {
       connection.disconnect()
     }
+  }
+
+  /**
+   * Whether nothing listens at the URL's address. Android's HTTP stack words
+   * every failed connect "Failed to connect to …" and drops the cause, so a
+   * plain socket asks again; its failure carries the errno.
+   */
+  private fun refused(url: URL): Boolean = try {
+    Socket().use { it.connect(InetSocketAddress(url.host, if (url.port > 0) url.port else url.defaultPort), HELLO_TIMEOUT_MS) }
+    false
+  } catch (failure: ConnectException) {
+    generateSequence<Throwable>(failure) { it.cause }.any { (it as? ErrnoException)?.errno == OsConstants.ECONNREFUSED }
+  } catch (_: IOException) {
+    false
   }
 
   private class Members(val state: String, val error: String?, val peers: List<RelayPeer>)
