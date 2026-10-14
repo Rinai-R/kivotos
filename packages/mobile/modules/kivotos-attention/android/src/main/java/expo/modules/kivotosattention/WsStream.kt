@@ -9,8 +9,11 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.net.URI
 import java.security.SecureRandom
+import java.security.cert.CertificateException
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
@@ -163,7 +166,12 @@ class WsStream private constructor(private val socket: Socket, source: InputStre
         if (secure) {
           val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory).createSocket(socket, host, port, true) as SSLSocket
           socket = tls
-          tls.startHandshake()
+          try {
+            tls.startHandshake()
+          } catch (failure: IOException) {
+            if (cutOff(failure)) throw TlsReset("connection closed during the TLS handshake", failure)
+            throw failure
+          }
           // A plain SSLSocket does not check the name on the certificate.
           if (!HttpsURLConnection.getDefaultHostnameVerifier().verify(host, tls.session)) {
             throw IOException("the relay's certificate is not for $host")
@@ -191,6 +199,23 @@ class WsStream private constructor(private val socket: Socket, source: InputStre
         }
         throw failure
       }
+    }
+
+    /**
+     * Whether a TLS handshake failed because the other end reset or closed the
+     * connection, not because it was slow or its certificate was refused.
+     */
+    private fun cutOff(failure: IOException): Boolean {
+      if (failure is SocketTimeoutException) return false
+      var cause: Throwable? = failure
+      while (cause != null) {
+        if (cause is CertificateException) return false
+        cause = cause.cause
+      }
+      if (failure is EOFException || failure is SocketException) return true
+      // Conscrypt words it "Connection reset by peer" or "Connection closed by peer".
+      val message = failure.message.orEmpty()
+      return message.contains("reset", ignoreCase = true) || message.contains("closed", ignoreCase = true)
     }
 
     /** Read response headers up to and including the blank line. */

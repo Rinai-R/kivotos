@@ -146,12 +146,15 @@ object Links {
     false
   }
 
-  private class Members(val state: String, val error: String?, val peers: List<RelayPeer>)
+  /** What a network's relay answered; `reason` is the link reason of its members while it is unreachable. */
+  private class Members(val state: String, val error: String?, val peers: List<RelayPeer>, val reason: String? = null)
 
   private fun members(network: Network): Members = try {
     Members("online", null, RelayClient.peers(network))
   } catch (refused: RelayRefused) {
     Members(if (refused.code == "denied") "denied" else "unreachable", refused.code, emptyList())
+  } catch (reset: TlsReset) {
+    Members("unreachable", reset.message, emptyList(), "tls-reset")
   } catch (failure: Exception) {
     Members("unreachable", failure.message, emptyList())
   }
@@ -208,6 +211,7 @@ object Links {
           .put("state", found.state)
           .put("peers", JSONArray(found.peers.map { JSONObject().put("node", it.node).put("name", it.name) }))
         if (found.error != null) json.put("error", found.error)
+        if (found.reason != null) json.put("reason", found.reason)
         networkArray.put(json)
       }
       return JSONObject()
@@ -253,7 +257,7 @@ object Links {
       }
       if (state == "online") prefs.edit().putLong("seen.relay.${machine.id}", now).apply()
       val seen = if (state == "online") now else prefs.getLong("seen.relay.${machine.id}", 0)
-      val reason = if (state == "unreachable") "relay-unreachable" else null
+      val reason = if (state == "unreachable") network.reason ?: "relay-unreachable" else null
       links.put(linkJson("relay", machine.id, authority(machine.relay), state, reason, seen, now))
     }
     val stream = when {
