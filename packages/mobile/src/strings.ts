@@ -58,6 +58,7 @@ const en = {
   "reason.forbidden": "Refused this device",
   "reason.timeout": "Timed out",
   "reason.tls": "TLS error",
+  "reason.tls-reset": "Connection reset",
   "reason.network": "Connection failed",
   "reason.not-on-tailnet": "Tailscale is not connected on this phone",
   "reason.relay-connecting": "Connecting to the relay",
@@ -169,6 +170,7 @@ const zhText: typeof en = {
   "reason.forbidden": "拒绝了本设备",
   "reason.timeout": "连接超时",
   "reason.tls": "TLS 错误",
+  "reason.tls-reset": "连接被重置",
   "reason.network": "连接失败",
   "reason.not-on-tailnet": "这台手机未连接 Tailscale",
   "reason.relay-connecting": "正在连接中继",
@@ -270,7 +272,8 @@ export function routeLine(probe: PhoneMachineProbe, mode: RouteMode, now: number
   const status = statusOf(probe, mode);
   let line: string;
   switch (status.kind) {
-    case "online": {
+    case "online":
+    case "unstable": {
       const via = t(`via.${status.via}`);
       return pinned === null ? t("status.via", { via }) : t("status.viaOnly", { via });
     }

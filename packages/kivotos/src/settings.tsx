@@ -52,6 +52,7 @@ export const SETTINGS_ZH = {
   "reason.forbidden": "拒绝了本设备",
   "reason.timeout": "连接超时",
   "reason.tls": "TLS 错误",
+  "reason.tls-reset": "连接被重置",
   "reason.network": "连接失败",
   "reason.not-on-tailnet": "本机未连接 Tailscale",
   "reason.relay-connecting": "正在连接中继",
@@ -140,6 +141,7 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "reason.forbidden": "Refused this device",
   "reason.timeout": "Timed out",
   "reason.tls": "TLS error",
+  "reason.tls-reset": "Connection reset",
   "reason.network": "Connection failed",
   "reason.not-on-tailnet": "This computer is not on the tailnet",
   "reason.relay-connecting": "Connecting to the relay",
@@ -420,7 +422,8 @@ export function statusText(
   const status = statusOf(machine, machine.mode);
   let text: string;
   switch (status.kind) {
-    case "online": {
+    case "online":
+    case "unstable": {
       const via = t(`via.${status.via}`);
       if (pinned !== null) return t("status.viaOnly", { via });
       if (status.down === undefined) return t("status.via", { via });
@@ -476,7 +479,7 @@ function hostOf(address: string): string {
  */
 function routeText(t: Translate, machine: MachineInfo, now: number): string {
   const status = statusOf(machine, machine.mode);
-  if (status.kind !== "online") return statusText(t, machine, now);
+  if (status.kind !== "online" && status.kind !== "unstable") return statusText(t, machine, now);
   const via = t(`via.${status.via}`);
   return pinnedVia(machine, machine.mode) === null
     ? t("status.via", { via })
@@ -987,14 +990,15 @@ function ModeSegment({
     <label
       className="kivotos-mode-option"
       data-checked={checked ? "" : undefined}
-      data-unavailable={option.unavailable ? "" : undefined}
+      data-unavailable={option.disabled !== undefined && checked ? "" : undefined}
     >
       <input
         type="radio"
         name={group}
         value={option.mode}
         checked={checked}
-        aria-describedby={option.unavailable ? noteId : undefined}
+        disabled={option.disabled !== undefined && !checked}
+        aria-describedby={option.disabled !== undefined ? noteId : undefined}
         onChange={onChange}
       />
       <span>{option.mode === "auto" ? t("mode.auto") : t(`via.${option.mode}`)}</span>
@@ -1023,8 +1027,9 @@ function ModeControl({
   const group = useId();
   const hintId = useId();
   const noteId = useId();
-  // Only the current choice is ever shown down (machines.ts `modeOptions`).
-  const down = options.find((option) => option.unavailable)?.link;
+  const down = options.find(
+    (option) => option.disabled !== undefined && option.mode === machine.mode,
+  )?.link;
   const choose = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const mode = event.currentTarget.value;
@@ -1080,7 +1085,7 @@ interface MachineRowProps {
 
 /** One machine: name, route or state, a chip per link, and its mode. */
 function MachineRow({ machine, vias, hint, now, t, onChange }: MachineRowProps): ReactNode {
-  const options = useMemo(() => modeOptions(machine, machine.mode), [machine]);
+  const options = useMemo(() => modeOptions(machine), [machine]);
   return (
     <li className="kivotos-links-machine" data-reachable={String(machine.route !== null)}>
       <div className="kivotos-links-machine-head">

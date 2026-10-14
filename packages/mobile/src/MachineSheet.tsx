@@ -102,7 +102,7 @@ export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }
   let body = null;
   if (machine !== null) {
     const mode = machine.mode ?? "auto";
-    const options = probe === undefined ? [] : modeOptions(probe, mode);
+    const options = probe === undefined ? [] : modeOptions(probe);
     body = (
       <View style={sheetStyle}>
         <Text style={styles.title} numberOfLines={1}>
@@ -117,16 +117,17 @@ export function MachineSheet({ machine, probe, vias, onMode, onRemove, onClose }
               {options.map((option, index) => {
                 let state = routeLine(probe, "auto", now);
                 if (option.link !== undefined)
-                  state = option.unavailable
-                    ? t("mode.unavailable", { reason: linkState(option.link) })
-                    : linkLine(option.link, now);
+                  state =
+                    option.disabled !== undefined
+                      ? t("mode.unavailable", { reason: linkState(option.link) })
+                      : linkLine(option.link, now);
                 return (
                   <ModeOption
                     key={option.mode}
                     mode={option.mode}
                     checked={option.mode === mode}
                     state={state}
-                    unavailable={option.unavailable}
+                    unavailable={option.disabled !== undefined}
                     last={index === options.length - 1}
                     onChoose={choose}
                   />
