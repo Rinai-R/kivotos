@@ -1,13 +1,19 @@
 package expo.modules.kivotosattention
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
 import androidx.core.os.bundleOf
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.exception.CodedException
@@ -18,6 +24,28 @@ import org.json.JSONObject
 class KivotosAttentionModule : Module() {
   private val context: Context
     get() = requireNotNull(appContext.reactContext)
+
+  /**
+   * Tells JS when the system asks for memory back, so it drops the pages it
+   * keeps loaded but hidden. Not on UI_HIDDEN (each trip to the background):
+   * only the levels where the process is short or about to be killed.
+   */
+  private val memory = object : ComponentCallbacks2 {
+    override fun onTrimMemory(level: Int) {
+      @Suppress("DEPRECATION")
+      val short = level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+        level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
+      if (short) sendEvent("onMemoryPressure", bundleOf("level" to level))
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) = Unit
+
+    @Deprecated("Deprecated in Java")
+    override fun onLowMemory() {
+      sendEvent("onMemoryPressure", bundleOf("level" to ComponentCallbacks2.TRIM_MEMORY_COMPLETE))
+    }
+  }
 
   private fun relayPeers(network: Network): List<Map<String, String>> = try {
     RelayClient.peers(network).map { mapOf("node" to it.node, "name" to it.name) }
@@ -30,10 +58,11 @@ class KivotosAttentionModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("KivotosAttention")
 
-    Events("onOpenSession", "onAttention")
+    Events("onOpenSession", "onAttention", "onMemoryPressure")
 
     OnCreate {
       Notifier.ensureChannels(context)
+      context.applicationContext.registerComponentCallbacks(memory)
       AttentionState.onOpen = { machine, session ->
         sendEvent("onOpenSession", bundleOf("machineId" to machine, "sessionId" to session))
       }
@@ -55,6 +84,7 @@ class KivotosAttentionModule : Module() {
 
     OnDestroy {
       AttentionState.onOpen = null
+      appContext.reactContext?.applicationContext?.unregisterComponentCallbacks(memory)
       AttentionState.onFrame = null
     }
 
@@ -112,6 +142,19 @@ class KivotosAttentionModule : Module() {
       MachineProxy.open(context, Machine.fromJson(JSONObject(json)))
     }
 
+    /**
+     * Show or hide the page of the WebView under a React view. A WebView in
+     * a hidden parent still counts as visible to Chromium (it only reads its
+     * own visibility), so a page kept loaded off screen would keep rendering
+     * and tell its document it is visible. `WebView.onPause` hides it
+     * (`visibilityState` "hidden", timers throttled); its JS and connections
+     * keep running.
+     */
+    AsyncFunction("setPageVisible") { viewTag: Int, visible: Boolean ->
+      val web = appContext.findView<View>(viewTag)?.let(::webViewIn) ?: return@AsyncFunction
+      if (visible) web.onResume() else web.onPause()
+    }.runOnQueue(Queues.MAIN)
+
     /** A notification tap that launched the app before JS was listening, consumed once. */
     Function("takePendingOpen") {
       val pending = AttentionState.pendingOpen ?: return@Function null
@@ -161,6 +204,13 @@ class KivotosAttentionModule : Module() {
         }
       }
     }
+  }
+
+  private fun webViewIn(view: View): WebView? {
+    if (view is WebView) return view
+    if (view !is ViewGroup) return null
+    for (index in 0 until view.childCount) webViewIn(view.getChildAt(index))?.let { return it }
+    return null
   }
 
   private companion object {

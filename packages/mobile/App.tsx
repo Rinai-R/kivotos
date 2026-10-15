@@ -15,10 +15,11 @@ import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionMo
 import { AttentionBanner } from "./src/AttentionBanner";
 import { LinksScreen } from "./src/LinksScreen";
 import { MachineList } from "./src/MachineList";
-import { MachineView, type MachineViewHandle } from "./src/MachineView";
+import { MachineView } from "./src/MachineView";
 import { loadMachines, saveMachines } from "./src/machines";
 import { PairScanner } from "./src/PairScanner";
 import { useStyles, type Palette } from "./src/theme";
+import { followMachines, showView, type LiveView, type OpenRequest } from "./src/views";
 
 type NotificationState = "on" | "off" | "denied";
 /** The app's own screens, shown while no machine is open. */
@@ -38,39 +39,55 @@ export default function App() {
   const scheme = useColorScheme();
   const styles = useStyles(createStyles);
   const [machines, setMachines] = useState<Machine[]>([]);
-  const [current, setCurrent] = useState<Machine | null>(null);
-  const [initialSession, setInitialSession] = useState<string | null>(null);
+  /** The machine on screen; null while the app's own screens are. */
+  const [shown, setShown] = useState<string | null>(null);
+  /** Machines whose page stays loaded, the least recently shown first. */
+  const [views, setViews] = useState<LiveView[]>([]);
   const [notifications, setNotifications] = useState<NotificationState>("off");
   const [batteryRestricted, setBatteryRestricted] = useState(false);
   const [banner, setBanner] = useState<Attention.Attention | null>(null);
   const [screen, setScreen] = useState<Screen>("machines");
   const [probe, setProbe] = useState<PhoneProbe | null>(null);
-  const view = useRef<MachineViewHandle>(null);
-  const currentRef = useRef<Machine | null>(null);
+  const shownRef = useRef<string | null>(null);
   const machinesRef = useRef<Machine[]>([]);
+  const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
   const restored = useRef(false);
-  currentRef.current = current;
+  shownRef.current = shown;
   machinesRef.current = machines;
 
   const persist = useCallback((next: Machine[]) => {
     setMachines(next);
     void saveMachines(next);
     Attention.setMachines(next);
+    setViews((live) => followMachines(live, next, shownRef.current));
   }, []);
 
-  /** Open a Session: switch machine if needed, else open it in the loaded page. */
-  const openSession = useCallback((machineId: string, sessionId: string) => {
-    const machine = machinesRef.current.find((item) => item.id === machineId);
-    if (machine === undefined) return;
-    setBanner(null);
-    if (currentRef.current?.id === machine.id) {
-      view.current?.openSession(sessionId);
-    } else {
-      setInitialSession(sessionId);
-      setCurrent(machine);
-    }
+  /** Show a machine's page, loaded already when it is still alive. */
+  const show = useCallback((machine: Machine, open: OpenRequest | null) => {
+    // Until its page reports, no Session of the machine left is on screen.
+    Attention.setOnScreen(machine.id, "");
+    setViews((live) => showView(live, machine, open));
+    setShown(machine.id);
   }, []);
+
+  /** Open a Session: show its machine, whose page then opens it. */
+  const openSession = useCallback(
+    (machineId: string, sessionId: string) => {
+      const machine = machinesRef.current.find((item) => item.id === machineId);
+      if (machine === undefined) return;
+      setBanner(null);
+      openSeq.current += 1;
+      show(machine, { sessionId, seq: openSeq.current });
+    },
+    [show],
+  );
+
+  /** Short of memory: only the page on screen stays loaded. */
+  const dropHidden = useCallback(
+    () => setViews((live) => live.filter((view) => view.id === shownRef.current)),
+    [],
+  );
 
   useEffect(() => {
     const restore = async (): Promise<void> => {
@@ -90,16 +107,18 @@ export default function App() {
       openSession(machineId, sessionId),
     );
     const offAttention = Attention.onAttention((attention) => {
-      setBanner((shown) => {
-        if (attention.kind === "resolved") return shown?.key === attention.key ? null : shown;
+      setBanner((visible) => {
+        if (attention.kind === "resolved") return visible?.key === attention.key ? null : visible;
         return attention;
       });
     });
+    const offMemory = Attention.onMemoryPressure(dropHidden);
     return () => {
       offOpen();
       offAttention();
+      offMemory();
     };
-  }, [openSession, persist]);
+  }, [dropHidden, openSession, persist]);
 
   const toggleNotifications = useCallback(async () => {
     if (notifications === "on") {
@@ -117,10 +136,22 @@ export default function App() {
     setBatteryRestricted(Attention.isBatteryRestricted());
   }, [notifications]);
 
-  const onSession = useCallback((sessionId: string) => {
-    const machine = currentRef.current;
-    Attention.setOnScreen(machine?.id ?? "", sessionId);
-    setBanner((shown) => (shown !== null && shown.sessionId === sessionId ? null : shown));
+  /** A page's Session changed or its page was shown again; only the page on screen counts. */
+  const onSession = useCallback((machineId: string, sessionId: string) => {
+    if (machineId !== shownRef.current) return;
+    Attention.setOnScreen(machineId, sessionId);
+    setBanner((visible) => (visible !== null && visible.sessionId === sessionId ? null : visible));
+  }, []);
+
+  /** A WebView's renderer is gone: drop its page, and load the one on screen again. */
+  const onGone = useCallback((machineId: string) => {
+    setViews((live) =>
+      live.flatMap((view) => {
+        if (view.id !== machineId) return [view];
+        if (view.id !== shownRef.current) return [];
+        return [{ ...view, generation: view.generation + 1, open: null }];
+      }),
+    );
   }, []);
 
   /** Probe every link; the probe also brings the list new relay members, node ids and renames. */
@@ -140,7 +171,7 @@ export default function App() {
 
   // While the app's own screens are up: probe now, every PROBE_MS, and on return to the app.
   useEffect(() => {
-    if (current !== null) return undefined;
+    if (shown !== null) return undefined;
     void probeNow();
     const timer = setInterval(() => void probeNow(), PROBE_MS);
     const subscription = AppState.addEventListener("change", (state) => {
@@ -150,7 +181,7 @@ export default function App() {
       clearInterval(timer);
       subscription.remove();
     };
-  }, [current, machines.length, probeNow]);
+  }, [shown, machines.length, probeNow]);
 
   /** Add machines; one already in the list (same node) gains the new link instead. */
   const addMachines = useCallback(
@@ -174,10 +205,7 @@ export default function App() {
   const showLinks = useCallback(() => setScreen("links"), []);
   const showMachines = useCallback(() => setScreen("machines"), []);
   const showScanner = useCallback(() => setScreen("scan"), []);
-  const openMachine = useCallback((machine: Machine) => {
-    setInitialSession(null);
-    setCurrent(machine);
-  }, []);
+  const openMachine = useCallback((machine: Machine) => show(machine, null), [show]);
   const onToggleNotifications = useCallback(
     () => void toggleNotifications(),
     [toggleNotifications],
@@ -192,17 +220,17 @@ export default function App() {
   );
   const dismissBanner = useCallback(() => setBanner(null), []);
 
+  /** Back to the list: the page stays loaded, hidden. */
   const back = useCallback(() => {
     Attention.setOnScreen("", "");
-    setInitialSession(null);
-    setCurrent(null);
+    setShown(null);
   }, []);
 
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-        {current === null && screen === "links" ? (
+        {shown === null && screen === "links" ? (
           <LinksScreen
             machines={machines}
             probe={probe}
@@ -212,7 +240,7 @@ export default function App() {
             onBack={showMachines}
           />
         ) : null}
-        {current === null && screen === "scan" ? (
+        {shown === null && screen === "scan" ? (
           <PairScanner
             machines={machines}
             onAdd={addMachines}
@@ -220,7 +248,7 @@ export default function App() {
             onManual={showLinks}
           />
         ) : null}
-        {current === null && screen === "machines" ? (
+        {shown === null && screen === "machines" ? (
           <MachineList
             machines={machines}
             probe={probe}
@@ -235,16 +263,21 @@ export default function App() {
             onLinks={showLinks}
           />
         ) : null}
-        {current === null ? null : (
-          <MachineView
-            key={current.id}
-            ref={view}
-            machine={current}
-            initialSession={initialSession}
-            onSession={onSession}
-            onBack={back}
-          />
-        )}
+        {machines.map((machine) => {
+          // In list order, so showing another page never moves a WebView.
+          const view = views.find((live) => live.id === machine.id);
+          return view === undefined ? null : (
+            <MachineView
+              key={`${view.id}:${view.generation}`}
+              machine={machine}
+              visible={view.id === shown}
+              open={view.open}
+              onSession={onSession}
+              onGone={onGone}
+              onBack={back}
+            />
+          );
+        })}
         {banner === null ? null : (
           <AttentionBanner attention={banner} onOpen={openBanner} onDismiss={dismissBanner} />
         )}

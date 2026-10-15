@@ -53,12 +53,15 @@ export interface Attention {
 type Events = {
   onOpenSession: (payload: OpenSession) => void;
   onAttention: (payload: Attention) => void;
+  /** The system asks for memory back (`onTrimMemory` short of memory, or in the background). */
+  onMemoryPressure: (payload: { level: number }) => void;
 };
 
 declare class KivotosAttentionModule extends NativeModule<Events> {
   setMachines(json: string): void;
   relayJoin(invite: string): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }>;
   machineOpen(json: string): string;
+  setPageVisible(viewTag: number, visible: boolean): Promise<void>;
   probeLinks(): Promise<string>;
   setEnabled(enabled: boolean): void;
   isEnabled(): boolean;
@@ -84,6 +87,9 @@ export const probeLinks = async (): Promise<PhoneProbe> =>
 /** @returns the local base URL through which a machine's dsh loads (its door, which caches). */
 export const machineOpen = (machine: Machine): string =>
   native.machineOpen(JSON.stringify(machine));
+/** Show or hide the page of the WebView under a view (`WebView.onResume`/`onPause`): a page kept loaded off screen. */
+export const setPageVisible = (viewTag: number, visible: boolean): Promise<void> =>
+  native.setPageVisible(viewTag, visible);
 export const setEnabled = (enabled: boolean): void => native.setEnabled(enabled);
 export const isEnabled = (): boolean => native.isEnabled();
 export const setOnScreen = (machineId: string, sessionId: string): void =>
@@ -104,5 +110,11 @@ export function onOpenSession(listener: (open: OpenSession) => void): () => void
 /** @returns unsubscribe. */
 export function onAttention(listener: (attention: Attention) => void): () => void {
   const subscription = native.addListener("onAttention", listener);
+  return () => subscription.remove();
+}
+
+/** @returns unsubscribe. */
+export function onMemoryPressure(listener: () => void): () => void {
+  const subscription = native.addListener("onMemoryPressure", listener);
   return () => subscription.remove();
 }
