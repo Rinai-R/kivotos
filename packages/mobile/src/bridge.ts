@@ -46,9 +46,8 @@ export function openSessionScript(sessionId: string): string {
 }
 
 /**
- * Script that sends the page to a path of its own origin: a switch to a
- * machine the phone has no row for goes through the computer's mount, as it
- * would outside the app.
+ * Script that sends the page to a path of its own origin, for a switch the
+ * app has no page to show for (see `switchTarget` in views.ts).
  * @param path - absolute path on the page's origin.
  * @returns script source.
  */
@@ -56,10 +55,10 @@ export function assignScript(path: string): string {
   return `location.assign(${JSON.stringify(path)}); true;`;
 }
 
-/** The machine a switcher row names, as the computer knows it (`MachineInfo`). */
+/** The machine a switcher row names, as the page's computer knows it (`MachineInfo`). */
 export interface SwitchTarget {
-  /** The computer's mount id. */
-  id: string;
+  /** The computer's mount id; null for "This computer", the page's computer itself. */
+  id: string | null;
   name: string;
   /** Kivotos node id, when the computer knows it. */
   node?: string;
@@ -87,8 +86,8 @@ function switchOf(message: Record<string, unknown>): BridgeMessage | null {
   const fallback = message.fallback;
   // Only a path of the page's own origin: "//host" would leave it.
   if (typeof fallback !== "string" || !/^\/(?!\/)/.test(fallback)) return null;
-  if (typeof machine !== "object" || machine === null || typeof machine.id !== "string")
-    return null;
+  if (typeof machine !== "object" || machine === null) return null;
+  if (typeof machine.id !== "string" && machine.id !== null) return null;
   const target: SwitchTarget = { id: machine.id, name: String(machine.name ?? "") };
   const node = optional(machine.node);
   const address = optional(machine.address);

@@ -22,8 +22,10 @@ import { PairScanner } from "./src/PairScanner";
 import { useStyles, type Palette } from "./src/theme";
 import {
   followMachines,
-  machineForTarget,
+  keyOf,
+  pathOf,
   showView,
+  switchTarget,
   type LiveView,
   type OpenRequest,
 } from "./src/views";
@@ -46,9 +48,9 @@ export default function App() {
   const scheme = useColorScheme();
   const styles = useStyles(createStyles);
   const [machines, setMachines] = useState<Machine[]>([]);
-  /** The machine on screen; null while the app's own screens are. */
+  /** The page on screen (`LiveView.key`); null while the app's own screens are. */
   const [shown, setShown] = useState<string | null>(null);
-  /** Machines whose page stays loaded, the least recently shown first. */
+  /** Pages that stay loaded, the least recently shown first. */
   const [views, setViews] = useState<LiveView[]>([]);
   const [notifications, setNotifications] = useState<NotificationState>("off");
   const [batteryRestricted, setBatteryRestricted] = useState(false);
@@ -58,12 +60,14 @@ export default function App() {
   const shownRef = useRef<string | null>(null);
   const machinesRef = useRef<Machine[]>([]);
   const probeRef = useRef<PhoneProbe | null>(null);
+  const viewsRef = useRef<LiveView[]>([]);
   const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
   const restored = useRef(false);
   shownRef.current = shown;
   machinesRef.current = machines;
   probeRef.current = probe;
+  viewsRef.current = views;
 
   const persist = useCallback((next: Machine[]) => {
     setMachines(next);
@@ -72,12 +76,12 @@ export default function App() {
     setViews((live) => followMachines(live, next, shownRef.current));
   }, []);
 
-  /** Show a machine's page, loaded already when it is still alive. */
-  const show = useCallback((machine: Machine, open: OpenRequest | null) => {
-    // Until its page reports, no Session of the machine left is on screen.
+  /** Show the page of a machine, or of a peer its computer mounts, loaded already when it is still alive. */
+  const show = useCallback((machine: Machine, peer: LiveView["peer"], open: OpenRequest | null) => {
+    // Until the page reports, no Session of the page left is on screen.
     Attention.setOnScreen(machine.id, "");
-    setViews((live) => showView(live, machine, open));
-    setShown(machine.id);
+    setViews((live) => showView(live, machine, peer, open));
+    setShown(keyOf(machine.id, peer));
   }, []);
 
   /** Open a Session: show its machine, whose page then opens it. */
@@ -87,14 +91,14 @@ export default function App() {
       if (machine === undefined) return;
       setBanner(null);
       openSeq.current += 1;
-      show(machine, { sessionId, seq: openSeq.current });
+      show(machine, null, { sessionId, seq: openSeq.current });
     },
     [show],
   );
 
   /** Short of memory: only the page on screen stays loaded. */
   const dropHidden = useCallback(
-    () => setViews((live) => live.filter((view) => view.id === shownRef.current)),
+    () => setViews((live) => live.filter((view) => view.key === shownRef.current)),
     [],
   );
 
@@ -145,34 +149,47 @@ export default function App() {
     setBatteryRestricted(Attention.isBatteryRestricted());
   }, [notifications]);
 
-  /** A page's Session changed or its page was shown again; only the page on screen counts. */
-  const onSession = useCallback((machineId: string, sessionId: string) => {
-    if (machineId !== shownRef.current) return;
-    Attention.setOnScreen(machineId, sessionId);
+  /**
+   * A page's Session changed or its page was shown again; only the page on
+   * screen counts. A peer's page counts for the machine whose door it loads
+   * through, with the peer's Session: no frame of that machine names it, so
+   * all of the machine's own notifications still post.
+   */
+  const onSession = useCallback((viewKey: string, sessionId: string) => {
+    if (viewKey !== shownRef.current) return;
+    const view = viewsRef.current.find((live) => live.key === viewKey);
+    if (view === undefined) return;
+    Attention.setOnScreen(view.machine, sessionId);
     setBanner((visible) => (visible !== null && visible.sessionId === sessionId ? null : visible));
   }, []);
 
   /**
    * A page's switcher asked for another machine: show the phone's own row for
-   * it, through its own door, when there is one the phone reaches.
+   * it, else the page of it its computer mounts, both kept loaded.
    */
   const onSwitch = useCallback(
-    (fromId: string, target: SwitchTarget, sessionId: string | undefined) => {
-      const machine = machineForTarget(machinesRef.current, target, probeRef.current);
-      if (machine === null || machine.id === fromId) return false;
-      if (sessionId === undefined) show(machine, null);
-      else openSession(machine.id, sessionId);
+    (viewKey: string, target: SwitchTarget, sessionId: string | undefined) => {
+      const from = viewsRef.current.find((live) => live.key === viewKey);
+      if (from === undefined) return false;
+      const to = switchTarget(machinesRef.current, probeRef.current, from, target);
+      if (to === null) return false;
+      let open: OpenRequest | null = null;
+      if (sessionId !== undefined) {
+        openSeq.current += 1;
+        open = { sessionId, seq: openSeq.current };
+      }
+      show(to.machine, to.peer, open);
       return true;
     },
-    [openSession, show],
+    [show],
   );
 
   /** A WebView's renderer is gone: drop its page, and load the one on screen again. */
-  const onGone = useCallback((machineId: string) => {
+  const onGone = useCallback((viewKey: string) => {
     setViews((live) =>
       live.flatMap((view) => {
-        if (view.id !== machineId) return [view];
-        if (view.id !== shownRef.current) return [];
+        if (view.key !== viewKey) return [view];
+        if (view.key !== shownRef.current) return [];
         return [{ ...view, generation: view.generation + 1, open: null }];
       }),
     );
@@ -229,7 +246,7 @@ export default function App() {
   const showLinks = useCallback(() => setScreen("links"), []);
   const showMachines = useCallback(() => setScreen("machines"), []);
   const showScanner = useCallback(() => setScreen("scan"), []);
-  const openMachine = useCallback((machine: Machine) => show(machine, null), [show]);
+  const openMachine = useCallback((machine: Machine) => show(machine, null, null), [show]);
   const onToggleNotifications = useCallback(
     () => void toggleNotifications(),
     [toggleNotifications],
@@ -244,11 +261,20 @@ export default function App() {
   );
   const dismissBanner = useCallback(() => setBanner(null), []);
 
-  /** Back to the list: the page stays loaded, hidden. */
-  const back = useCallback(() => {
-    Attention.setOnScreen("", "");
-    setShown(null);
-  }, []);
+  /** Back from a page: a peer's page goes to its computer's, a machine's to the list; the page stays loaded, hidden. */
+  const back = useCallback(
+    (viewKey: string) => {
+      const view = viewsRef.current.find((live) => live.key === viewKey);
+      const machine = machinesRef.current.find((item) => item.id === view?.machine);
+      if (view?.peer != null && machine !== undefined) {
+        show(machine, null, null);
+        return;
+      }
+      Attention.setOnScreen("", "");
+      setShown(null);
+    },
+    [show],
+  );
 
   return (
     <SafeAreaProvider>
@@ -287,14 +313,17 @@ export default function App() {
             onLinks={showLinks}
           />
         ) : null}
-        {machines.map((machine) => {
-          // In list order, so showing another page never moves a WebView.
-          const view = views.find((live) => live.id === machine.id);
-          return view === undefined ? null : (
+        {[...views].sort(byKey).map((view) => {
+          // In key order, so showing another page never moves a WebView.
+          const machine = machines.find((item) => item.id === view.machine);
+          return machine === undefined ? null : (
             <MachineView
-              key={`${view.id}:${view.generation}`}
+              key={`${view.key}:${view.generation}`}
+              viewKey={view.key}
               machine={machine}
-              visible={view.id === shown}
+              path={pathOf(view)}
+              name={view.peer?.name ?? machine.name}
+              visible={view.key === shown}
               open={view.open}
               onSession={onSession}
               onSwitch={onSwitch}
@@ -310,6 +339,8 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+const byKey = (a: LiveView, b: LiveView): number => (a.key < b.key ? -1 : 1);
 
 function createStyles(c: Palette) {
   return { root: { flex: 1, backgroundColor: c.bg } } as const;

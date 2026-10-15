@@ -419,7 +419,7 @@ function openMachine(peer: string | null, machine?: MachineInfo): void {
     window.location.reload();
     return;
   }
-  if (peer === null) window.location.assign("/");
+  if (peer === null) navigate("/", null, undefined);
   else navigate(`/kivotos/peer/${encodeURIComponent(peer)}/`, machine, undefined);
 }
 
@@ -430,18 +430,21 @@ interface AppBridge {
 }
 
 /**
- * Go to another machine's mount. Inside the phone app, whose bridge takes
- * switches, the app is asked instead (`kivotos.switch`): a machine it has its
- * own row for opens in that row's WebView, through the phone's own door, and
- * stays loaded, so no page loads here. For one it has no row for, the app
- * sends this page to `path` itself, as outside the app.
- * @param path - the mount path on this page's origin.
- * @param machine - the machine; without it the page navigates by itself.
+ * Go to another machine, or back to this computer from a mounted page.
+ * Inside the phone app, whose bridge takes switches, the app is asked
+ * instead (`kivotos.switch`) and no page loads here: a machine the phone has
+ * its own row for opens in that row's WebView, through the phone's own door;
+ * another opens in a WebView of its own that loads `path` through this
+ * computer's door; this computer is the WebView the peer was opened from.
+ * All stay loaded. When the app has no page for it, it sends this page to
+ * `path`, as outside the app.
+ * @param path - the path on this page's origin.
+ * @param machine - the machine, null for this computer; without it the page navigates by itself.
  * @param sessionId - the Session `path` opens, if any.
  */
 function navigate(
   path: string,
-  machine: MachineInfo | undefined,
+  machine: MachineInfo | null | undefined,
   sessionId: string | undefined,
 ): void {
   const app = window as AppBridge;
@@ -449,10 +452,18 @@ function navigate(
     window.location.assign(path);
     return;
   }
-  const address = machine.links.find((link) => link.via === "tailscale")?.address;
+  const target =
+    machine === null
+      ? { id: null, name: "" }
+      : {
+          id: machine.id,
+          name: machine.name,
+          node: machine.node,
+          address: machine.links.find((link) => link.via === "tailscale")?.address,
+        };
   const message = JSON.stringify({
     type: "kivotos.switch",
-    machine: { id: machine.id, name: machine.name, node: machine.node, address },
+    machine: target,
     sessionId,
     fallback: path,
   });
