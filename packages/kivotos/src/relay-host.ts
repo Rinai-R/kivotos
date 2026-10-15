@@ -37,6 +37,8 @@ const RELAY_AUTHORITY = "relay.kivotos.invalid";
 const FIRST_REFRESH_MS = 1_500;
 /** Longest wait for a member's `/kivotos/hello` through the relay. */
 const PROBE_TIMEOUT_MS = 6_000;
+/** How long a member's idle session to this computer stays open for reuse. */
+const SESSION_IDLE_MS = 60_000;
 
 /**
  * How the members not online now show while this computer's own relay link
@@ -122,8 +124,16 @@ async function writePrivate(file: string, value: unknown): Promise<void> {
 
 export class RelayHost {
   private readonly options: RelayHostOptions;
-  /** Parses HTTP on the sessions members open to this computer; never listens. */
-  private readonly server = http.createServer();
+  /**
+   * Parses HTTP on the sessions members open to this computer; never listens.
+   * A session costs a relay round trip and a TLS handshake to open, so an
+   * idle one is kept a minute rather than Node's 5 s: switching back to this
+   * computer after reading a page reuses it.
+   */
+  private readonly server = Object.assign(http.createServer(), {
+    keepAliveTimeout: SESSION_IDLE_MS,
+    headersTimeout: SESSION_IDLE_MS + 5_000,
+  });
   private readonly sessions = new Set<TLSSocket>();
   private readonly callers = new WeakMap<object, string>();
   private readonly agents = new Map<string, http.Agent>();
