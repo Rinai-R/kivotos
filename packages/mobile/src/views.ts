@@ -1,6 +1,6 @@
 import { routeOf, type PhoneProbe } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
-import type { SwitchTarget } from "./bridge";
+import type { ListedMachine, SwitchTarget } from "./bridge";
 
 /**
  * Pages that stay loaded, shown or hidden: showing one again is instant
@@ -8,6 +8,9 @@ import type { SwitchTarget } from "./bridge";
  * least recently shown beyond this goes; a peer's page counts like any.
  */
 export const LIVE_MAX = 3;
+
+/** Peers' pages loaded ahead of a switch: with the page shown, they fit {@link LIVE_MAX}. */
+export const PRELOAD_MAX = LIVE_MAX - 1;
 
 /** A Session to open in a page; `seq` tells two requests for the same Session apart. */
 export interface OpenRequest {
@@ -32,6 +35,8 @@ export interface LiveView {
   door: string;
   /** A Session to open in it; null for whatever it shows. */
   open: OpenRequest | null;
+  /** Loaded ahead ({@link preloadView}) and not shown since: the first to go. */
+  preloaded: boolean;
 }
 
 /**
@@ -70,9 +75,51 @@ export function showView(
   const door = doorOf(machine);
   const shown: LiveView =
     known !== undefined && known.door === door
-      ? { ...known, open }
-      : { key, machine: machine.id, peer, generation: (known?.generation ?? 0) + 1, door, open };
+      ? { ...known, open, preloaded: false }
+      : {
+          key,
+          machine: machine.id,
+          peer,
+          generation: (known?.generation ?? 0) + 1,
+          door,
+          open,
+          preloaded: false,
+        };
   return [...views.filter((view) => view.key !== key), shown].slice(-LIVE_MAX);
+}
+
+/**
+ * Load the page of `machine`, or of its `peer`, hidden, ahead of a switch to
+ * it. It goes first in the order (never shown), and makes room beyond
+ * {@link LIVE_MAX} only from pages outside `keep` (the page on screen, pages
+ * shown lately, the other pages of this preload), pages loaded ahead first.
+ * @returns the new views; `views` itself when the page is loaded already;
+ *   null when there is no room for it.
+ */
+export function preloadView(
+  views: readonly LiveView[],
+  machine: Machine,
+  peer: LiveView["peer"],
+  keep: ReadonlySet<string>,
+): LiveView[] | null {
+  const key = keyOf(machine.id, peer);
+  if (views.some((view) => view.key === key)) return views as LiveView[];
+  const next: LiveView[] = [
+    {
+      key,
+      machine: machine.id,
+      peer,
+      generation: 1,
+      door: doorOf(machine),
+      open: null,
+      preloaded: true,
+    },
+    ...views,
+  ];
+  if (next.length <= LIVE_MAX) return next;
+  const free = (view: LiveView): boolean => view.key !== key && !keep.has(view.key);
+  const victim = next.find((view) => free(view) && view.preloaded) ?? next.find(free);
+  return victim === undefined ? null : next.filter((view) => view !== victim);
 }
 
 /**
@@ -155,4 +202,35 @@ export function switchTarget(
     return from.peer === null ? null : { machine: parent, peer: null };
   if (target.id === from.peer?.id) return null;
   return { machine: parent, peer: { id: target.id, name: target.name } };
+}
+
+/**
+ * The pages to load ahead from a machine's page `from`: where its switcher
+ * would send the phone ({@link switchTarget}) for the machines its computer
+ * lists with a route, the ones this phone switched to from it lately first
+ * (`recent`, mount ids, most recent first), else the first listed. Never
+ * `from` itself, and at most {@link PRELOAD_MAX}.
+ */
+export function preloadTargets(
+  machines: readonly Machine[],
+  probe: PhoneProbe | null,
+  from: LiveView,
+  listed: readonly ListedMachine[],
+  recent: readonly string[],
+): { machine: Machine; peer: LiveView["peer"] }[] {
+  const online = listed.filter((entry) => entry.online);
+  const byId = new Map(online.map((entry) => [entry.target.id, entry]));
+  const lately = recent.flatMap((id) => byId.get(id) ?? []);
+  const targets: { machine: Machine; peer: LiveView["peer"] }[] = [];
+  const keys = new Set([from.key]);
+  for (const entry of lately.length > 0 ? lately : online) {
+    const to = switchTarget(machines, probe, from, entry.target);
+    if (to === null) continue;
+    const key = keyOf(to.machine.id, to.peer);
+    if (keys.has(key)) continue;
+    keys.add(key);
+    targets.push(to);
+    if (targets.length === PRELOAD_MAX) break;
+  }
+  return targets;
 }

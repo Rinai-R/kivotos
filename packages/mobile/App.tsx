@@ -6,6 +6,7 @@ import {
   addPhoneMachines,
   applyPhoneProbe,
   leavePhoneNetwork,
+  routeOf,
   setPhoneMode,
   type PhoneProbe,
   type RouteMode,
@@ -15,15 +16,18 @@ import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionMo
 import { AttentionBanner } from "./src/AttentionBanner";
 import { LinksScreen } from "./src/LinksScreen";
 import { MachineList } from "./src/MachineList";
-import type { SwitchTarget } from "./src/bridge";
+import type { ListedMachine, SwitchTarget } from "./src/bridge";
 import { MachineView } from "./src/MachineView";
 import { loadMachines, saveMachines } from "./src/machines";
 import { PairScanner } from "./src/PairScanner";
+import { usePreloader } from "./src/preload";
+import { keepRows, loadRecent, NO_RECENT, saveRecent, withPeer, type Recent } from "./src/recent";
 import { useStyles, type Palette } from "./src/theme";
 import {
   followMachines,
   keyOf,
   pathOf,
+  preloadTargets,
   showView,
   switchTarget,
   type LiveView,
@@ -64,25 +68,45 @@ export default function App() {
   const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
   const restored = useRef(false);
+  /** What was opened lately, read with the list: decides what is loaded ahead. */
+  const recent = useRef<Recent>(NO_RECENT);
+  /** The page opened last was considered for loading ahead at start. */
+  const startPreloaded = useRef(false);
   shownRef.current = shown;
   machinesRef.current = machines;
   probeRef.current = probe;
   viewsRef.current = views;
+  const preloader = usePreloader(machines, views, shown, setViews);
 
-  const persist = useCallback((next: Machine[]) => {
-    setMachines(next);
-    void saveMachines(next);
-    Attention.setMachines(next);
-    setViews((live) => followMachines(live, next, shownRef.current));
+  const remember = useCallback((next: Recent) => {
+    if (next === recent.current) return;
+    recent.current = next;
+    void saveRecent(next);
   }, []);
+
+  const persist = useCallback(
+    (next: Machine[]) => {
+      setMachines(next);
+      void saveMachines(next);
+      Attention.setMachines(next);
+      setViews((live) => followMachines(live, next, shownRef.current));
+      remember(keepRows(recent.current, new Set(next.map((machine) => machine.id))));
+    },
+    [remember],
+  );
 
   /** Show the page of a machine, or of a peer its computer mounts, loaded already when it is still alive. */
-  const show = useCallback((machine: Machine, peer: LiveView["peer"], open: OpenRequest | null) => {
-    // Until the page reports, no Session of the page left is on screen.
-    Attention.setOnScreen(machine.id, "");
-    setViews((live) => showView(live, machine, peer, open));
-    setShown(keyOf(machine.id, peer));
-  }, []);
+  const show = useCallback(
+    (machine: Machine, peer: LiveView["peer"], open: OpenRequest | null) => {
+      // Until the page reports, no Session of the page left is on screen.
+      Attention.setOnScreen(machine.id, "");
+      setViews((live) => showView(live, machine, peer, open));
+      setShown(keyOf(machine.id, peer));
+      if (peer === null && recent.current.row !== machine.id)
+        remember({ ...recent.current, row: machine.id });
+    },
+    [remember],
+  );
 
   /** Open a Session: show its machine, whose page then opens it. */
   const openSession = useCallback(
@@ -96,16 +120,22 @@ export default function App() {
     [show],
   );
 
-  /** Short of memory: only the page on screen stays loaded. */
-  const dropHidden = useCallback(
-    () => setViews((live) => live.filter((view) => view.key === shownRef.current)),
-    [],
-  );
+  /** Short of memory: pages loaded ahead go first, else all but the page on screen. */
+  const dropHidden = useCallback(() => {
+    preloader.pause();
+    setViews((live) => {
+      const hidden = live.filter((view) => view.key !== shownRef.current);
+      const ahead = hidden.filter((view) => view.preloaded);
+      const drop = ahead.length > 0 ? ahead : hidden;
+      return live.filter((view) => !drop.includes(view));
+    });
+  }, [preloader]);
 
   useEffect(() => {
     const restore = async (): Promise<void> => {
-      const stored = await loadMachines();
+      const [stored, opened] = await Promise.all([loadMachines(), loadRecent()]);
       machinesRef.current = stored;
+      recent.current = opened;
       restored.current = true;
       setMachines(stored);
       Attention.setMachines(stored);
@@ -181,10 +211,37 @@ export default function App() {
         open = { sessionId, seq: openSeq.current };
       }
       show(to.machine, to.peer, open);
+      if (target.id !== null) remember(withPeer(recent.current, from.machine, target.id));
       return true;
     },
-    [show],
+    [show, remember],
   );
+
+  /**
+   * A page's shell is up. One loading ahead lets the next one start; a phone
+   * row's page on screen loads ahead the pages its switcher would show for
+   * the machines its computer lists with a route (`preloadTargets`).
+   */
+  const onReady = useCallback(
+    (viewKey: string, listed: ListedMachine[] | null) => {
+      preloader.loaded(viewKey);
+      if (viewKey !== shownRef.current || listed === null) return;
+      const from = viewsRef.current.find((live) => live.key === viewKey);
+      if (from === undefined || from.peer !== null) return;
+      const lately = recent.current.peers[from.machine] ?? [];
+      preloader.plan(preloadTargets(machinesRef.current, probeRef.current, from, listed, lately));
+    },
+    [preloader],
+  );
+
+  /** A page did not load: one loaded ahead goes; the next switch to it loads it again. */
+  const onFailed = useCallback((viewKey: string) => {
+    setViews((live) =>
+      live.filter(
+        (view) => view.key !== viewKey || !view.preloaded || view.key === shownRef.current,
+      ),
+    );
+  }, []);
 
   /** A WebView's renderer is gone: drop its page, and load the one on screen again. */
   const onGone = useCallback((viewKey: string) => {
@@ -205,6 +262,16 @@ export default function App() {
     Attention.setOnScreen("", "");
     setShown(null);
   }, [shown, views]);
+
+  // At start, once the list has been probed: load the row opened last ahead, when it is reachable.
+  useEffect(() => {
+    if (startPreloaded.current || probe === null) return;
+    startPreloaded.current = true;
+    const machine = machinesRef.current.find((row) => row.id === recent.current.row);
+    const links = probe.machines.find((entry) => entry.id === machine?.id);
+    if (machine === undefined || links === undefined) return;
+    if (routeOf(links, machine.mode ?? "auto") !== null) preloader.plan([{ machine, peer: null }]);
+  }, [probe, preloader]);
 
   /** Probe every link; the probe also brings the list new relay members, node ids and renames. */
   const probeNow = useCallback(async () => {
@@ -335,10 +402,13 @@ export default function App() {
               path={pathOf(view)}
               name={view.peer?.name ?? machine.name}
               visible={view.key === shown}
+              listPeers={view.peer === null}
               open={view.open}
               onSession={onSession}
               onSwitch={onSwitch}
               onGone={onGone}
+              onReady={onReady}
+              onFailed={onFailed}
               onBack={back}
             />
           );

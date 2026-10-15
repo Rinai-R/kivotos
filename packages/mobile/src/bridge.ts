@@ -11,6 +11,10 @@
  * `__kivotosSwitch` tells the plugin's switcher (packages/kivotos/src/client.tsx)
  * that this app takes `kivotos.switch` messages: a page of an app without it
  * navigates by itself.
+ *
+ * `ready` is posted once per document, when the plugin's switcher is on the
+ * page: dsh has rendered its shell, so the page can be shown at once. A
+ * MutationObserver watches for it, which a hidden page still runs.
  */
 export const BRIDGE = `(() => {
   if (window.__kivotosBridge) return;
@@ -32,7 +36,30 @@ export const BRIDGE = `(() => {
   store.setItem = (key, value) => { set(key, value); if (key === KEY) report(); };
   setInterval(report, 1000);
   report();
+  const SHELL = ".kivotos-machines-trigger";
+  const ready = () => window.ReactNativeWebView.postMessage(JSON.stringify({ type: "ready" }));
+  if (document.querySelector(SHELL) !== null) ready();
+  else {
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(SHELL) === null) return;
+      observer.disconnect();
+      ready();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
 })(); true;`;
+
+/**
+ * Script that posts the machines the page's computer lists (`/kivotos/peers`,
+ * absolute: the serving computer's list also on a peer's page), or null.
+ */
+export const PEERS_SCRIPT = `fetch("/kivotos/peers", { headers: { accept: "application/json" } })
+  .then((res) => (res.ok ? res.json() : null))
+  .catch(() => null)
+  .then((body) => window.ReactNativeWebView.postMessage(JSON.stringify({
+    type: "kivotos.peers",
+    machines: body !== null && typeof body === "object" && Array.isArray(body.machines) ? body.machines : null,
+  }))); true;`;
 
 /**
  * Script that opens a Session: store it as current, then reload so dsh
@@ -66,9 +93,19 @@ export interface SwitchTarget {
   address?: string;
 }
 
+/** A machine a page's computer lists, as its switcher would name it. */
+export interface ListedMachine {
+  target: SwitchTarget;
+  /** The computer has a route to it now. */
+  online: boolean;
+}
+
 /** A message the bridge or the plugin's switcher posts. */
 export type BridgeMessage =
   | { type: "session"; sessionId: string; path: string }
+  | { type: "ready" }
+  /** {@link PEERS_SCRIPT}'s answer; null when the computer did not list its machines. */
+  | { type: "kivotos.peers"; machines: ListedMachine[] | null }
   | {
       type: "kivotos.switch";
       machine: SwitchTarget;
@@ -123,6 +160,25 @@ function switchOf(message: Record<string, unknown>): BridgeMessage | null {
     : { type: "kivotos.switch", machine: target, sessionId, fallback };
 }
 
+/** A `/kivotos/peers` entry (`MachineInfo`) the way the switcher names it (client.tsx, `navigate`). */
+function listedOf(value: unknown): ListedMachine[] {
+  if (typeof value !== "object" || value === null) return [];
+  const machine = value as Record<string, unknown>;
+  const id = optional(machine.id);
+  if (id === undefined) return [];
+  const target: SwitchTarget = { id, name: String(machine.name ?? "") };
+  const node = optional(machine.node);
+  const links = Array.isArray(machine.links) ? (machine.links as unknown[]) : [];
+  const tailscale = links.find(
+    (link): link is Record<string, unknown> =>
+      typeof link === "object" && link !== null && Reflect.get(link, "via") === "tailscale",
+  );
+  const address = optional(tailscale?.address);
+  if (node !== undefined) target.node = node;
+  if (address !== undefined) target.address = address;
+  return [{ target, online: typeof machine.route === "string" }];
+}
+
 /** @returns the message, or null for anything else a page posts. */
 export function parseBridgeMessage(data: string): BridgeMessage | null {
   let message: Record<string, unknown>;
@@ -133,6 +189,12 @@ export function parseBridgeMessage(data: string): BridgeMessage | null {
   }
   if (typeof message !== "object" || message === null) return null;
   if (message.type === "kivotos.switch") return switchOf(message);
+  if (message.type === "ready") return { type: "ready" };
+  if (message.type === "kivotos.peers")
+    return {
+      type: "kivotos.peers",
+      machines: Array.isArray(message.machines) ? message.machines.flatMap(listedOf) : null,
+    };
   if (message.type !== "session" || typeof message.sessionId !== "string") return null;
   return { type: "session", sessionId: message.sessionId, path: String(message.path ?? "") };
 }
