@@ -22,6 +22,8 @@ import {
   BRIDGE,
   openSessionScript,
   parseBridgeMessage,
+  PEERS_SCRIPT,
+  type ListedMachine,
   type SwitchTarget,
 } from "./bridge";
 import { KivotosMark } from "./icons";
@@ -47,9 +49,12 @@ interface Props {
   name: string;
   /**
    * On screen. A hidden page stays loaded (display none, out of the
-   * accessibility tree and of touch), so showing it again is instant.
+   * accessibility tree and of touch), so showing it again is instant; a page
+   * loaded ahead is hidden from the start.
    */
   visible: boolean;
+  /** Ask the page, when its shell is up on screen, which machines its computer lists (`onReady`). */
+  listPeers: boolean;
   /** A Session to open (a notification tap); a new request opens it again. */
   open: OpenRequest | null;
   /** The Session shown changed ("" for none); reported again when the page is shown. */
@@ -61,6 +66,13 @@ interface Props {
   onSwitch: (viewKey: string, target: SwitchTarget, sessionId: string | undefined) => boolean;
   /** The WebView's renderer is gone: this page cannot be shown again. */
   onGone: (viewKey: string) => void;
+  /**
+   * dsh's shell is up in the page, or the page was shown again with it up.
+   * `listed`: what the computer lists, with `listPeers` on screen; else null.
+   */
+  onReady: (viewKey: string, listed: ListedMachine[] | null) => void;
+  /** The page did not load: no answer, or a status other than 200. */
+  onFailed: (viewKey: string) => void;
   /** Back past the page's own history. */
   onBack: (viewKey: string) => void;
 }
@@ -88,8 +100,8 @@ function useKeyboardInset(bottomInset: number): number {
 }
 /** One machine's complete dsh UI. */
 export const MachineView = memo(function MachineView(props: Props) {
-  const { viewKey, machine, path, name, visible, open, onBack, onSession, onSwitch, onGone } =
-    props;
+  const { viewKey, machine, path, name, visible, listPeers, open } = props;
+  const { onBack, onSession, onSwitch, onGone, onReady, onFailed } = props;
   const styles = useStyles(createStyles);
   const colors = useColors();
   const web = useRef<WebView>(null);
@@ -102,6 +114,8 @@ export const MachineView = memo(function MachineView(props: Props) {
   const ready = useRef(false);
   // The Session the page last reported; null until it has.
   const session = useRef<string | null>(null);
+  // dsh's shell is up in the current document: the bridge posted `ready`.
+  const shell = useRef(false);
   const [failed, setFailed] = useState(false);
   // The splash covers only the first load; dsh's own UI handles later navigation.
   const [loaded, setLoaded] = useState(false);
@@ -120,15 +134,26 @@ export const MachineView = memo(function MachineView(props: Props) {
   }, [open]);
 
   // The page learns it is hidden (visibilityState, throttled timers) and stops rendering.
-  useEffect(() => {
+  const applyVisible = useCallback(() => {
     const tag = findNodeHandle(holder.current);
     if (tag !== null) void setPageVisible(tag, visible);
   }, [visible]);
+  useEffect(applyVisible, [applyVisible]);
 
   // Shown again: its Session is the one on screen.
   useEffect(() => {
     if (visible && session.current !== null) onSession(viewKey, session.current);
   }, [visible, viewKey, onSession]);
+
+  const reportReady = useCallback(() => {
+    if (visible && listPeers) web.current?.injectJavaScript(PEERS_SCRIPT);
+    else onReady(viewKey, null);
+  }, [visible, listPeers, viewKey, onReady]);
+
+  // Shown again with its shell up: ready on screen.
+  useEffect(() => {
+    if (visible && shell.current) reportReady();
+  }, [visible, reportReady]);
 
   // Only the page on screen takes the hardware Back.
   useEffect(() => {
@@ -151,6 +176,15 @@ export const MachineView = memo(function MachineView(props: Props) {
           web.current?.injectJavaScript(assignScript(message.fallback));
         return;
       }
+      if (message.type === "ready") {
+        shell.current = true;
+        reportReady();
+        return;
+      }
+      if (message.type === "kivotos.peers") {
+        onReady(viewKey, message.machines);
+        return;
+      }
       ready.current = true;
       // A tap that launched the app: open its Session once dsh is up.
       if (pending.current !== null) {
@@ -164,20 +198,30 @@ export const MachineView = memo(function MachineView(props: Props) {
       session.current = message.sessionId;
       if (visible) onSession(viewKey, message.sessionId);
     },
-    [viewKey, visible, onSession, onSwitch],
+    [viewKey, visible, onSession, onSwitch, onReady, reportReady],
   );
   const onNavigation = useCallback((state: WebViewNavigation) => {
     canGoBack.current = state.canGoBack;
   }, []);
   const onLoadStart = useCallback(() => {
     ready.current = false;
+    shell.current = false;
     setFailed(false);
-  }, []);
+    // A page mounted hidden (loaded ahead): its WebView may not have existed when the effect ran.
+    applyVisible();
+  }, [applyVisible]);
   const onLoadEnd = useCallback(() => setLoaded(true), []);
-  const onError = useCallback(() => setFailed(true), []);
+  const onError = useCallback(() => {
+    setFailed(true);
+    onFailed(viewKey);
+  }, [viewKey, onFailed]);
   const onHttpError = useCallback(
-    (event: WebViewHttpErrorEvent) => setFailed(event.nativeEvent.statusCode >= 500),
-    [],
+    (event: WebViewHttpErrorEvent) => {
+      const { statusCode } = event.nativeEvent;
+      setFailed(statusCode >= 500);
+      if (statusCode !== 200) onFailed(viewKey);
+    },
+    [viewKey, onFailed],
   );
   const onRenderProcessGone = useCallback(() => onGone(viewKey), [viewKey, onGone]);
   const back = useCallback(() => onBack(viewKey), [viewKey, onBack]);
