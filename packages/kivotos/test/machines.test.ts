@@ -166,6 +166,13 @@ test("a dropped relay connection gets the same grace for the machines it was rea
   assert.equal(book.machines(T0 + 90_000)[0].links[0].state, "unreachable");
 });
 
+test("a static peer removed while its link is down goes at once", () => {
+  const book = new MachineBook<string>(DAY);
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);
+  book.update("tailscale", [], T0 + 30_000, { state: "unreachable", reason: "network" });
+  assert.deepEqual(book.machines(T0 + 30_000), []);
+});
+
 test("a static peer stays however long ago it was seen, and goes when unconfigured", () => {
   const book = new MachineBook<string>(DAY);
   book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);

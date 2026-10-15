@@ -64,8 +64,10 @@ object Links {
 
   /**
    * Whether a link's failed probe should still show online (unstable), given
-   * when it was last seen working.
+   * when it was last seen working. Synchronized: probes can overlap (the
+   * timer and a return to the app), and the count is read and written.
    */
+  @Synchronized
   private fun held(slot: String, state: String, reason: String?, lastSeen: Long, now: Long): Boolean {
     if (state == "online") {
       failures[slot] = 0
@@ -98,6 +100,7 @@ object Links {
 
   /** Ask a tailnet listener who it is. */
   private fun hello(url: String): Hello {
+    val started = SystemClock.elapsedRealtime()
     val connection = try {
       URL(url.trimEnd('/') + "/kivotos/hello").openConnection() as HttpURLConnection
     } catch (_: IOException) {
@@ -121,8 +124,10 @@ object Links {
       Hello("unreachable", "timeout")
     } catch (_: SSLException) {
       Hello("unreachable", "tls")
-    } catch (_: ConnectException) {
-      Hello("unreachable", if (refused(connection.url)) "no-listener" else "network")
+    } catch (failure: ConnectException) {
+      val left = HELLO_TIMEOUT_MS - (SystemClock.elapsedRealtime() - started).toInt()
+      val noListener = isRefused(failure) || (left > 0 && refused(connection.url, left))
+      Hello("unreachable", if (noListener) "no-listener" else "network")
     } catch (_: JSONException) {
       Hello("unreachable", "not-kivotos")
     } catch (_: IOException) {
@@ -132,16 +137,20 @@ object Links {
     }
   }
 
+  private fun isRefused(failure: Throwable): Boolean =
+    generateSequence(failure) { it.cause }.any { (it as? ErrnoException)?.errno == OsConstants.ECONNREFUSED }
+
   /**
    * Whether nothing listens at the URL's address. Android's HTTP stack words
    * every failed connect "Failed to connect to …" and drops the cause, so a
-   * plain socket asks again; its failure carries the errno.
+   * plain socket asks again within what is left of the hello's deadline; its
+   * failure carries the errno.
    */
-  private fun refused(url: URL): Boolean = try {
-    Socket().use { it.connect(InetSocketAddress(url.host, if (url.port > 0) url.port else url.defaultPort), HELLO_TIMEOUT_MS) }
+  private fun refused(url: URL, timeoutMs: Int): Boolean = try {
+    Socket().use { it.connect(InetSocketAddress(url.host, if (url.port > 0) url.port else url.defaultPort), timeoutMs) }
     false
   } catch (failure: ConnectException) {
-    generateSequence<Throwable>(failure) { it.cause }.any { (it as? ErrnoException)?.errno == OsConstants.ECONNREFUSED }
+    isRefused(failure)
   } catch (_: IOException) {
     false
   }

@@ -81,7 +81,7 @@ export const SETTINGS_ZH = {
   "notice.register.lead": "在中继上登记这个网络",
   "notice.register.body": "请中继管理员执行一次：",
   "notice.reset.lead": "连接被重置",
-  "notice.reset.body": "服务商可能在屏蔽此域名",
+  "notice.reset.body": "服务商可能在屏蔽 {host}",
   "notice.plain.lead": "明文 ws://",
   "notice.plain.body": "中继令牌可被窃听，请改用 wss://",
   "machines.label": "机器",
@@ -209,7 +209,7 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "notice.register.lead": "Register this network on the relay",
   "notice.register.body": "Ask the relay's operator to run once:",
   "notice.reset.lead": "Connection reset",
-  "notice.reset.body": "the hosting provider may be blocking this domain",
+  "notice.reset.body": "the hosting provider may be blocking {host}",
   "notice.plain.lead": "Plaintext ws://",
   "notice.plain.body": "the relay token can be read in transit; use wss://",
   "machines.label": "Machines",
@@ -1454,7 +1454,7 @@ function RelayRow({
               tone="info"
               icon="info"
               lead={t("notice.reset.lead")}
-              body={t("notice.reset.body")}
+              body={t("notice.reset.body", { host })}
               t={t}
             />
           ) : null}
@@ -1730,7 +1730,8 @@ function MachinesGroup({
   // Re-rendered on every poll, which also moves "last seen" along.
   const now = Date.now();
   let body: ReactNode;
-  if (list === null && state.listFailed)
+  // A failed read hides the last list rather than show it as current.
+  if (state.listFailed)
     body = <Notice tone="danger" icon="warning" lead={t("settings.failed")} t={t} />;
   else if (list === null)
     body = (
@@ -1772,7 +1773,7 @@ function MachinesGroup({
         <h3 id={headingId} className="kivotos-group-label">
           {t("machines.label")}
         </h3>
-        {list === null || list.machines.length === 0 ? null : (
+        {list === null || state.listFailed || list.machines.length === 0 ? null : (
           <span className="kivotos-group-count">
             {t("machines.count", { count: list.machines.length })}
           </span>

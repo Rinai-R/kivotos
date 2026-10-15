@@ -977,7 +977,25 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
       if (root.current !== null && !root.current.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        trigger.current?.focus();
+        return;
+      }
+      const moves: Record<string, (at: number, last: number) => number> = {
+        ArrowDown: (at, last) => (at >= last ? 0 : at + 1),
+        ArrowUp: (at, last) => (at <= 0 ? last : at - 1),
+        Home: () => 0,
+        End: (_, last) => last,
+      };
+      const move = moves[event.key];
+      const list = root.current?.querySelector(".kivotos-machines-list");
+      if (move === undefined || list == null) return;
+      const items = [...list.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+      if (items.length === 0) return;
+      event.preventDefault();
+      const at = items.indexOf(document.activeElement as HTMLButtonElement);
+      items[move(at, items.length - 1)]?.focus();
     };
     document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("keydown", onKey);

@@ -234,7 +234,9 @@ export class MachineBook<T> {
     // failing (the relay connection dropped), gets the same grace.
     if (absent.state === "unreachable" && before !== undefined) {
       for (const [key, previous] of before) {
-        if (current.has(key)) continue;
+        // A pinned entry is reported while it is configured, whatever the
+        // link's state: missing means it was removed, not hidden.
+        if (current.has(key) || previous.pinned === true) continue;
         const held = this.held(
           via,
           previous,
