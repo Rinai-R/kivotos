@@ -21,7 +21,6 @@ import {
   type MachineLink,
   type PhoneMachine,
   type PhoneProbe,
-  type RouteMode,
   type Via,
 } from "../src/machines.ts";
 
@@ -116,6 +115,62 @@ test("a machine no link reports stays listed as offline until the retention ends
 
   book.update("relay", [], T0 + 7 * DAY + 1);
   assert.deepEqual(book.machines(T0 + 7 * DAY + 1), []);
+});
+
+test("a working link survives two failed checks in a row and is down at the third", () => {
+  const book = new MachineBook<string>(DAY);
+  const at = (n: number) => T0 + n * 30_000;
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], at(0));
+  for (const n of [1, 2]) {
+    book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(n));
+    const [machine] = book.machines(at(n));
+    assert.equal(machine.links[0].state, "online", `check ${n}`);
+    assert.equal(machine.links[0].unstable, true);
+    // It keeps its route: a mount is not torn down for one slow answer.
+    assert.equal(machine.target, "tailnet-h");
+    // Its row says so: still the route, but unstable.
+    assert.deepEqual(statusOf(machine, machine.mode), { kind: "unstable", via: "tailscale" });
+  }
+  book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(3));
+  const [down] = book.machines(at(3));
+  assert.equal(down.links[0].state, "unreachable");
+  assert.equal(down.links[0].unstable, undefined);
+  assert.equal(down.target, undefined);
+  // One answer clears the count: the next failure starts the grace again.
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], at(4));
+  assert.equal(book.machines(at(4))[0].links[0].unstable, undefined);
+  book.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], at(5));
+  assert.equal(book.machines(at(5))[0].links[0].state, "online");
+});
+
+test("a refusal, or a failure of a link not working before, is shown at once", () => {
+  const book = new MachineBook<string>(DAY);
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);
+  book.update("tailscale", [tailnetH("unreachable", { reason: "no-listener" })], T0 + 30_000);
+  assert.equal(book.machines(T0 + 30_000)[0].links[0].state, "unreachable");
+  const fresh = new MachineBook<string>(DAY);
+  fresh.update("tailscale", [tailnetH("unreachable", { reason: "timeout" })], T0);
+  assert.equal(fresh.machines(T0)[0].links[0].state, "unreachable");
+});
+
+test("a dropped relay connection gets the same grace for the machines it was reaching", () => {
+  const book = new MachineBook<string>(7 * DAY);
+  book.update("relay", [{ ...relayOf(NODE_I, "online"), target: "relay-i" }], T0);
+  const down = { state: "unreachable", reason: "relay-unreachable" } as const;
+  book.update("relay", [], T0 + 30_000, down);
+  const [held] = book.machines(T0 + 30_000);
+  assert.equal(held.links[0].state, "online");
+  assert.equal(held.links[0].unstable, true);
+  book.update("relay", [], T0 + 60_000, down);
+  book.update("relay", [], T0 + 90_000, down);
+  assert.equal(book.machines(T0 + 90_000)[0].links[0].state, "unreachable");
+});
+
+test("a static peer removed while its link is down goes at once", () => {
+  const book = new MachineBook<string>(DAY);
+  book.update("tailscale", [tailnetH("online", { node: NODE_H, target: "tailnet-h" })], T0);
+  book.update("tailscale", [], T0 + 30_000, { state: "unreachable", reason: "network" });
+  assert.deepEqual(book.machines(T0 + 30_000), []);
 });
 
 test("a static peer stays however long ago it was seen, and goes when unconfigured", () => {
@@ -228,31 +283,31 @@ test("a machine held to one link shows that link's failure, never the other link
   assert.deepEqual(statusOf({ links: relayGone }, "auto"), { kind: "online", via: "tailscale" });
 });
 
-test("the mode control offers auto, the links that work, and the current choice even when down", () => {
-  const shown = (tailnet: MachineLink["state"], relay: MachineLink["state"], mode: RouteMode) =>
-    modeOptions({ links: [linkIn("tailscale", tailnet), linkIn("relay", relay)] }, mode).map(
-      (option) => (option.unavailable ? `${option.mode}!` : option.mode),
+test("the mode control offers auto and both links, a link that is down disabled with why", () => {
+  const shown = (tailnet: MachineLink["state"], relay: MachineLink["state"]) =>
+    modeOptions({ links: [linkIn("tailscale", tailnet), linkIn("relay", relay)] }).map((option) =>
+      option.disabled === undefined ? option.mode : `${option.mode}!${option.disabled}`,
     );
-  for (const mode of ROUTE_MODES)
-    assert.deepEqual(shown("online", "online", mode), ["auto", "tailscale", "relay"], mode);
-  for (const down of DOWN) {
-    assert.deepEqual(shown(down, "online", "auto"), ["auto", "relay"], down);
-    assert.deepEqual(shown(down, "online", "relay"), ["auto", "relay"], down);
-    assert.deepEqual(shown(down, "online", "tailscale"), ["auto", "tailscale!", "relay"], down);
-    assert.deepEqual(shown("online", down, "relay"), ["auto", "tailscale", "relay!"], down);
-    assert.deepEqual(shown(down, down, "auto"), ["auto"], down);
-    assert.deepEqual(shown(down, down, "tailscale"), ["auto", "tailscale!"], down);
-  }
-  // The unavailable choice carries its link, so the control can say why.
-  const links = [linkIn("tailscale", "unreachable"), linkIn("relay", "online")];
-  assert.deepEqual(modeOptions({ links }, "tailscale")[1], {
-    mode: "tailscale",
-    link: links[0],
-    unavailable: true,
-  });
-  // One link: nothing to choose, in any mode.
-  for (const mode of ROUTE_MODES)
-    assert.deepEqual(modeOptions({ links: [linkIn("relay", "online")] }, mode), []);
+  assert.deepEqual(shown("online", "online"), ["auto", "tailscale", "relay"]);
+  // The control keeps its shape: a down link stays, disabled with its reason or state.
+  assert.deepEqual(shown("unreachable", "online"), ["auto", "tailscale!no-listener", "relay"]);
+  assert.deepEqual(shown("online", "offline"), ["auto", "tailscale", "relay!offline"]);
+  assert.deepEqual(shown("denied", "unreachable"), [
+    "auto",
+    "tailscale!denied",
+    "relay!no-listener",
+  ]);
+  // An unstable link still works, so it can be chosen.
+  const unstable: MachineLink[] = [
+    { via: "tailscale", state: "online", unstable: true },
+    { via: "relay", state: "unreachable" },
+  ];
+  assert.deepEqual(
+    modeOptions({ links: unstable }).map((option) => option.disabled),
+    [undefined, undefined, "unreachable"],
+  );
+  // One link: nothing to choose.
+  assert.deepEqual(modeOptions({ links: [linkIn("relay", "online")] }), []);
 });
 
 function bothLinksOfH(book: MachineBook<string>, now: number) {

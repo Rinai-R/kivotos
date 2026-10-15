@@ -17,23 +17,14 @@ import {
   type PhoneMachineProbe,
   type PhoneProbe,
   type RouteMode,
-  type Via,
 } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
-import {
-  BellGlyph,
-  ChevronGlyph,
-  KeyboardGlyph,
-  KivotosMark,
-  LinkGlyph,
-  MonitorGlyph,
-  QrGlyph,
-} from "./icons";
-import { LinkChips, phoneVias } from "./LinkChips";
+import { ChevronGlyph, KivotosMark, MonitorGlyph, QrGlyph } from "./icons";
 import { MachineSheet } from "./MachineSheet";
 import { resolveMachines } from "./machines";
 import { PairScanner } from "./PairScanner";
-import { errorKey, statusLine, t, type Key } from "./strings";
+import { StateDot } from "./StateDot";
+import { errorKey, summaryOf, t, type Key } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 interface Props {
@@ -58,27 +49,28 @@ interface RowProps {
   machine: Machine;
   /** What the last probe found; undefined until then. */
   probe: PhoneMachineProbe | undefined;
-  /** The links the phone has: one chip each. */
-  vias: readonly Via[];
   last: boolean;
   onOpen: (machine: Machine) => void;
   /** Long-press: its actions (how it is reached, remove). */
   onActions: (machine: Machine) => void;
 }
 
-function MachineRow({ machine, probe, vias, last, onOpen, onActions }: RowProps) {
+/** One machine on one line: its name, then the route or why there is none. */
+function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
   const styles = useStyles(createStyles);
   const colors = useColors();
   const open = useCallback(() => onOpen(machine), [machine, onOpen]);
   const actions = useCallback(() => onActions(machine), [machine, onActions]);
   const rowStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
-    [styles],
+    ({ pressed }: PressableStateCallbackType) => [
+      last ? styles.row : styles.rowDivided,
+      pressed && styles.pressed,
+    ],
+    [last, styles],
   );
-  // How the phone reaches it by its mode, in the computer's words, then its
-  // state on each link; a machine no link reaches is dimmed and says why.
   const mode = machine.mode ?? "auto";
-  const status = statusLine(probe, mode, Date.now());
+  const summary = summaryOf(probe, mode, Date.now());
+  // A machine no link reaches is dimmed; its word says why.
   const reachable = probe === undefined || routeOf(probe, mode) !== null;
   return (
     <Pressable
@@ -86,23 +78,21 @@ function MachineRow({ machine, probe, vias, last, onOpen, onActions }: RowProps)
       onLongPress={actions}
       style={rowStyle}
       accessibilityRole="button"
-      accessibilityLabel={machine.name}
+      accessibilityLabel={`${machine.name}, ${summary.text}`}
     >
       <View style={styles.tile}>
-        <MonitorGlyph color={colors.text} />
+        <MonitorGlyph color={colors.textSecondary} />
       </View>
-      <View style={last ? styles.rowBodyLast : styles.rowBody}>
-        <View style={styles.rowText}>
-          <Text style={reachable ? styles.rowName : styles.rowNameDim} numberOfLines={1}>
-            {machine.name}
-          </Text>
-          <Text style={styles.rowMeta} numberOfLines={2}>
-            {status}
-          </Text>
-          <LinkChips machine={machine} probe={probe} vias={vias} />
-        </View>
-        <ChevronGlyph color={colors.textTertiary} />
+      <Text style={reachable ? styles.name : styles.nameDim} numberOfLines={1}>
+        {machine.name}
+      </Text>
+      <View style={styles.state}>
+        <StateDot dot={summary.dot} />
+        <Text style={styles.stateText} numberOfLines={1}>
+          {summary.text}
+        </Text>
       </View>
+      <ChevronGlyph color={colors.textTertiary} />
     </Pressable>
   );
 }
@@ -148,7 +138,6 @@ export function MachineList(props: Props) {
     () => new Map((props.probe?.machines ?? []).map((entry) => [entry.id, entry])),
     [props.probe],
   );
-  const vias = useMemo(() => phoneVias(machines), [machines]);
   useEffect(
     () => () => {
       mounted.current = false;
@@ -187,20 +176,15 @@ export function MachineList(props: Props) {
     setError(null);
   }, []);
 
+  /** Only a machine added by address is removed here; a network's machines go with the network. */
   const confirmRemove = useCallback(
     (machine: Machine) => {
-      // A relay machine is one of a network's computers: they come and go together.
-      const relay = machine.relay !== undefined;
       Alert.alert(
-        relay ? t("leaveConfirm") : t("removeConfirm", { name: machine.name }),
-        relay ? t("leaveDetail") : machine.url,
+        t("removeTitle", { name: machine.name }),
+        t("removeBody", { address: machine.url.replace(/^https?:\/\//, "") }),
         [
           { text: t("cancel"), style: "cancel" },
-          {
-            text: relay ? t("leave") : t("remove"),
-            style: "destructive",
-            onPress: () => onRemove(machine.id),
-          },
+          { text: t("remove"), style: "destructive", onPress: () => onRemove(machine.id) },
         ],
       );
     },
@@ -209,12 +193,16 @@ export function MachineList(props: Props) {
   const closeSheet = useCallback(() => setSheet(null), []);
 
   const trackColor = useMemo(() => ({ false: colors.pressed, true: colors.link }), [colors]);
-  const rowStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.rowPressed : styles.row),
+  const linksStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [styles.plainDivided, pressed && styles.pressed],
     [styles],
   );
   const primaryStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => (pressed ? styles.primaryPressed : styles.primary),
+    ({ pressed }: PressableStateCallbackType) => [styles.primary, pressed && styles.primaryPressed],
+    [styles],
+  );
+  const secondaryStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [styles.secondary, pressed && styles.pressed],
     [styles],
   );
 
@@ -229,11 +217,11 @@ export function MachineList(props: Props) {
     );
   }
 
-  let notificationLabel = t("notificationsOff");
-  if (props.notifications === "on") notificationLabel = t("notificationsOn");
-  else if (props.notifications === "denied") notificationLabel = t("notificationsDenied");
   const canAdd = !busy && input.trim() !== "";
-  const showBattery = props.notifications === "on" && props.batteryRestricted;
+  // Notices under the switch, each only while it holds.
+  let notice: string | null = null;
+  if (props.notifications === "denied") notice = t("notificationsDenied");
+  else if (props.notifications === "on" && props.batteryRestricted) notice = t("batteryHint");
 
   return (
     <SafeAreaView style={styles.safe} edges={EDGES}>
@@ -243,7 +231,7 @@ export function MachineList(props: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <KivotosMark size={36} />
+          <KivotosMark size={40} />
           <View style={styles.headerText}>
             <Text style={styles.brand}>Kivotos</Text>
             <Text style={styles.tagline}>{t("tagline")}</Text>
@@ -260,7 +248,6 @@ export function MachineList(props: Props) {
                 key={machine.id}
                 machine={machine}
                 probe={probes.get(machine.id)}
-                vias={vias}
                 last={index === machines.length - 1}
                 onOpen={onOpen}
                 onActions={setSheet}
@@ -270,15 +257,24 @@ export function MachineList(props: Props) {
         )}
         {machines.length > 0 ? <Text style={styles.footnote}>{t("removeHint")}</Text> : null}
 
-        <Pressable
-          onPress={openScanner}
-          disabled={busy}
-          style={primaryStyle}
-          accessibilityRole="button"
-        >
-          <QrGlyph color={colors.onPrimary} />
-          <Text style={styles.primaryText}>{t("scan")}</Text>
-        </Pressable>
+        <View style={styles.buttons}>
+          <Pressable
+            onPress={openScanner}
+            disabled={busy}
+            style={primaryStyle}
+            accessibilityRole="button"
+          >
+            <QrGlyph size={18} color={colors.onPrimary} />
+            <Text style={styles.primaryText} numberOfLines={1}>
+              {t("scan")}
+            </Text>
+          </Pressable>
+          <Pressable onPress={showManual} style={secondaryStyle} accessibilityRole="button">
+            <Text style={styles.secondaryText} numberOfLines={1}>
+              {t("manual")}
+            </Text>
+          </Pressable>
+        </View>
 
         {manual ? (
           <View style={styles.manual}>
@@ -312,12 +308,7 @@ export function MachineList(props: Props) {
               </Pressable>
             </View>
           </View>
-        ) : (
-          <Pressable onPress={showManual} style={styles.secondary} accessibilityRole="button">
-            <KeyboardGlyph color={colors.textSecondary} />
-            <Text style={styles.secondaryText}>{t("manual")}</Text>
-          </Pressable>
-        )}
+        ) : null}
         {error === null ? null : (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{t(error)}</Text>
@@ -328,54 +319,47 @@ export function MachineList(props: Props) {
         <View style={styles.group}>
           <Pressable
             onPress={props.onLinks}
-            style={rowStyle}
+            style={linksStyle}
             accessibilityRole="button"
-            accessibilityLabel={t("connections")}
+            accessibilityLabel={`${t("connections")}, ${t("connectionsMeta")}`}
           >
-            <View style={styles.tile}>
-              <LinkGlyph color={colors.text} />
-            </View>
-            <View style={styles.rowBody}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowName}>{t("connections")}</Text>
-                <Text style={styles.rowMeta}>{t("connectionsMeta")}</Text>
-              </View>
-              <ChevronGlyph color={colors.textTertiary} />
-            </View>
+            <Text style={styles.plainName}>{t("connections")}</Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {t("connectionsMeta")}
+            </Text>
+            <ChevronGlyph color={colors.textTertiary} />
           </Pressable>
-          <Pressable onPress={props.onToggleNotifications} style={styles.row}>
-            <View style={styles.tile}>
-              <BellGlyph color={colors.text} />
-            </View>
-            <View style={showBattery ? styles.rowBody : styles.rowBodyLast}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowName}>{t("notifications")}</Text>
-                <Text style={styles.rowMeta}>{notificationLabel}</Text>
-              </View>
-              <Switch
-                value={props.notifications === "on"}
-                onValueChange={props.onToggleNotifications}
-                trackColor={trackColor}
-                thumbColor="#FFFFFF"
-              />
-            </View>
+          <Pressable
+            onPress={props.onToggleNotifications}
+            style={notice === null ? styles.plain : styles.plainDivided}
+          >
+            <Text style={styles.plainName}>{t("notifications")}</Text>
+            <Switch
+              value={props.notifications === "on"}
+              onValueChange={props.onToggleNotifications}
+              trackColor={trackColor}
+              thumbColor="#FFFFFF"
+              accessibilityLabel={t("notifications")}
+            />
           </Pressable>
-          {showBattery ? (
-            <View style={styles.battery}>
-              <Text style={styles.rowMeta}>{t("batteryHint")}</Text>
-              <Pressable onPress={props.onFixBattery} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.link}>{t("batteryFix")}</Text>
-              </Pressable>
+          {notice === null ? null : (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>{notice}</Text>
+              {props.notifications === "on" ? (
+                <Pressable onPress={props.onFixBattery} hitSlop={8} accessibilityRole="button">
+                  <Text style={styles.link}>{t("batteryFix")}</Text>
+                </Pressable>
+              ) : null}
             </View>
-          ) : null}
+          )}
         </View>
       </ScrollView>
       <MachineSheet
         machine={sheet}
         probe={sheet === null ? undefined : probes.get(sheet.id)}
-        vias={vias}
         onMode={props.onMode}
         onRemove={confirmRemove}
+        onLinks={props.onLinks}
         onClose={closeSheet}
       />
     </SafeAreaView>
@@ -386,25 +370,21 @@ function createStyles(c: Palette) {
   const row = {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 14,
-    minHeight: 64,
+    gap: 12,
+    minHeight: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   } as const;
-  const rowBody = {
+  const plain = { ...row, minHeight: 52, paddingVertical: 8 } as const;
+  const divider = { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border };
+  const button = {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "stretch",
-    gap: 10,
-    marginLeft: 12,
-    paddingRight: 14,
-  } as const;
-  const primary = {
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    height: 52,
-    marginTop: 24,
+    gap: 8,
+    height: 48,
+    paddingHorizontal: 12,
     borderRadius: radius.md,
   } as const;
   const addButton = {
@@ -424,20 +404,26 @@ function createStyles(c: Palette) {
       width: "100%",
       maxWidth: 600,
       alignSelf: "center",
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       paddingBottom: 32,
     },
-    header: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 20 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingTop: 16,
+      paddingHorizontal: 4,
+    },
     headerText: { flex: 1 },
-    brand: { fontSize: 24, fontWeight: "700", letterSpacing: -0.3, color: c.text },
-    tagline: { fontSize: 13, marginTop: 2, color: c.textTertiary },
+    brand: { fontSize: 24, lineHeight: 32, fontWeight: "700", color: c.text },
+    tagline: { fontSize: 14, lineHeight: 20, color: c.textSecondary },
     section: {
       fontSize: 13,
-      fontWeight: "500",
-      marginTop: 32,
-      marginBottom: 8,
-      marginLeft: 4,
-      color: c.textTertiary,
+      lineHeight: 18,
+      paddingTop: 24,
+      paddingBottom: 8,
+      paddingHorizontal: 4,
+      color: c.textSecondary,
     },
     group: {
       borderRadius: radius.lg,
@@ -447,28 +433,31 @@ function createStyles(c: Palette) {
       borderColor: c.border,
     },
     row,
-    rowPressed: { ...row, backgroundColor: c.pressed },
-    rowBody: {
-      ...rowBody,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border,
-    },
-    rowBodyLast: rowBody,
-    rowText: { flex: 1, paddingVertical: 12 },
-    rowName: { fontSize: 16, fontWeight: "500", color: c.text },
-    rowNameDim: { fontSize: 16, fontWeight: "500", color: c.textTertiary },
-    rowMeta: { fontSize: 13, lineHeight: 18, marginTop: 2, color: c.textTertiary },
+    rowDivided: { ...row, ...divider },
+    pressed: { backgroundColor: c.pressed },
     tile: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: c.bg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
+      backgroundColor: c.pressed,
     },
-    footnote: { fontSize: 12, marginTop: 8, marginLeft: 4, color: c.textTertiary },
+    name: { flex: 1, fontSize: 16, lineHeight: 22, fontWeight: "500", color: c.text },
+    nameDim: { flex: 1, fontSize: 16, lineHeight: 22, fontWeight: "500", color: c.textSecondary },
+    state: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
+    stateText: { fontSize: 14, lineHeight: 20, color: c.textSecondary, flexShrink: 1 },
+    plain,
+    plainDivided: { ...plain, ...divider },
+    plainName: { flex: 1, fontSize: 16, lineHeight: 22, color: c.text },
+    meta: { fontSize: 14, lineHeight: 20, color: c.textTertiary, flexShrink: 1 },
+    footnote: {
+      fontSize: 13,
+      lineHeight: 18,
+      paddingTop: 8,
+      paddingHorizontal: 4,
+      color: c.textTertiary,
+    },
     empty: { padding: 18, gap: 14 },
     emptyTitle: { fontSize: 17, fontWeight: "600", color: c.text },
     step: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
@@ -483,18 +472,17 @@ function createStyles(c: Palette) {
     },
     stepNumber: { fontSize: 12, fontWeight: "600", color: c.textSecondary },
     stepText: { flex: 1, fontSize: 15, lineHeight: 22, color: c.textSecondary },
-    primary: { ...primary, backgroundColor: c.primary },
-    primaryPressed: { ...primary, backgroundColor: c.primary, opacity: 0.85 },
-    primaryText: { fontSize: 16, fontWeight: "600", color: c.onPrimary },
+    buttons: { flexDirection: "row", gap: 10, marginTop: 16 },
+    primary: { ...button, backgroundColor: c.primary },
+    primaryPressed: { opacity: 0.85 },
+    primaryText: { fontSize: 15, fontWeight: "600", color: c.onPrimary, flexShrink: 1 },
     secondary: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      height: 44,
-      marginTop: 8,
+      ...button,
+      backgroundColor: c.bg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
     },
-    secondaryText: { fontSize: 15, fontWeight: "500", color: c.textSecondary },
+    secondaryText: { fontSize: 15, fontWeight: "500", color: c.text, flexShrink: 1 },
     manual: { marginTop: 16, gap: 8 },
     manualHint: { fontSize: 13, marginLeft: 4, color: c.textTertiary },
     addRow: { flexDirection: "row", gap: 8 },
@@ -519,13 +507,14 @@ function createStyles(c: Palette) {
       backgroundColor: c.dangerSoft,
     },
     errorText: { fontSize: 14, lineHeight: 20, color: c.danger },
-    battery: {
-      alignItems: "flex-start",
-      gap: 6,
+    notice: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
       paddingVertical: 12,
-      paddingLeft: 62,
-      paddingRight: 14,
+      paddingHorizontal: 14,
     },
+    noticeText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.textSecondary },
     link: { fontSize: 14, fontWeight: "600", color: c.link },
   } as const;
 }

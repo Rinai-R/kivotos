@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { X509Certificate } from "node:crypto";
+import net from "node:net";
+import { setTimeout as sleep } from "node:timers/promises";
 import { duplexPair } from "node:stream";
 import { test } from "node:test";
 import {
@@ -10,7 +12,7 @@ import {
   registrationOf,
   relayEndpoint,
 } from "../src/federation.ts";
-import { secureAccept, secureDial } from "../src/relay.ts";
+import { RelayLink, secureAccept, secureDial, type LinkStatus } from "../src/relay.ts";
 import { createIdentity, loadIdentity } from "../src/x509.ts";
 
 const RELAY = "relay.example.com:7443";
@@ -57,6 +59,42 @@ test("a created identity is a certificate other TLS stacks accept, and reloads t
   const reloaded = loadIdentity(identity.keyPem, identity.certPem);
   assert.equal(nodeIdOf(reloaded.certDer), nodeIdOf(identity.certDer));
   assert.notEqual(nodeIdOf(createIdentity().certDer), nodeIdOf(identity.certDer));
+});
+
+/** @returns the first status a link to `relay` settles on other than connecting. */
+async function settledStatus(relay: string): Promise<LinkStatus> {
+  const link = new RelayLink(
+    networkOf(relay),
+    createIdentity(),
+    "test",
+    () => {},
+    () => {},
+  );
+  link.start();
+  try {
+    while (link.status.state === "connecting") await sleep(20);
+    return link.status;
+  } finally {
+    link.stop();
+  }
+}
+
+test("a relay whose TLS handshake is reset is told apart from one that is not there", async () => {
+  // What a provider blocking the domain does: the TCP connection opens, the
+  // ClientHello is answered with a reset.
+  const blocker = net.createServer((socket) => socket.once("data", () => socket.resetAndDestroy()));
+  await new Promise<void>((resolve) => blocker.listen(0, "127.0.0.1", resolve));
+  const { port } = blocker.address() as net.AddressInfo;
+  try {
+    const reset = await settledStatus(`wss://127.0.0.1:${port}`);
+    assert.equal(reset.state, "unreachable");
+    assert.equal(reset.reason, "tls-reset");
+  } finally {
+    blocker.close();
+  }
+  const gone = await settledStatus(`wss://127.0.0.1:${port}`);
+  assert.equal(gone.state, "unreachable");
+  assert.equal(gone.reason, "network");
 });
 
 test("two members of a network secure a stream and exchange bytes", async () => {

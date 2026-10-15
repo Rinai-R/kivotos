@@ -52,6 +52,8 @@ export type LinkReason =
   | "forbidden"
   | "timeout"
   | "tls"
+  /** The TLS handshake with the relay was reset: a hosting provider may block its domain. */
+  | "tls-reset"
   /** Any other connection failure. */
   | "network"
   /** This device is not on the tailnet. */
@@ -70,6 +72,11 @@ export interface MachineLink {
   lastSeen?: number;
   /** The tailnet listener's `host:port`, or the relay's address. */
   address?: string;
+  /**
+   * Still shown online, but its latest checks failed: it is given a few
+   * more before it counts as down, so one slow answer does not flip it.
+   */
+  unstable?: true;
 }
 
 /** A machine as `/kivotos/peers` lists it: one entry whatever links reach it. */
@@ -113,28 +120,41 @@ export function routeOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): V
   return null;
 }
 
+/** Why a link does not work now: its reason when unreachable, else its state. */
+export type LinkDown = LinkReason | Exclude<LinkState, "online">;
+
+/** @returns why `link` does not work now; undefined while it is online (unstable included). */
+export function downOf(link: MachineLink): LinkDown | undefined {
+  if (link.state === "online") return undefined;
+  return link.state === "unreachable" ? (link.reason ?? "unreachable") : link.state;
+}
+
 /** One choice of a machine's mode control. */
 export interface ModeOption {
   mode: RouteMode;
   /** The link a Tailscale or Relay choice holds the machine to. */
   link?: MachineLink;
-  /** The current choice, whose link does not work now: shown so the choice stays visible. */
-  unavailable: boolean;
+  /**
+   * Why its link does not work now: it cannot be chosen, since a machine is
+   * never held to a link that is down. The current choice may be one; it
+   * stays the choice and shows why it does not work.
+   */
+  disabled?: LinkDown;
 }
 
 /**
- * The choices a machine's mode control offers: Auto, each link that works
- * now, and the current choice even when its link is down (then marked
- * unavailable). None for a machine with one link, which has nothing to choose.
+ * The choices a machine's mode control offers: Auto and each link, those
+ * that are down disabled with why, so the control never changes shape. None
+ * for a machine with one link, which has nothing to choose.
  */
-export function modeOptions(machine: Pick<MachineInfo, "links">, mode: RouteMode): ModeOption[] {
-  const options: ModeOption[] = [{ mode: "auto", unavailable: false }];
+export function modeOptions(machine: Pick<MachineInfo, "links">): ModeOption[] {
+  const options: ModeOption[] = [{ mode: "auto" }];
   for (const via of VIAS) {
     const link = machine.links.find((candidate) => candidate.via === via);
     // One link per way: a machine reached one way only has nothing to choose.
     if (link === undefined) return [];
-    const works = link.state === "online";
-    if (works || via === mode) options.push({ mode: via, link, unavailable: !works });
+    const disabled = downOf(link);
+    options.push(disabled === undefined ? { mode: via, link } : { mode: via, link, disabled });
   }
   return options;
 }
@@ -153,15 +173,17 @@ export function lastSeenOf(links: readonly MachineLink[]): number | undefined {
 export type MachineStatus =
   /** Reached through `via`; `down` is a preferred link that does not work now. */
   | { kind: "online"; via: Via; down?: MachineLink }
+  /** Reached through `via`, whose link missed its latest checks (`MachineLink.unstable`). */
+  | { kind: "unstable"; via: Via; down?: MachineLink }
   | { kind: "offline"; lastSeen?: number }
   | { kind: "unreachable"; link: MachineLink; lastSeen?: number }
   | { kind: "denied"; lastSeen?: number };
 
 /**
- * One status per machine: the route when a link works; otherwise "offline"
- * when a link says the machine is away (the plainest explanation), else the
- * first failed attempt's reason. A machine held to one link shows that
- * link's state alone.
+ * One status per machine: the route when a link works (unstable when that
+ * link missed its latest checks); otherwise "offline" when a link says the
+ * machine is away (the plainest explanation), else the first failed
+ * attempt's reason. A machine held to one link shows that link's state alone.
  */
 export function statusOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): MachineStatus {
   const pinned = pinnedVia(machine, mode);
@@ -171,9 +193,9 @@ export function statusOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): 
   if (route !== null) {
     const rank = VIAS.indexOf(route);
     const down = links.find((link) => VIAS.indexOf(link.via) < rank);
-    return down === undefined
-      ? { kind: "online", via: route }
-      : { kind: "online", via: route, down };
+    const used = links.find((link) => link.via === route && link.state === "online");
+    const kind = used?.unstable === true ? "unstable" : "online";
+    return down === undefined ? { kind, via: route } : { kind, via: route, down };
   }
   const lastSeen = lastSeenOf(links);
   const unreachable = links.find((link) => link.state === "unreachable");
@@ -236,6 +258,8 @@ export interface PhoneNetworkProbe {
   /** The phone has no standing relay connection: `online` means the relay answered now. */
   state: "online" | "denied" | "unreachable";
   error?: string;
+  /** Why the relay is unreachable, when the phone can tell (`tls-reset`). */
+  reason?: LinkReason;
   /** Computers of the network online now. */
   peers: { node: string; name: string }[];
 }

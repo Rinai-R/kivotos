@@ -29,6 +29,13 @@ data class RelayPeer(val node: String, val name: String)
 class RelayRefused(val code: String) : IOException("relay refused: $code")
 
 /**
+ * The other end closed or reset the connection during a TLS handshake. With
+ * the relay's own TLS this is what a hosting provider that blocks the
+ * relay's domain looks like (the `tls-reset` link reason).
+ */
+class TlsReset(message: String, cause: Throwable? = null) : IOException(message, cause)
+
+/**
  * This phone's identity towards other members: a P-256 key that never leaves
  * the Android Keystore, with the self-signed certificate the Keystore issues
  * for it. Members identify each other by the certificate's hash and the
@@ -106,7 +113,7 @@ internal class TlsChannel(private val engine: SSLEngine, private val source: Inp
         HandshakeStatus.NEED_WRAP -> wrap(ByteBuffer.allocate(0))
         HandshakeStatus.NEED_TASK -> runTasks()
         HandshakeStatus.FINISHED, HandshakeStatus.NOT_HANDSHAKING -> return
-        else -> if (!unwrap()) throw EOFException("connection closed during the TLS handshake")
+        else -> if (!unwrap()) throw TlsReset("connection closed during the TLS handshake")
       }
     }
   }

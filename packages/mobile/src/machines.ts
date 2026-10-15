@@ -80,6 +80,11 @@ export function isInvite(text: string): boolean {
   return INVITE.test(text.trim());
 }
 
+/** `host[:port]` of a relay endpoint (`wss://relay.example.net/v1/connect`), as the computer's Settings show it. */
+export function relayHost(endpoint: string): string {
+  return endpoint.replace(/^wss?:\/\//, "").replace(/\/.*$/, "");
+}
+
 function relayMachine(address: Omit<RelayAddress, "node">, peer: RelayPeer): Machine {
   return {
     id: `relay:${peer.node}`,

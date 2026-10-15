@@ -1,15 +1,8 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
+  findNodeHandle,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -19,11 +12,22 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
-import { machineOpen, type Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
-import { BRIDGE, openSessionScript, parseBridgeMessage } from "./bridge";
+import {
+  machineOpen,
+  setPageVisible,
+  type Machine,
+} from "../modules/kivotos-attention/src/KivotosAttentionModule";
+import {
+  assignScript,
+  BRIDGE,
+  openSessionScript,
+  parseBridgeMessage,
+  type SwitchTarget,
+} from "./bridge";
 import { KivotosMark } from "./icons";
 import { t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
+import type { OpenRequest } from "./views";
 
 const EDGES = ["top", "bottom"] as const;
 /**
@@ -32,18 +36,33 @@ const EDGES = ["top", "bottom"] as const;
  */
 const USER_AGENT_NAME = "Kivotos";
 
-/** Imperative handle: open a Session inside the loaded dsh page. */
-export interface MachineViewHandle {
-  openSession(sessionId: string): void;
-}
-
 interface Props {
+  /** The view's key (`LiveView.key`), which every callback names. */
+  viewKey: string;
+  /** The machine whose door the page loads through. */
   machine: Machine;
-  /** A Session to open once the page is loaded (from a notification tap). */
-  initialSession: string | null;
-  /** The Session shown changed ("" for none). */
-  onSession: (sessionId: string) => void;
-  onBack: () => void;
+  /** Loaded on the door at mount: "/", or a peer's mount path. */
+  path: string;
+  /** What the page shows, for the splash and the offline card. */
+  name: string;
+  /**
+   * On screen. A hidden page stays loaded (display none, out of the
+   * accessibility tree and of touch), so showing it again is instant.
+   */
+  visible: boolean;
+  /** A Session to open (a notification tap); a new request opens it again. */
+  open: OpenRequest | null;
+  /** The Session shown changed ("" for none); reported again when the page is shown. */
+  onSession: (viewKey: string, sessionId: string) => void;
+  /**
+   * The page's switcher asked for another machine.
+   * @returns whether the app shows a page for it; when not, the page navigates to the fallback.
+   */
+  onSwitch: (viewKey: string, target: SwitchTarget, sessionId: string | undefined) => boolean;
+  /** The WebView's renderer is gone: this page cannot be shown again. */
+  onGone: (viewKey: string) => void;
+  /** Back past the page's own history. */
+  onBack: (viewKey: string) => void;
 }
 
 /**
@@ -68,41 +87,71 @@ function useKeyboardInset(bottomInset: number): number {
   return Math.max(0, height - bottomInset);
 }
 /** One machine's complete dsh UI. */
-export const MachineView = forwardRef<MachineViewHandle, Props>(function MachineView(props, ref) {
+export const MachineView = memo(function MachineView(props: Props) {
+  const { viewKey, machine, path, name, visible, open, onBack, onSession, onSwitch, onGone } =
+    props;
   const styles = useStyles(createStyles);
   const colors = useColors();
   const web = useRef<WebView>(null);
+  const holder = useRef<View>(null);
   const canGoBack = useRef(false);
-  const pending = useRef(props.initialSession);
+  // A Session to open once dsh is up: the request the page was mounted with, or one that came while it loaded.
+  const pending = useRef(open?.sessionId ?? null);
+  const handled = useRef(open?.seq);
+  // dsh is up in the current document: its bridge has reported.
+  const ready = useRef(false);
+  // The Session the page last reported; null until it has.
+  const session = useRef<string | null>(null);
   const [failed, setFailed] = useState(false);
   // The splash covers only the first load; dsh's own UI handles later navigation.
   const [loaded, setLoaded] = useState(false);
   // Every machine loads through its local door, which the native side opens here.
-  const [source] = useState(() => ({ uri: `${machineOpen(props.machine)}/` }));
-  const { onBack, onSession } = props;
+  const [source] = useState(() => ({ uri: `${machineOpen(machine)}${path}` }));
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset(insets.bottom);
   const keyboardSpace = useMemo(() => ({ height: keyboard }), [keyboard]);
 
-  useImperativeHandle(ref, () => ({
-    openSession(sessionId: string) {
-      web.current?.injectJavaScript(openSessionScript(sessionId));
-    },
-  }));
-
+  // A new request: open it now, or once dsh is up.
   useEffect(() => {
+    if (open === null || open.seq === handled.current) return;
+    handled.current = open.seq;
+    if (ready.current) web.current?.injectJavaScript(openSessionScript(open.sessionId));
+    else pending.current = open.sessionId;
+  }, [open]);
+
+  // The page learns it is hidden (visibilityState, throttled timers) and stops rendering.
+  useEffect(() => {
+    const tag = findNodeHandle(holder.current);
+    if (tag !== null) void setPageVisible(tag, visible);
+  }, [visible]);
+
+  // Shown again: its Session is the one on screen.
+  useEffect(() => {
+    if (visible && session.current !== null) onSession(viewKey, session.current);
+  }, [visible, viewKey, onSession]);
+
+  // Only the page on screen takes the hardware Back.
+  useEffect(() => {
+    if (!visible) return undefined;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       if (canGoBack.current) web.current?.goBack();
-      else onBack();
+      else onBack(viewKey);
       return true;
     });
     return () => subscription.remove();
-  }, [onBack]);
+  }, [visible, viewKey, onBack]);
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const message = parseBridgeMessage(event.nativeEvent.data);
       if (message === null) return;
+      if (message.type === "kivotos.switch") {
+        // `fallback` is one of the switcher's own paths (bridge.ts, isFallbackFor).
+        if (!onSwitch(viewKey, message.machine, message.sessionId))
+          web.current?.injectJavaScript(assignScript(message.fallback));
+        return;
+      }
+      ready.current = true;
       // A tap that launched the app: open its Session once dsh is up.
       if (pending.current !== null) {
         const sessionId = pending.current;
@@ -112,61 +161,74 @@ export const MachineView = forwardRef<MachineViewHandle, Props>(function Machine
           return;
         }
       }
-      onSession(message.sessionId);
+      session.current = message.sessionId;
+      if (visible) onSession(viewKey, message.sessionId);
     },
-    [onSession],
+    [viewKey, visible, onSession, onSwitch],
   );
   const onNavigation = useCallback((state: WebViewNavigation) => {
     canGoBack.current = state.canGoBack;
   }, []);
-  const onLoadStart = useCallback(() => setFailed(false), []);
+  const onLoadStart = useCallback(() => {
+    ready.current = false;
+    setFailed(false);
+  }, []);
   const onLoadEnd = useCallback(() => setLoaded(true), []);
   const onError = useCallback(() => setFailed(true), []);
   const onHttpError = useCallback(
     (event: WebViewHttpErrorEvent) => setFailed(event.nativeEvent.statusCode >= 500),
     [],
   );
+  const onRenderProcessGone = useCallback(() => onGone(viewKey), [viewKey, onGone]);
+  const back = useCallback(() => onBack(viewKey), [viewKey, onBack]);
   const retry = useCallback(() => {
     setFailed(false);
     web.current?.reload();
   }, []);
 
   return (
-    <SafeAreaView style={styles.root} edges={EDGES}>
-      <WebView
-        ref={web}
-        source={source}
-        injectedJavaScript={BRIDGE}
-        applicationNameForUserAgent={USER_AGENT_NAME}
-        onMessage={onMessage}
-        onNavigationStateChange={onNavigation}
-        onLoadStart={onLoadStart}
-        onLoadEnd={onLoadEnd}
-        onError={onError}
-        onHttpError={onHttpError}
-        domStorageEnabled
-        javaScriptEnabled
-        allowsBackForwardNavigationGestures
-        setSupportMultipleWindows={false}
-        pullToRefreshEnabled
-        style={styles.web}
-      />
+    <SafeAreaView
+      style={visible ? styles.root : styles.hidden}
+      edges={EDGES}
+      importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
+    >
+      <View ref={holder} collapsable={false} style={styles.web}>
+        <WebView
+          ref={web}
+          source={source}
+          injectedJavaScript={BRIDGE}
+          applicationNameForUserAgent={USER_AGENT_NAME}
+          onMessage={onMessage}
+          onNavigationStateChange={onNavigation}
+          onLoadStart={onLoadStart}
+          onLoadEnd={onLoadEnd}
+          onError={onError}
+          onHttpError={onHttpError}
+          onRenderProcessGone={onRenderProcessGone}
+          domStorageEnabled
+          javaScriptEnabled
+          allowsBackForwardNavigationGestures
+          setSupportMultipleWindows={false}
+          pullToRefreshEnabled
+          style={styles.web}
+        />
+      </View>
       <View style={keyboardSpace} />
       {!loaded && !failed ? (
         <View style={styles.cover}>
           <KivotosMark size={56} />
           <ActivityIndicator color={colors.textTertiary} />
-          <Text style={styles.coverText}>{t("loading", { name: props.machine.name })}</Text>
+          <Text style={styles.coverText}>{t("loading", { name })}</Text>
         </View>
       ) : null}
       {failed ? (
         <View style={styles.cover}>
           <View style={styles.card}>
             <KivotosMark size={40} />
-            <Text style={styles.cardTitle}>{t("offline", { name: props.machine.name })}</Text>
+            <Text style={styles.cardTitle}>{t("offline", { name })}</Text>
             <Text style={styles.cardText}>{t("offlineDetail")}</Text>
             <View style={styles.cardActions}>
-              <Pressable onPress={onBack} style={styles.secondary} accessibilityRole="button">
+              <Pressable onPress={back} style={styles.secondary} accessibilityRole="button">
                 <Text style={styles.secondaryText}>{t("back")}</Text>
               </Pressable>
               <Pressable onPress={retry} style={styles.primary} accessibilityRole="button">
@@ -190,6 +252,7 @@ function createStyles(c: Palette) {
   } as const;
   return {
     root: { flex: 1, backgroundColor: c.bg },
+    hidden: { display: "none", pointerEvents: "none" },
     web: { flex: 1, backgroundColor: "transparent" },
     cover: {
       ...StyleSheet.absoluteFill,

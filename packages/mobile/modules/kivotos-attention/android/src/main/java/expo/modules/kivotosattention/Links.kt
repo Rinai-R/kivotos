@@ -4,9 +4,13 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.SystemClock
+import android.system.ErrnoException
+import android.system.OsConstants
 import java.io.IOException
 import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URL
@@ -33,13 +37,50 @@ import org.json.JSONObject
  */
 object Links {
   private const val PREFS = "kivotos.links"
-  private const val HELLO_TIMEOUT_MS = 4_000
+  private const val HELLO_TIMEOUT_MS = 6_000
   private const val PROBE_TIMEOUT_MS = 12_000L
   /** In auto, after a failed tailnet dial, a machine with a relay goes through the relay first this long. */
   private const val RELAY_FIRST_MS = 2 * 60_000L
 
   /** When each machine's tailnet listener last failed a door's dial (elapsed realtime). */
   private val tailnetFailed = ConcurrentHashMap<String, Long>()
+
+  /**
+   * Failed checks in a row a working link survives, as `FAILURE_GRACE` in
+   * packages/kivotos/src/machine-book.ts: until the third, it stays online
+   * and shows `unstable`. Only a link seen working within [GRACE_WINDOW_MS]
+   * gets it, and only for failures that may be a passing hiccup.
+   */
+  private const val FAILURE_GRACE = 3
+  private const val GRACE_WINDOW_MS = 5 * 60_000L
+  private val TRANSIENT = setOf("timeout", "network", "relay-unreachable", "relay-connecting")
+
+  /**
+   * Failed checks in a row of each link last shown online, by
+   * `<via>.<machine id>`: 0 is working, up to [FAILURE_GRACE] - 1 is
+   * unstable. A link not in the map is shown as its probe found it.
+   */
+  private val failures = ConcurrentHashMap<String, Int>()
+
+  /**
+   * Whether a link's failed probe should still show online (unstable), given
+   * when it was last seen working. Synchronized: probes can overlap (the
+   * timer and a return to the app), and the count is read and written.
+   */
+  @Synchronized
+  private fun held(slot: String, state: String, reason: String?, lastSeen: Long, now: Long): Boolean {
+    if (state == "online") {
+      failures[slot] = 0
+      return false
+    }
+    val before = failures.remove(slot) ?: return false
+    val transient = state == "unreachable" && reason in TRANSIENT
+    if (!transient || lastSeen <= 0 || now - lastSeen > GRACE_WINDOW_MS) return false
+    val failed = before + 1
+    if (failed >= FAILURE_GRACE) return false
+    failures[slot] = failed
+    return true
+  }
 
   /** Whether a door in auto should dial the relay before the tailnet listener. */
   fun prefersRelay(machine: Machine): Boolean {
@@ -59,6 +100,7 @@ object Links {
 
   /** Ask a tailnet listener who it is. */
   private fun hello(url: String): Hello {
+    val started = SystemClock.elapsedRealtime()
     val connection = try {
       URL(url.trimEnd('/') + "/kivotos/hello").openConnection() as HttpURLConnection
     } catch (_: IOException) {
@@ -83,9 +125,9 @@ object Links {
     } catch (_: SSLException) {
       Hello("unreachable", "tls")
     } catch (failure: ConnectException) {
-      // Android words a refused connection "ECONNREFUSED (Connection refused)".
-      val refused = failure.message.orEmpty().contains("refused", ignoreCase = true)
-      Hello("unreachable", if (refused) "no-listener" else "network")
+      val left = HELLO_TIMEOUT_MS - (SystemClock.elapsedRealtime() - started).toInt()
+      val noListener = isRefused(failure) || (left > 0 && refused(connection.url, left))
+      Hello("unreachable", if (noListener) "no-listener" else "network")
     } catch (_: JSONException) {
       Hello("unreachable", "not-kivotos")
     } catch (_: IOException) {
@@ -95,12 +137,33 @@ object Links {
     }
   }
 
-  private class Members(val state: String, val error: String?, val peers: List<RelayPeer>)
+  private fun isRefused(failure: Throwable): Boolean =
+    generateSequence(failure) { it.cause }.any { (it as? ErrnoException)?.errno == OsConstants.ECONNREFUSED }
+
+  /**
+   * Whether nothing listens at the URL's address. Android's HTTP stack words
+   * every failed connect "Failed to connect to …" and drops the cause, so a
+   * plain socket asks again within what is left of the hello's deadline; its
+   * failure carries the errno.
+   */
+  private fun refused(url: URL, timeoutMs: Int): Boolean = try {
+    Socket().use { it.connect(InetSocketAddress(url.host, if (url.port > 0) url.port else url.defaultPort), timeoutMs) }
+    false
+  } catch (failure: ConnectException) {
+    isRefused(failure)
+  } catch (_: IOException) {
+    false
+  }
+
+  /** What a network's relay answered; `reason` is the link reason of its members while it is unreachable. */
+  private class Members(val state: String, val error: String?, val peers: List<RelayPeer>, val reason: String? = null)
 
   private fun members(network: Network): Members = try {
     Members("online", null, RelayClient.peers(network))
   } catch (refused: RelayRefused) {
     Members(if (refused.code == "denied") "denied" else "unreachable", refused.code, emptyList())
+  } catch (reset: TlsReset) {
+    Members("unreachable", reset.message, emptyList(), "tls-reset")
   } catch (failure: Exception) {
     Members("unreachable", failure.message, emptyList())
   }
@@ -157,6 +220,7 @@ object Links {
           .put("state", found.state)
           .put("peers", JSONArray(found.peers.map { JSONObject().put("node", it.node).put("name", it.name) }))
         if (found.error != null) json.put("error", found.error)
+        if (found.reason != null) json.put("reason", found.reason)
         networkArray.put(json)
       }
       return JSONObject()
@@ -169,19 +233,30 @@ object Links {
     }
   }
 
+  /** One link's probe result as `MachineLink` JSON, with the grace of [held] applied. */
+  private fun linkJson(via: String, id: String, address: String, state: String, reason: String?, seen: Long, now: Long): JSONObject {
+    val link = JSONObject().put("via", via).put("address", address)
+    if (held("$via.$id", state, reason, seen, now)) {
+      link.put("state", "online").put("unstable", true)
+    } else {
+      link.put("state", state)
+      if (reason != null) link.put("reason", reason)
+    }
+    if (seen > 0) link.put("lastSeen", seen)
+    return link
+  }
+
   private fun machineJson(context: Context, machine: Machine, said: Hello?, network: Members?): JSONObject {
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     val now = System.currentTimeMillis()
     val links = JSONArray()
     if (said != null) {
-      val link = JSONObject().put("via", "tailscale").put("state", said.state).put("address", authority(machine.url))
-      if (said.reason != null) link.put("reason", said.reason)
       if (said.state == "online") {
         prefs.edit().putLong("seen.tailscale.${machine.id}", now).apply()
         tailnetFailed.remove(machine.id)
       }
-      prefs.getLong("seen.tailscale.${machine.id}", 0).takeIf { it > 0 }?.let { link.put("lastSeen", it) }
-      links.put(link)
+      val seen = if (said.state == "online") now else prefs.getLong("seen.tailscale.${machine.id}", 0)
+      links.put(linkJson("tailscale", machine.id, authority(machine.url), said.state, said.reason, seen, now))
     }
     if (network != null) {
       val state = when {
@@ -189,11 +264,10 @@ object Links {
         network.peers.any { it.node == machine.node } -> "online"
         else -> "offline"
       }
-      val link = JSONObject().put("via", "relay").put("state", state).put("address", authority(machine.relay))
-      if (state == "unreachable") link.put("reason", "relay-unreachable")
       if (state == "online") prefs.edit().putLong("seen.relay.${machine.id}", now).apply()
-      prefs.getLong("seen.relay.${machine.id}", 0).takeIf { it > 0 }?.let { link.put("lastSeen", it) }
-      links.put(link)
+      val seen = if (state == "online") now else prefs.getLong("seen.relay.${machine.id}", 0)
+      val reason = if (state == "unreachable") network.reason ?: "relay-unreachable" else null
+      links.put(linkJson("relay", machine.id, authority(machine.relay), state, reason, seen, now))
     }
     val stream = when {
       !AttentionState.enabled(context) -> "off"

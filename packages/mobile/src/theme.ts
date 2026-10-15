@@ -23,7 +23,11 @@ export function palette(scheme: ColorSchemeName) {
         danger: "#F25A5A", // state-error-primary
         dangerSoft: "rgba(242,90,90,0.12)",
         success: "#22C55E", // state-success-primary
+        successText: "#22C55E",
+        successSoft: "rgba(34,197,94,0.12)",
         warn: "#F59E0B", // state-warn-primary
+        warnText: "#F59E0B",
+        warnSoft: "rgba(245,158,11,0.12)",
         scrim: "rgba(0,0,0,0.55)",
       }
     : {
@@ -41,7 +45,11 @@ export function palette(scheme: ColorSchemeName) {
         danger: "#EC1313",
         dangerSoft: "#FEF2F2", // red-50
         success: "#22C55E", // state-success-primary
+        successText: "#16A34A", // green-600: the success word on a light tag
+        successSoft: "rgba(34,197,94,0.12)",
         warn: "#F59E0B", // state-warn-primary
+        warnText: "#D97706", // amber-600: the warning word on a light tag
+        warnSoft: "rgba(245,158,11,0.12)",
         scrim: "rgba(15,17,21,0.45)",
       };
 }

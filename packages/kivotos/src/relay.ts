@@ -11,6 +11,7 @@ import http from "node:http";
 import { Duplex } from "node:stream";
 import tls from "node:tls";
 import { nodeIdOf, PROOF_BYTES, proofMatches, proofOf, type Network } from "./federation.ts";
+import type { LinkReason } from "./machines.ts";
 import type { Identity } from "./x509.ts";
 
 /** Protocol version of packages/relay/wire. */
@@ -35,6 +36,54 @@ export class RelayRefused extends Error {
   }
 }
 
+/**
+ * Error code of a TLS handshake with or through the relay that was cut off:
+ * a hosting provider that blocks the relay's domain resets it. The relay
+ * host reads it on a failed probe.
+ */
+export const TLS_RESET = "ERR_KIVOTOS_TLS_RESET";
+
+function failure(message: string, code: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
+/** Why a connection to the relay failed, in the words the UI has for it. */
+export type RelayReason = Extract<LinkReason, "tls-reset" | "timeout" | "network">;
+
+/** @returns why `error` ended a connection to the relay or through it. */
+export function relayReasonOf(error: unknown): RelayReason {
+  const code: unknown =
+    typeof error === "object" && error !== null ? Reflect.get(error, "code") : "";
+  if (code === TLS_RESET) return "tls-reset";
+  return code === "ETIMEDOUT" ? "timeout" : "network";
+}
+
+/**
+ * Whether a TLS handshake with `url` is reset once the connection is up. A
+ * failed WebSocket says nothing about why, so a bare TLS connection asks
+ * again; it runs only after a `wss://` connection failed.
+ */
+function handshakeReset(url: string): Promise<boolean> {
+  const target = new URL(url);
+  if (target.protocol !== "wss:") return Promise.resolve(false);
+  const { promise, resolve } = Promise.withResolvers<boolean>();
+  let connected = false;
+  const socket = tls.connect({ host: target.hostname, port: Number(target.port || 443) });
+  const done = (reset: boolean): void => {
+    socket.destroy();
+    resolve(reset);
+  };
+  socket.setTimeout(HANDSHAKE_MS, () => done(false));
+  socket.once("connect", () => {
+    connected = true;
+  });
+  socket.once("secureConnect", () => done(false));
+  socket.once("error", (error: NodeJS.ErrnoException) =>
+    done(connected && error.code === "ECONNRESET"),
+  );
+  return promise;
+}
+
 /** A node of the network that is online, as the relay reports it. */
 export interface RelayPeer {
   node: string;
@@ -56,6 +105,18 @@ function webSocketStream(url: string): Promise<Duplex> {
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     let opened = false;
+    let failed = false;
+    const unreachable = (): void => {
+      if (failed) return;
+      failed = true;
+      void handshakeReset(url).then((reset) =>
+        reject(
+          reset
+            ? failure(`the TLS handshake with the relay at ${url} was reset`, TLS_RESET)
+            : new Error(`cannot reach the relay at ${url}`),
+        ),
+      );
+    };
     const stream = new Duplex({
       read() {},
       write(chunk: Buffer, _encoding, done) {
@@ -86,11 +147,11 @@ function webSocketStream(url: string): Promise<Duplex> {
     });
     ws.addEventListener("close", () => {
       if (opened) stream.push(null);
-      else reject(new Error(`cannot reach the relay at ${url}`));
+      else unreachable();
     });
     ws.addEventListener("error", () => {
       if (opened) stream.destroy(new Error("relay connection failed"));
-      else reject(new Error(`cannot reach the relay at ${url}`));
+      else unreachable();
     });
   });
 }
@@ -106,7 +167,7 @@ async function within<T>(
   const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       onTimeout();
-      reject(new Error(`${what} timed out`));
+      reject(failure(`${what} timed out`, "ETIMEDOUT"));
     }, ms);
   });
   try {
@@ -213,7 +274,9 @@ function secured(socket: tls.TLSSocket, event: "secure" | "secureConnect"): Prom
   return new Promise((resolve, reject) => {
     socket.once(event, () => resolve());
     socket.once("error", reject);
-    socket.once("close", () => reject(new Error("connection closed during the TLS handshake")));
+    socket.once("close", () =>
+      reject(failure("connection closed during the TLS handshake", TLS_RESET)),
+    );
   });
 }
 
@@ -315,6 +378,8 @@ export interface LinkStatus {
   state: "connecting" | "online" | "denied" | "unreachable";
   /** Why, when not online. */
   error?: string;
+  /** Why the relay is `unreachable`, when it can be told. */
+  reason?: RelayReason;
 }
 
 /**
@@ -369,10 +434,10 @@ export class RelayLink {
       } catch (error) {
         if (this.stopped) return;
         const denied = error instanceof RelayRefused && error.code === "denied";
-        this.status = {
-          state: denied ? "denied" : "unreachable",
-          error: error instanceof Error ? error.message : String(error),
-        };
+        const message = error instanceof Error ? error.message : String(error);
+        this.status = denied
+          ? { state: "denied", error: message }
+          : { state: "unreachable", error: message, reason: relayReasonOf(error) };
       }
       const pause = Promise.withResolvers<void>();
       const timer = setTimeout(pause.resolve, delay);
