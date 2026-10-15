@@ -169,6 +169,8 @@ export default function App() {
    */
   const onSwitch = useCallback(
     (viewKey: string, target: SwitchTarget, sessionId: string | undefined) => {
+      // Only the page on screen switches; a hidden page's request is dropped, fallback included.
+      if (viewKey !== shownRef.current) return true;
       const from = viewsRef.current.find((live) => live.key === viewKey);
       if (from === undefined) return false;
       const to = switchTarget(machinesRef.current, probeRef.current, from, target);
@@ -186,6 +188,8 @@ export default function App() {
 
   /** A WebView's renderer is gone: drop its page, and load the one on screen again. */
   const onGone = useCallback((viewKey: string) => {
+    // The page loading again has no Session on screen until it reports one.
+    if (viewKey === shownRef.current) Attention.setOnScreen("", "");
     setViews((live) =>
       live.flatMap((view) => {
         if (view.key !== viewKey) return [view];
@@ -194,6 +198,13 @@ export default function App() {
       }),
     );
   }, []);
+
+  // The page on screen went (its row removed, its network left): back to the list.
+  useEffect(() => {
+    if (shown === null || views.some((view) => view.key === shown)) return;
+    Attention.setOnScreen("", "");
+    setShown(null);
+  }, [shown, views]);
 
   /** Probe every link; the probe also brings the list new relay members, node ids and renames. */
   const probeNow = useCallback(async () => {

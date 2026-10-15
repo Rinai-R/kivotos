@@ -74,26 +74,50 @@ export type BridgeMessage =
       machine: SwitchTarget;
       /** A Session to open there. */
       sessionId?: string;
-      /** The path on this page's origin that opens it through the computer's mount. */
+      /** The path on this page's origin that opens it through the computer's mount ({@link isFallbackFor}). */
       fallback: string;
     };
 
 const optional = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
+/** The fragment the plugin's namespace script stores as the current Session (packages/kivotos/src/dsh/sessions.ts). */
+const SESSION_FRAGMENT = "#kivotos-session=";
+
+/**
+ * Whether `fallback` is one of the paths the switcher sends for `id`: "/"
+ * for this computer, else the peer's mount path, optionally with the Session
+ * fragment for `sessionId`. Only an exact match, built here with the id
+ * encoded, so nothing a page sends can name another origin ("//host",
+ * "/\\host") or another path.
+ */
+function isFallbackFor(
+  fallback: string,
+  id: string | null,
+  sessionId: string | undefined,
+): boolean {
+  const path = id === null ? "/" : `/kivotos/peer/${encodeURIComponent(id)}/`;
+  if (fallback === path) return true;
+  return (
+    id !== null &&
+    sessionId !== undefined &&
+    fallback === `${path}${SESSION_FRAGMENT}${encodeURIComponent(sessionId)}`
+  );
+}
+
 function switchOf(message: Record<string, unknown>): BridgeMessage | null {
   const machine = message.machine as Record<string, unknown> | null | undefined;
   const fallback = message.fallback;
-  // Only a path of the page's own origin: "//host" would leave it.
-  if (typeof fallback !== "string" || !/^\/(?!\/)/.test(fallback)) return null;
+  if (typeof fallback !== "string") return null;
   if (typeof machine !== "object" || machine === null) return null;
   if (typeof machine.id !== "string" && machine.id !== null) return null;
+  const sessionId = optional(message.sessionId);
+  if (!isFallbackFor(fallback, machine.id, sessionId)) return null;
   const target: SwitchTarget = { id: machine.id, name: String(machine.name ?? "") };
   const node = optional(machine.node);
   const address = optional(machine.address);
   if (node !== undefined) target.node = node;
   if (address !== undefined) target.address = address;
-  const sessionId = optional(message.sessionId);
   return sessionId === undefined
     ? { type: "kivotos.switch", machine: target, fallback }
     : { type: "kivotos.switch", machine: target, sessionId, fallback };

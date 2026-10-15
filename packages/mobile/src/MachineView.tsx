@@ -146,6 +146,7 @@ export const MachineView = memo(function MachineView(props: Props) {
       const message = parseBridgeMessage(event.nativeEvent.data);
       if (message === null) return;
       if (message.type === "kivotos.switch") {
+        // `fallback` is one of the switcher's own paths (bridge.ts, isFallbackFor).
         if (!onSwitch(viewKey, message.machine, message.sessionId))
           web.current?.injectJavaScript(assignScript(message.fallback));
         return;
