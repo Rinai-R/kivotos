@@ -205,11 +205,16 @@ export function switchTarget(
 }
 
 /**
- * The pages to load ahead from a machine's page `from`: where its switcher
+ * The pages to load ahead from a phone row's page `from`: where its switcher
  * would send the phone ({@link switchTarget}) for the machines its computer
  * lists with a route, the ones this phone switched to from it lately first
  * (`recent`, mount ids, most recent first), else the first listed. Never
  * `from` itself, and at most {@link PRELOAD_MAX}.
+ *
+ * A machine the phone has its own row for is loaded through that row only
+ * when `probe`, the phone's latest probe and only when it is fresh, found a
+ * route to it; else through the computer's mount, which the computer just
+ * listed with a route.
  */
 export function preloadTargets(
   machines: readonly Machine[],
@@ -218,14 +223,23 @@ export function preloadTargets(
   listed: readonly ListedMachine[],
   recent: readonly string[],
 ): { machine: Machine; peer: LiveView["peer"] }[] {
+  const parent = machines.find((machine) => machine.id === from.machine);
+  if (parent === undefined || from.peer !== null) return [];
   const online = listed.filter((entry) => entry.online);
   const byId = new Map(online.map((entry) => [entry.target.id, entry]));
   const lately = recent.flatMap((id) => byId.get(id) ?? []);
   const targets: { machine: Machine; peer: LiveView["peer"] }[] = [];
   const keys = new Set([from.key]);
-  for (const entry of lately.length > 0 ? lately : online) {
-    const to = switchTarget(machines, probe, from, entry.target);
+  for (const { target } of lately.length > 0 ? lately : online) {
+    if (target.id === null) continue;
+    let to = switchTarget(machines, probe, from, target);
     if (to === null) continue;
+    if (to.peer === null) {
+      const row = to.machine;
+      const links = probe?.machines.find((entry) => entry.id === row.id);
+      if (links === undefined || routeOf(links, row.mode ?? "auto") === null)
+        to = { machine: parent, peer: { id: target.id, name: target.name } };
+    }
     const key = keyOf(to.machine.id, to.peer);
     if (keys.has(key)) continue;
     keys.add(key);

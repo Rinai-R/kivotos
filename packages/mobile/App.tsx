@@ -39,6 +39,11 @@ type NotificationState = "on" | "off" | "denied";
 type Screen = "machines" | "links" | "scan";
 /** How often the machine list re-probes every link while it is on screen. */
 const PROBE_MS = 15_000;
+/**
+ * A probe this recent decides whether a page is loaded ahead through a phone
+ * row; the probes stop while a page is shown, so an older one may be stale.
+ */
+const PROBE_FRESH_MS = 30_000;
 
 async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS !== "android" || Platform.Version < 33) return true;
@@ -64,6 +69,8 @@ export default function App() {
   const shownRef = useRef<string | null>(null);
   const machinesRef = useRef<Machine[]>([]);
   const probeRef = useRef<PhoneProbe | null>(null);
+  /** When the latest probe came back. */
+  const probedAt = useRef(Number.NEGATIVE_INFINITY);
   const viewsRef = useRef<LiveView[]>([]);
   const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
@@ -229,7 +236,8 @@ export default function App() {
       const from = viewsRef.current.find((live) => live.key === viewKey);
       if (from === undefined || from.peer !== null) return;
       const lately = recent.current.peers[from.machine] ?? [];
-      preloader.plan(preloadTargets(machinesRef.current, probeRef.current, from, listed, lately));
+      const fresh = Date.now() - probedAt.current < PROBE_FRESH_MS ? probeRef.current : null;
+      preloader.plan(preloadTargets(machinesRef.current, fresh, from, listed, lately));
     },
     [preloader],
   );
@@ -283,6 +291,7 @@ export default function App() {
       return;
     }
     if (!restored.current) return;
+    probedAt.current = Date.now();
     setProbe(found);
     const next = applyPhoneProbe(machinesRef.current, found);
     if (next !== machinesRef.current) persist(next);

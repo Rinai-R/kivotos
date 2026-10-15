@@ -126,6 +126,14 @@ export function usePreloader(
     lastShown.current = shown;
   }, [shown]);
 
+  // Only live pages shown lately are remembered.
+  useEffect(() => {
+    const now = Date.now();
+    for (const [key, at] of onScreenAt.current)
+      if (now - at >= RECENT_MS || !views.some((view) => view.key === key))
+        onScreenAt.current.delete(key);
+  }, [views, shown]);
+
   // The page loading ahead went (failed, renderer gone, dropped): the next one may start.
   useEffect(() => {
     const current = loading.current;
