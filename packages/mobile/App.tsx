@@ -15,11 +15,18 @@ import type { Machine } from "./modules/kivotos-attention/src/KivotosAttentionMo
 import { AttentionBanner } from "./src/AttentionBanner";
 import { LinksScreen } from "./src/LinksScreen";
 import { MachineList } from "./src/MachineList";
+import type { SwitchTarget } from "./src/bridge";
 import { MachineView } from "./src/MachineView";
 import { loadMachines, saveMachines } from "./src/machines";
 import { PairScanner } from "./src/PairScanner";
 import { useStyles, type Palette } from "./src/theme";
-import { followMachines, showView, type LiveView, type OpenRequest } from "./src/views";
+import {
+  followMachines,
+  machineForTarget,
+  showView,
+  type LiveView,
+  type OpenRequest,
+} from "./src/views";
 
 type NotificationState = "on" | "off" | "denied";
 /** The app's own screens, shown while no machine is open. */
@@ -50,11 +57,13 @@ export default function App() {
   const [probe, setProbe] = useState<PhoneProbe | null>(null);
   const shownRef = useRef<string | null>(null);
   const machinesRef = useRef<Machine[]>([]);
+  const probeRef = useRef<PhoneProbe | null>(null);
   const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
   const restored = useRef(false);
   shownRef.current = shown;
   machinesRef.current = machines;
+  probeRef.current = probe;
 
   const persist = useCallback((next: Machine[]) => {
     setMachines(next);
@@ -142,6 +151,21 @@ export default function App() {
     Attention.setOnScreen(machineId, sessionId);
     setBanner((visible) => (visible !== null && visible.sessionId === sessionId ? null : visible));
   }, []);
+
+  /**
+   * A page's switcher asked for another machine: show the phone's own row for
+   * it, through its own door, when there is one the phone reaches.
+   */
+  const onSwitch = useCallback(
+    (fromId: string, target: SwitchTarget, sessionId: string | undefined) => {
+      const machine = machineForTarget(machinesRef.current, target, probeRef.current);
+      if (machine === null || machine.id === fromId) return false;
+      if (sessionId === undefined) show(machine, null);
+      else openSession(machine.id, sessionId);
+      return true;
+    },
+    [openSession, show],
+  );
 
   /** A WebView's renderer is gone: drop its page, and load the one on screen again. */
   const onGone = useCallback((machineId: string) => {
@@ -273,6 +297,7 @@ export default function App() {
               visible={view.id === shown}
               open={view.open}
               onSession={onSession}
+              onSwitch={onSwitch}
               onGone={onGone}
               onBack={back}
             />

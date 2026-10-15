@@ -17,7 +17,13 @@ import {
   setPageVisible,
   type Machine,
 } from "../modules/kivotos-attention/src/KivotosAttentionModule";
-import { BRIDGE, openSessionScript, parseBridgeMessage } from "./bridge";
+import {
+  assignScript,
+  BRIDGE,
+  openSessionScript,
+  parseBridgeMessage,
+  type SwitchTarget,
+} from "./bridge";
 import { KivotosMark } from "./icons";
 import { t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
@@ -41,6 +47,11 @@ interface Props {
   open: OpenRequest | null;
   /** The Session shown changed ("" for none); reported again when the page is shown. */
   onSession: (machineId: string, sessionId: string) => void;
+  /**
+   * The page's switcher asked for another machine.
+   * @returns whether the app shows it; when not, the page goes through its computer's mount.
+   */
+  onSwitch: (machineId: string, target: SwitchTarget, sessionId: string | undefined) => boolean;
   /** The WebView's renderer is gone: this page cannot be shown again. */
   onGone: (machineId: string) => void;
   onBack: () => void;
@@ -69,7 +80,7 @@ function useKeyboardInset(bottomInset: number): number {
 }
 /** One machine's complete dsh UI. */
 export const MachineView = memo(function MachineView(props: Props) {
-  const { machine, visible, open, onBack, onSession, onGone } = props;
+  const { machine, visible, open, onBack, onSession, onSwitch, onGone } = props;
   const id = machine.id;
   const styles = useStyles(createStyles);
   const colors = useColors();
@@ -126,6 +137,11 @@ export const MachineView = memo(function MachineView(props: Props) {
     (event: WebViewMessageEvent) => {
       const message = parseBridgeMessage(event.nativeEvent.data);
       if (message === null) return;
+      if (message.type === "kivotos.switch") {
+        if (!onSwitch(id, message.machine, message.sessionId))
+          web.current?.injectJavaScript(assignScript(message.fallback));
+        return;
+      }
       ready.current = true;
       // A tap that launched the app: open its Session once dsh is up.
       if (pending.current !== null) {
@@ -139,7 +155,7 @@ export const MachineView = memo(function MachineView(props: Props) {
       session.current = message.sessionId;
       if (visible) onSession(id, message.sessionId);
     },
-    [id, visible, onSession],
+    [id, visible, onSession, onSwitch],
   );
   const onNavigation = useCallback((state: WebViewNavigation) => {
     canGoBack.current = state.canGoBack;

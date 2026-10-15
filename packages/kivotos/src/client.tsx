@@ -390,10 +390,11 @@ function watchCompat(): () => void {
  * at this one, rather than reloading to the same page forever.
  * @param peer - peer id of the machine to open.
  * @param sessionId - the Session to open on it.
+ * @param machine - the machine, when the switcher lists it (see {@link navigate}).
  */
-function openSession(peer: string, sessionId: string): void {
+function openSession(peer: string, sessionId: string, machine?: MachineInfo): void {
   if (!usable(compat, "session-store")) {
-    openMachine(peer);
+    openMachine(peer, machine);
     return;
   }
   if (peer === currentPeer()) {
@@ -401,21 +402,62 @@ function openSession(peer: string, sessionId: string): void {
     window.location.reload();
     return;
   }
-  window.location.assign(
+  navigate(
     `/kivotos/peer/${encodeURIComponent(peer)}/${SESSION_FRAGMENT}${encodeURIComponent(sessionId)}`,
+    machine,
+    sessionId,
   );
 }
 
 /**
  * Open a machine at whatever it was last showing.
  * @param peer - peer id, or null for the serving host.
+ * @param machine - the machine, when the switcher lists it (see {@link navigate}).
  */
-function openMachine(peer: string | null): void {
+function openMachine(peer: string | null, machine?: MachineInfo): void {
   if (peer === currentPeer()) {
     window.location.reload();
     return;
   }
-  window.location.assign(peer === null ? "/" : `/kivotos/peer/${encodeURIComponent(peer)}/`);
+  if (peer === null) window.location.assign("/");
+  else navigate(`/kivotos/peer/${encodeURIComponent(peer)}/`, machine, undefined);
+}
+
+/** What the phone app's injected bridge adds to its pages (packages/mobile/src/bridge.ts). */
+interface AppBridge {
+  __kivotosSwitch?: boolean;
+  ReactNativeWebView?: { postMessage(data: string): void };
+}
+
+/**
+ * Go to another machine's mount. Inside the phone app, whose bridge takes
+ * switches, the app is asked instead (`kivotos.switch`): a machine it has its
+ * own row for opens in that row's WebView, through the phone's own door, and
+ * stays loaded, so no page loads here. For one it has no row for, the app
+ * sends this page to `path` itself, as outside the app.
+ * @param path - the mount path on this page's origin.
+ * @param machine - the machine; without it the page navigates by itself.
+ * @param sessionId - the Session `path` opens, if any.
+ */
+function navigate(
+  path: string,
+  machine: MachineInfo | undefined,
+  sessionId: string | undefined,
+): void {
+  const app = window as AppBridge;
+  if (!IN_APP || machine === undefined || app.__kivotosSwitch !== true || !app.ReactNativeWebView) {
+    window.location.assign(path);
+    return;
+  }
+  const address = machine.links.find((link) => link.via === "tailscale")?.address;
+  const message = JSON.stringify({
+    type: "kivotos.switch",
+    machine: { id: machine.id, name: machine.name, node: machine.node, address },
+    sessionId,
+    fallback: path,
+  });
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- React Native's bridge, not window.postMessage: it takes one argument.
+  app.ReactNativeWebView.postMessage(message);
 }
 
 /**
@@ -693,6 +735,8 @@ function AttentionMarks({
 interface MachineRowProps {
   /** Peer id, or null for the serving host. */
   id: string | null;
+  /** The peer as `/kivotos/peers` lists it; undefined for the serving host. */
+  machine: MachineInfo | undefined;
   name: string;
   /** The dot: how the machine is reached now. */
   state: MachineSummary["state"];
@@ -711,7 +755,7 @@ interface MachineRowProps {
 }
 
 function MachineRow(props: MachineRowProps): ReactNode {
-  const { id, name, state, meta, current, attention: row, t } = props;
+  const { id, machine, name, state, meta, current, attention: row, t } = props;
   const waiting = row?.pending.length ?? 0;
   const tone = finishedTone(row?.finished ?? []);
   // The oldest wait, else the latest finished turn.
@@ -728,12 +772,12 @@ function MachineRow(props: MachineRowProps): ReactNode {
       target !== undefined &&
       !(current && target === currentSession(window.localStorage))
     ) {
-      openSession(id, target);
+      openSession(id, target, machine);
       return;
     }
     if (current) return;
-    openMachine(id);
-  }, [current, id, target]);
+    openMachine(id, machine);
+  }, [current, id, machine, target]);
   return (
     <li>
       <button
@@ -775,6 +819,7 @@ function PeerRow({
   return (
     <MachineRow
       id={machine.id}
+      machine={machine}
       name={machine.name}
       state={summary.state}
       meta={summary.text}
@@ -1049,6 +1094,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
           </li>
           <MachineRow
             id={null}
+            machine={undefined}
             name={selfName}
             state="online"
             meta={peer === null ? t("machines.selfCurrent") : t("machines.local")}

@@ -1,4 +1,6 @@
+import { routeOf, type PhoneProbe } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
+import type { SwitchTarget } from "./bridge";
 
 /**
  * Machines whose page stays loaded, shown or hidden: reopening one shows it
@@ -74,4 +76,39 @@ export function followMachines(
   }
   const changed = next.length !== views.length || next.some((view, index) => view !== views[index]);
   return changed ? next : views;
+}
+
+/** @returns the `host:port` of a listener base URL, or undefined. */
+function authorityOf(url: string): string | undefined {
+  if (url === "") return undefined;
+  try {
+    return new URL(url).host;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The phone's row for a machine a computer's switcher names: the same node,
+ * else the same tailnet listener. Null when the phone has none, or when its
+ * last probe found no link to it, where only the computer's mount can open it.
+ */
+export function machineForTarget(
+  machines: readonly Machine[],
+  target: SwitchTarget,
+  probe: PhoneProbe | null,
+): Machine | null {
+  const byNode =
+    target.node === undefined
+      ? undefined
+      : machines.find((row) => (row.relay?.node ?? row.node) === target.node);
+  const machine =
+    byNode ??
+    (target.address === undefined
+      ? undefined
+      : machines.find((row) => authorityOf(row.url) === target.address));
+  if (machine === undefined) return null;
+  const links = probe?.machines.find((entry) => entry.id === machine.id);
+  if (links !== undefined && routeOf(links, machine.mode ?? "auto") === null) return null;
+  return machine;
 }
