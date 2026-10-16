@@ -23,6 +23,8 @@ import java.net.URI
 import java.net.UnknownHostException
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLException
@@ -137,6 +139,15 @@ object MachineProxy {
   private val RELAY_DOWN = setOf("denied", "offline", "timeout")
   private val CRLF = "\r\n".toByteArray(Charsets.US_ASCII)
   private val LAST_CHUNK = "0\r\n\r\n".toByteArray(Charsets.US_ASCII)
+  /** A body being stored with no client left is given up after this long without a byte. */
+  private const val STALL_MS = 60_000L
+  private const val STALL_CHECK_MS = 5_000L
+  /** Checks the bodies being stored for [STALL_MS]. */
+  private val watchdog = Executors.newSingleThreadScheduledExecutor { task ->
+    Thread(task, "kivotos-door-watch").apply { isDaemon = true }
+  }
+  /** A URL in an error message: scheme, userinfo, authority, path, query, fragment. */
+  private val URL_IN_TEXT = Regex("""([A-Za-z][A-Za-z\d+.-]*://)([^/@\s?#]*@)?([^/\s?#]*)([^\s?#]*)(\?[^\s#]*)?(#\S*)?""")
 
   /**
    * Open (once) the door to a machine.
@@ -342,8 +353,12 @@ object MachineProxy {
           return
         }
         val exchange = Exchange(door, head, fromClient, toClient, upstream)
-        val keep = exchange.run()
-        upstream = exchange.upstream
+        val keep = try {
+          exchange.run()
+        } finally {
+          // Also after a failure, so a connection it dialed is closed below.
+          upstream = exchange.upstream
+        }
         if (!keep) return
         client.soTimeout = KEEPALIVE_MS
       }
@@ -441,7 +456,7 @@ object MachineProxy {
       val up = upstream ?: try {
         dial(door).also { upstream = it }
       } catch (failure: Exception) {
-        Log.d(TAG, "unreachable '${door.machine.name}': ${failure.message}")
+        Log.d(TAG, "unreachable '${door.machine.name}' for ${head.method} ${target.substringBefore('?')}")
         unreachable(toClient, door, failure)
         return false
       }
@@ -470,14 +485,28 @@ object MachineProxy {
       // Nothing to store: the followers fetch for themselves.
       if (flight != null && writer == null) HttpCache.land(flight)
       // A body being stored is read to its end even when this request's
-      // client goes away: the followers and the cache still want it.
-      val sink = if (writer != null) Detachable(toClient) else toClient
+      // client goes away: the followers and the cache still want it. Not
+      // forever: past the entry cap the writer gives up storing, and with no
+      // client left a body without progress for STALL_MS is given up too.
+      val sink = if (writer != null) Detachable(toClient, writer) else toClient
+      val watch = if (writer != null && sink is Detachable) {
+        watchdog.scheduleWithFixedDelay({
+          if (sink.gone && writer.idleMs() > STALL_MS) {
+            Log.d(TAG, "stalled '${door.machine.name}' ${target.substringBefore('?')}: no client and no progress")
+            writer.abandon()
+            up.close()
+          }
+        }, STALL_CHECK_MS, STALL_CHECK_MS, TimeUnit.MILLISECONDS)
+      } else {
+        null
+      }
       var complete = false
       try {
         sink.write(response.bytes())
         sink.flush()
         complete = copyBody(up.input, sink, framing, writer?.let { it::write })
       } finally {
+        watch?.cancel(false)
         if (writer != null) {
           writer.commit(complete)
           Log.d(TAG, "${if (complete) "stored" else "unstored"} '${door.machine.name}' ${target.substringBefore('?')}")
@@ -547,40 +576,57 @@ object MachineProxy {
     sink.flush()
   }
 
-  /** `502` naming each link tried and why it failed, e.g. `Tailscale: timeout (connect timed out)`. */
+  /**
+   * `502` naming each link tried and its reason in the machine model's words,
+   * e.g. `Tailscale: timeout; Relay: relay-unreachable`. The errors themselves
+   * go only to logcat.
+   */
   private fun unreachable(sink: OutputStream, door: Door, failure: Exception) {
-    val links = (failure as? Unreachable)?.failures?.joinToString("; ") { "${linkName(it.via == "tailscale")}: ${it.down} (${it.message})" }
-    refuse(sink, "502 Bad Gateway", "Cannot reach ${door.machine.name}. ${links ?: failure.message}")
+    val failures = (failure as? Unreachable)?.failures
+    val links = failures?.joinToString("; ") { "${linkName(it.via == "tailscale")}: ${it.down}" } ?: "network"
+    failures?.forEach { Log.d(TAG, "unreachable '${door.machine.name}' via ${it.via}: ${it.down}: ${redact(it.message)}") }
+    refuse(sink, "502 Bad Gateway", "Cannot reach ${door.machine.name}. $links")
   }
+
+  /** An error message for the log: URLs keep only scheme, host, port and path (no userinfo, query or fragment). */
+  private fun redact(text: String): String =
+    URL_IN_TEXT.replace(text) { match -> "${match.groupValues[1]}${match.groupValues[3]}${match.groupValues[4]}" }
 
   private fun linkName(tailnet: Boolean): String = if (tailnet) "Tailscale" else "Relay"
 
   /**
-   * A WebView connection that may go away mid-body: writes after the first
-   * failure are dropped, so the body being stored is still read to its end.
+   * A WebView connection that may go away mid-body: while the body is still
+   * being stored, writes after the first failure are dropped so it is read to
+   * its end; once the writer gave up, they fail, which ends the exchange.
    */
-  private class Detachable(private val sink: OutputStream) : OutputStream() {
-    var gone = false
+  private class Detachable(private val sink: OutputStream, private val writer: HttpCache.Writer) : OutputStream() {
+    @Volatile var gone = false
       private set
 
     override fun write(byte: Int) = write(byteArrayOf(byte.toByte()), 0, 1)
 
     override fun write(buffer: ByteArray, offset: Int, length: Int) {
-      if (gone) return
+      if (gone) return detached()
       try {
         sink.write(buffer, offset, length)
       } catch (_: IOException) {
         gone = true
+        detached()
       }
     }
 
     override fun flush() {
-      if (gone) return
+      if (gone) return detached()
       try {
         sink.flush()
       } catch (_: IOException) {
         gone = true
+        detached()
       }
+    }
+
+    private fun detached() {
+      if (!writer.open) throw IOException("the client went away and nothing is being stored")
     }
   }
 

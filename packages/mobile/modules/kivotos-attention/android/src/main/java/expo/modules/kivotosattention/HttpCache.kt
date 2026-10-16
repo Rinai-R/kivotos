@@ -1,5 +1,6 @@
 package expo.modules.kivotosattention
 
+import android.os.SystemClock
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
@@ -42,6 +43,12 @@ object HttpCache {
    * a phone's storage. Android may also reclaim the cache directory itself.
    */
   const val MAX_BYTES = 256L * 1024 * 1024
+
+  /**
+   * Cap of one entry: a response larger than this is passed through but not
+   * stored. The largest dsh 0.2.0-rc.2 response is its ~5.4 MB plugin batch.
+   */
+  const val ENTRY_MAX_BYTES = MAX_BYTES / 8
 
   private const val ROOT = "kivotos-http"
   private const val REV_FILE = "rev"
@@ -258,13 +265,23 @@ object HttpCache {
       null
     }
     private var size = 0L
+    @Volatile private var wroteAt = SystemClock.elapsedRealtime()
 
-    /** Whether the temp file could be opened. */
-    val open: Boolean get() = out != null
+    /** Whether it is still storing: the temp file opened, and nothing gave up yet. */
+    val open: Boolean @Synchronized get() = out != null
 
-    /** Never throws: a full disk must not break the page. */
+    /** Milliseconds since the last byte arrived (or since it started). */
+    fun idleMs(): Long = SystemClock.elapsedRealtime() - wroteAt
+
+    /** Never throws: a full disk must not break the page. Past [ENTRY_MAX_BYTES] it stops storing. */
+    @Synchronized
     fun write(buffer: ByteArray, offset: Int, length: Int) {
       val sink = out ?: return
+      wroteAt = SystemClock.elapsedRealtime()
+      if (size + length > ENTRY_MAX_BYTES) {
+        Log.d(TAG, "unstored $name: larger than $ENTRY_MAX_BYTES bytes")
+        return abandon()
+      }
       try {
         sink.write(buffer, offset, length)
         size += length
@@ -275,6 +292,7 @@ object HttpCache {
     }
 
     /** @param complete - the whole body arrived from the machine. */
+    @Synchronized
     fun commit(complete: Boolean) {
       val sink = out ?: return
       out = null
@@ -302,6 +320,8 @@ object HttpCache {
       }
     }
 
+    /** Stop storing: the temp file goes, and the followers' connections are closed. */
+    @Synchronized
     fun abandon() {
       val sink = out ?: return
       out = null
@@ -322,6 +342,7 @@ object HttpCache {
     val dir = File(top, machineDir(machine)).apply { mkdirs() }
     val kept = KEPT_HEADERS.mapNotNull { field -> response[field]?.let { field to it } }
     val expected = response["content-length"]?.toLongOrNull()
+    if (expected != null && expected > ENTRY_MAX_BYTES) return null
     val writer = Writer(dir, entryName(machine, target), response.status, kept, expected, flight)
     if (!writer.open) return null
     flight.started(writer)

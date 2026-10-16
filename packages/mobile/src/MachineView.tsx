@@ -137,7 +137,10 @@ export const MachineView = memo(function MachineView(props: Props) {
   // The main document's load since the last retry failed; a page that reports after that is the failure's own.
   const errored = useRef(false);
   const triedAt = useRef(0);
-  const shown = useRef(visible);
+  // The app is in the foreground; retries pause while it is not.
+  const [active, setActive] = useState(AppState.currentState === "active");
+  // The page was on screen in the foreground when the retry effect last ran.
+  const onScreen = useRef(visible && active);
   // The splash covers only the first load; dsh's own UI handles later navigation.
   const [loaded, setLoaded] = useState(false);
   // Every machine loads through its local door, which the native side opens here.
@@ -269,31 +272,33 @@ export const MachineView = memo(function MachineView(props: Props) {
     if (Date.now() - triedAt.current > RETRY_BURST_MS) retry();
   }, [retry]);
 
-  // While the cover is on screen, retry by itself: after a wait that grows with
-  // each failed retry, at once when the page is shown again. A retry still
-  // loading is left to finish: over a slow link that takes minutes.
   useEffect(() => {
-    const justShown = visible && !shown.current;
-    shown.current = visible;
-    if (failure === null || failure.trying || !visible) return undefined;
-    const wait = justShown ? 0 : RETRY_MS[Math.min(failure.attempt, RETRY_MS.length - 1)];
+    const subscription = AppState.addEventListener("change", (state) =>
+      setActive(state === "active"),
+    );
+    return () => subscription.remove();
+  }, []);
+
+  // While the cover is on screen in the foreground, retry by itself: after a
+  // wait that grows with each failed retry, and at once when the page is shown
+  // again or the app comes back. A retry still loading is left to finish: over
+  // a slow link that takes minutes. In the background the timer is cancelled.
+  useEffect(() => {
+    const now = visible && active;
+    const returned = now && !onScreen.current;
+    onScreen.current = now;
+    if (failure === null || failure.trying || !now) return undefined;
+    const wait = returned ? 0 : RETRY_MS[Math.min(failure.attempt, RETRY_MS.length - 1)];
     const timer = setTimeout(retry, wait);
     return () => clearTimeout(timer);
-  }, [failure, visible, retry]);
+  }, [failure, visible, active, retry]);
 
-  // ... and at once when the app comes back or the phone's network changes.
+  // ... and at once when the phone's network changes, only in the foreground.
   const failed = failure !== null;
   useEffect(() => {
-    if (!failed || !visible) return undefined;
-    const app = AppState.addEventListener("change", (state) => {
-      if (state === "active") retryNow();
-    });
-    const network = onNetwork(retryNow);
-    return () => {
-      app.remove();
-      network();
-    };
-  }, [failed, visible, retryNow]);
+    if (!failed || !visible || !active) return undefined;
+    return onNetwork(retryNow);
+  }, [failed, visible, active, retryNow]);
 
   return (
     <SafeAreaView
