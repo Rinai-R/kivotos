@@ -5,6 +5,9 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.net.ConnectivityManager
+import android.net.Network as AndroidNetwork
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -47,6 +50,22 @@ class KivotosAttentionModule : Module() {
     }
   }
 
+  /**
+   * Tells JS when the phone's default network comes up or starts reaching
+   * the internet, so a page that failed to load tries again at once.
+   */
+  private val connectivity = object : ConnectivityManager.NetworkCallback() {
+    private var validated: AndroidNetwork? = null
+
+    override fun onAvailable(network: AndroidNetwork) = sendEvent("onNetwork", bundleOf())
+
+    override fun onCapabilitiesChanged(network: AndroidNetwork, capabilities: NetworkCapabilities) {
+      val ok = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+      if (ok && validated != network) sendEvent("onNetwork", bundleOf())
+      validated = if (ok) network else null
+    }
+  }
+
   private fun relayPeers(network: Network): List<Map<String, String>> = try {
     RelayClient.peers(network).map { mapOf("node" to it.node, "name" to it.name) }
   } catch (refused: RelayRefused) {
@@ -58,11 +77,12 @@ class KivotosAttentionModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("KivotosAttention")
 
-    Events("onOpenSession", "onAttention", "onMemoryPressure")
+    Events("onOpenSession", "onAttention", "onMemoryPressure", "onNetwork")
 
     OnCreate {
       Notifier.ensureChannels(context)
       context.applicationContext.registerComponentCallbacks(memory)
+      context.getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(connectivity)
       AttentionState.onOpen = { machine, session ->
         sendEvent("onOpenSession", bundleOf("machineId" to machine, "sessionId" to session))
       }
@@ -85,6 +105,7 @@ class KivotosAttentionModule : Module() {
     OnDestroy {
       AttentionState.onOpen = null
       appContext.reactContext?.applicationContext?.unregisterComponentCallbacks(memory)
+      runCatching { appContext.reactContext?.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(connectivity) }
       AttentionState.onFrame = null
     }
 
@@ -140,6 +161,14 @@ class KivotosAttentionModule : Module() {
     /** Open the local door to a machine. @return the base URL to load. */
     Function("machineOpen") { json: String ->
       MachineProxy.open(context, Machine.fromJson(JSONObject(json)))
+    }
+
+    /**
+     * Why the machine's door could not reach it the last time it tried, as
+     * JSON `[{via, reason}]` (`reason` a `LinkDown`); `[]` when it could.
+     */
+    Function("doorFailure") { machineId: String ->
+      MachineProxy.failure(machineId)
     }
 
     /**

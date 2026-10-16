@@ -1,5 +1,5 @@
 import { NativeModule, requireNativeModule } from "expo";
-import type { PhoneProbe, Via } from "../../../../kivotos/src/machines";
+import type { LinkDown, PhoneProbe, Via } from "../../../../kivotos/src/machines";
 
 /** A machine the attention service follows. */
 export interface Machine {
@@ -55,12 +55,15 @@ type Events = {
   onAttention: (payload: Attention) => void;
   /** The system asks for memory back (`onTrimMemory` short of memory, or in the background). */
   onMemoryPressure: (payload: { level: number }) => void;
+  /** The phone's default network came up, or started reaching the internet. */
+  onNetwork: () => void;
 };
 
 declare class KivotosAttentionModule extends NativeModule<Events> {
   setMachines(json: string): void;
   relayJoin(invite: string): Promise<{ endpoint: string; key: string; peers: RelayPeer[] }>;
   machineOpen(json: string): string;
+  doorFailure(machineId: string): string;
   setPageVisible(viewTag: number, visible: boolean): Promise<void>;
   probeLinks(): Promise<string>;
   setEnabled(enabled: boolean): void;
@@ -87,6 +90,14 @@ export const probeLinks = async (): Promise<PhoneProbe> =>
 /** @returns the local base URL through which a machine's dsh loads (its door, which caches). */
 export const machineOpen = (machine: Machine): string =>
   native.machineOpen(JSON.stringify(machine));
+/** A link a machine's door could not reach it over, and why. */
+export interface DoorFailure {
+  via: Via;
+  reason: LinkDown;
+}
+/** @returns why the machine's door could not reach it at its last try; empty when it could. */
+export const doorFailure = (machineId: string): DoorFailure[] =>
+  JSON.parse(native.doorFailure(machineId)) as DoorFailure[];
 /** Show or hide the page of the WebView under a view (`WebView.onResume`/`onPause`): a page kept loaded off screen. */
 export const setPageVisible = (viewTag: number, visible: boolean): Promise<void> =>
   native.setPageVisible(viewTag, visible);
@@ -116,5 +127,11 @@ export function onAttention(listener: (attention: Attention) => void): () => voi
 /** @returns unsubscribe. */
 export function onMemoryPressure(listener: () => void): () => void {
   const subscription = native.addListener("onMemoryPressure", listener);
+  return () => subscription.remove();
+}
+
+/** @returns unsubscribe. */
+export function onNetwork(listener: () => void): () => void {
+  const subscription = native.addListener("onNetwork", listener);
   return () => subscription.remove();
 }
