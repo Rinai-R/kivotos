@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   BackHandler,
   findNodeHandle,
   Keyboard,
@@ -13,7 +14,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
 import {
+  doorFailure,
   machineOpen,
+  onNetwork,
   setPageVisible,
   type Machine,
 } from "../modules/kivotos-attention/src/KivotosAttentionModule";
@@ -27,7 +30,7 @@ import {
   type SwitchTarget,
 } from "./bridge";
 import { KivotosMark } from "./icons";
-import { t } from "./strings";
+import { doorText, t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 import type { OpenRequest } from "./views";
 
@@ -37,6 +40,20 @@ const EDGES = ["top", "bottom"] as const;
  * know the page runs in this app (packages/kivotos/src/client.tsx, IN_APP).
  */
 const USER_AGENT_NAME = "Kivotos";
+/** Waits before each automatic retry of a page that failed to load; the last repeats. */
+const RETRY_MS = [2000, 5000, 10_000, 15_000];
+/** Retries on a network change or a return to the app closer together than this are one. */
+const RETRY_BURST_MS = 1000;
+
+/** The page's main document did not load: the app's cover replaces it. */
+interface Failure {
+  /** One line: each link the door tried and why it failed, or the generic advice. */
+  detail: string;
+  /** Automatic retries that failed so far. */
+  attempt: number;
+  /** A retry is loading. */
+  trying: boolean;
+}
 
 interface Props {
   /** The view's key (`LiveView.key`), which every callback names. */
@@ -116,7 +133,14 @@ export const MachineView = memo(function MachineView(props: Props) {
   const session = useRef<string | null>(null);
   // dsh's shell is up in the current document: the bridge posted `ready`.
   const shell = useRef(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  // The main document's load since the last retry failed; a page that reports after that is the failure's own.
+  const errored = useRef(false);
+  const triedAt = useRef(0);
+  // The app is in the foreground; retries pause while it is not.
+  const [active, setActive] = useState(AppState.currentState === "active");
+  // The page was on screen in the foreground when the retry effect last ran.
+  const onScreen = useRef(visible && active);
   // The splash covers only the first load; dsh's own UI handles later navigation.
   const [loaded, setLoaded] = useState(false);
   // Every machine loads through its local door, which the native side opens here.
@@ -170,6 +194,8 @@ export const MachineView = memo(function MachineView(props: Props) {
     (event: WebViewMessageEvent) => {
       const message = parseBridgeMessage(event.nativeEvent.data);
       if (message === null) return;
+      // A document that loaded without an error runs the bridge: the page is back.
+      if (!errored.current) setFailure(null);
       if (message.type === "kivotos.switch") {
         // `fallback` is one of the switcher's own paths (bridge.ts, isFallbackFor).
         if (!onSwitch(viewKey, message.machine, message.sessionId))
@@ -203,32 +229,76 @@ export const MachineView = memo(function MachineView(props: Props) {
   const onNavigation = useCallback((state: WebViewNavigation) => {
     canGoBack.current = state.canGoBack;
   }, []);
+  // Not the end of a failure: Chromium's error page for it starts a load too.
   const onLoadStart = useCallback(() => {
     ready.current = false;
     shell.current = false;
-    setFailed(false);
     // A page mounted hidden (loaded ahead): its WebView may not have existed when the effect ran.
     applyVisible();
   }, [applyVisible]);
   const onLoadEnd = useCallback(() => setLoaded(true), []);
+  // The main document failed (both callbacks report only the main frame): cover it.
+  const fail = useCallback(() => {
+    errored.current = true;
+    const failures = doorFailure(machine.id);
+    const detail = failures.length > 0 ? doorText(failures) : t("offlineDetail");
+    setFailure((last) => ({
+      detail,
+      attempt: last === null ? 0 : last.attempt + (last.trying ? 1 : 0),
+      trying: false,
+    }));
+  }, [machine.id]);
   const onError = useCallback(() => {
-    setFailed(true);
+    fail();
     onFailed(viewKey);
-  }, [viewKey, onFailed]);
+  }, [fail, viewKey, onFailed]);
   const onHttpError = useCallback(
     (event: WebViewHttpErrorEvent) => {
       const { statusCode } = event.nativeEvent;
-      setFailed(statusCode >= 500);
+      if (statusCode >= 500) fail();
       if (statusCode !== 200) onFailed(viewKey);
     },
-    [viewKey, onFailed],
+    [fail, viewKey, onFailed],
   );
   const onRenderProcessGone = useCallback(() => onGone(viewKey), [viewKey, onGone]);
   const back = useCallback(() => onBack(viewKey), [viewKey, onBack]);
   const retry = useCallback(() => {
-    setFailed(false);
+    triedAt.current = Date.now();
+    errored.current = false;
+    setFailure((last) => last && { ...last, trying: true });
     web.current?.reload();
   }, []);
+  const retryNow = useCallback(() => {
+    if (Date.now() - triedAt.current > RETRY_BURST_MS) retry();
+  }, [retry]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) =>
+      setActive(state === "active"),
+    );
+    return () => subscription.remove();
+  }, []);
+
+  // While the cover is on screen in the foreground, retry by itself: after a
+  // wait that grows with each failed retry, and at once when the page is shown
+  // again or the app comes back. A retry still loading is left to finish: over
+  // a slow link that takes minutes. In the background the timer is cancelled.
+  useEffect(() => {
+    const now = visible && active;
+    const returned = now && !onScreen.current;
+    onScreen.current = now;
+    if (failure === null || failure.trying || !now) return undefined;
+    const wait = returned ? 0 : RETRY_MS[Math.min(failure.attempt, RETRY_MS.length - 1)];
+    const timer = setTimeout(retry, wait);
+    return () => clearTimeout(timer);
+  }, [failure, visible, active, retry]);
+
+  // ... and at once when the phone's network changes, only in the foreground.
+  const failed = failure !== null;
+  useEffect(() => {
+    if (!failed || !visible || !active) return undefined;
+    return onNetwork(retryNow);
+  }, [failed, visible, active, retryNow]);
 
   return (
     <SafeAreaView
@@ -258,25 +328,29 @@ export const MachineView = memo(function MachineView(props: Props) {
         />
       </View>
       <View style={keyboardSpace} />
-      {!loaded && !failed ? (
+      {!loaded && failure === null ? (
         <View style={styles.cover}>
           <KivotosMark size={56} />
           <ActivityIndicator color={colors.textTertiary} />
           <Text style={styles.coverText}>{t("loading", { name })}</Text>
         </View>
       ) : null}
-      {failed ? (
+      {failure !== null ? (
         <View style={styles.cover}>
           <View style={styles.card}>
             <KivotosMark size={40} />
             <Text style={styles.cardTitle}>{t("offline", { name })}</Text>
-            <Text style={styles.cardText}>{t("offlineDetail")}</Text>
+            <Text style={styles.cardText}>{failure.detail}</Text>
             <View style={styles.cardActions}>
               <Pressable onPress={back} style={styles.secondary} accessibilityRole="button">
                 <Text style={styles.secondaryText}>{t("back")}</Text>
               </Pressable>
               <Pressable onPress={retry} style={styles.primary} accessibilityRole="button">
-                <Text style={styles.primaryText}>{t("retry")}</Text>
+                {failure.trying ? (
+                  <ActivityIndicator color={colors.onPrimary} accessibilityLabel={t("retry")} />
+                ) : (
+                  <Text style={styles.primaryText}>{t("retry")}</Text>
+                )}
               </Pressable>
             </View>
           </View>

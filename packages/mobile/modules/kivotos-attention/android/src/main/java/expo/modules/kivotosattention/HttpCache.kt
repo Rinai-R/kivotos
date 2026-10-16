@@ -1,14 +1,16 @@
 package expo.modules.kivotosattention
 
+import android.os.SystemClock
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.concurrent.CountDownLatch
 
 /**
  * The phone's disk cache of machine responses that never change at their URL,
@@ -23,6 +25,13 @@ import java.util.concurrent.CountDownLatch
  * directory per machine in the app's cache directory. Both are written to temp
  * files, synced and renamed, `.json` last; [init] deletes whatever is not a
  * complete entry. Least recently used entries go past [MAX_BYTES].
+ *
+ * Concurrent misses for one entry fetch once ([Flight], the `flights` of the
+ * computer-side cache): the first request leads and tees the body into the
+ * entry's temp file; the others read that file as it grows, or, once the
+ * entry is stored, from disk. dsh 0.2.0-rc.2 ignores `Range` on its plugin
+ * batches (`200`, chunked, no `ETag` or `Last-Modified`), so an interrupted
+ * body cannot be resumed and is deleted.
  */
 object HttpCache {
   private const val TAG = "KivotosCache"
@@ -35,9 +44,14 @@ object HttpCache {
    */
   const val MAX_BYTES = 256L * 1024 * 1024
 
+  /**
+   * Cap of one entry: a response larger than this is passed through but not
+   * stored. The largest dsh 0.2.0-rc.2 response is its ~5.4 MB plugin batch.
+   */
+  const val ENTRY_MAX_BYTES = MAX_BYTES / 8
+
   private const val ROOT = "kivotos-http"
   private const val REV_FILE = "rev"
-  private const val FLIGHT_WAIT_MS = 120_000L
 
   /** One stored response. */
   class Entry(
@@ -54,8 +68,8 @@ object HttpCache {
   /** By `<dir>/<name>`, least recently used first. */
   private val entries = LinkedHashMap<String, Entry>(64, 0.75f, true)
   private var bytes = 0L
-  /** Misses being fetched, by entry key; others wait on the latch. */
-  private val flights = HashMap<String, CountDownLatch>()
+  /** Misses being fetched, by entry key. */
+  private val flights = HashMap<String, Flight>()
 
   /** Open the cache under the app's cache directory, once per process. */
   @Synchronized
@@ -109,13 +123,14 @@ object HttpCache {
     null
   }
 
-  /** @return the stored response for this request target of this machine, marked recently used. */
+  /** @return the stored response for this request target of this machine, opened and marked recently used. */
   @Synchronized
-  fun lookup(machine: String, target: String): Pair<Entry, File>? {
+  fun lookup(machine: String, target: String): Pair<Entry, InputStream>? {
     val top = root ?: return null
     val entry = entries["${machineDir(machine)}/${entryName(machine, target)}"] ?: return null
-    val body = File(File(top, entry.dir), "${entry.name}.body")
-    if (!body.isFile) {
+    val body = try {
+      FileInputStream(File(File(top, entry.dir), "${entry.name}.body"))
+    } catch (_: IOException) {
       // Android reclaimed the cache directory under us.
       forget(entry)
       return null
@@ -127,56 +142,157 @@ object HttpCache {
   @Synchronized
   fun has(machine: String, target: String): Boolean = entries.containsKey("${machineDir(machine)}/${entryName(machine, target)}")
 
+  /** A request's part in the fetch of a miss: it [leads] the fetch, or follows the one that does. */
+  class Claim(val flight: Flight, val leads: Boolean)
+
   /**
-   * Claim the fetch of a miss.
-   * @return null when the caller now owns it (and must [release] it), else a latch that opens when the owner is done.
+   * Join the fetch of a miss.
+   * @return null when the entry is stored by now; else the flight, which a leader must [land].
    */
   @Synchronized
-  fun claim(machine: String, target: String): CountDownLatch? {
+  fun claim(machine: String, target: String): Claim? {
     val key = "${machineDir(machine)}/${entryName(machine, target)}"
-    flights[key]?.let { return it }
-    flights[key] = CountDownLatch(1)
-    return null
+    if (entries.containsKey(key)) return null
+    // A flight whose body failed while its leader still reads it has nothing left to share.
+    flights[key]?.takeIf { !it.ended }?.let { return Claim(it, leads = false) }
+    return Claim(Flight().also { flights[key] = it }, leads = true)
   }
 
+  /** The leader is done: the flight ends, stored or not, and the next miss fetches anew. */
   @Synchronized
-  fun release(machine: String, target: String) {
-    flights.remove("${machineDir(machine)}/${entryName(machine, target)}")?.countDown()
+  fun land(flight: Flight) {
+    flights.values.remove(flight)
+    flight.settle(false)
   }
 
-  /** Wait for another request's fetch of the same entry. */
-  fun await(latch: CountDownLatch) {
-    latch.await(FLIGHT_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+  /**
+   * One fetch of a miss, shared by every request for the entry while it lasts.
+   * Followers wait for the leader's response; when it is being stored they
+   * read the body from the entry's temp file as the leader writes it.
+   */
+  class Flight internal constructor() {
+    private val lock = Object()
+    private var writer: Writer? = null
+    private var size = 0L
+    /** null while the fetch runs; then whether the entry was stored. */
+    private var stored: Boolean? = null
+
+    internal val ended: Boolean get() = synchronized(lock) { stored != null }
+
+    internal fun started(writer: Writer) = synchronized(lock) {
+      this.writer = writer
+      lock.notifyAll()
+    }
+
+    internal fun grew(size: Long) = synchronized(lock) {
+      this.size = size
+      lock.notifyAll()
+    }
+
+    internal fun settle(stored: Boolean) = synchronized(lock) {
+      if (this.stored == null) this.stored = stored
+      lock.notifyAll()
+    }
+
+    /**
+     * Wait for the leader's response.
+     * @return the body being stored, to read as it arrives; null when the
+     * flight ended first (the entry is stored, or nothing is: try again).
+     */
+    fun follow(): Tail? {
+      val storing = synchronized(lock) {
+        while (writer == null && stored == null) lock.wait()
+        if (stored != null) return null
+        requireNotNull(writer)
+      }
+      val input = try {
+        FileInputStream(storing.temp)
+      } catch (_: IOException) {
+        // Renamed into the entry, or deleted, just now: the flight is ending.
+        synchronized(lock) { while (stored == null) lock.wait() }
+        return null
+      }
+      return Tail(storing, input)
+    }
+
+    /** A follower's view of the body the leader is storing. */
+    inner class Tail internal constructor(storing: Writer, private val input: InputStream) : AutoCloseable {
+      val status = storing.status
+      val headers = storing.headers
+      /** The body's `content-length`, when the machine sent one. */
+      val expected = storing.expected
+      private var position = 0L
+
+      /**
+       * Read what the leader has written past this point, waiting for more.
+       * @return the count read, or -1 at the end of a stored body.
+       * @throws IOException when the fetch failed before the end.
+       */
+      fun read(buffer: ByteArray): Int {
+        val available = synchronized(lock) {
+          while (stored == null && size <= position) lock.wait()
+          if (size > position) {
+            size - position
+          } else if (stored == true) {
+            return -1
+          } else {
+            throw IOException("the fetch ended before the body did")
+          }
+        }
+        val count = input.read(buffer, 0, minOf(available, buffer.size.toLong()).toInt())
+        if (count < 0) throw IOException("the body file ended early")
+        position += count
+        return count
+      }
+
+      override fun close() = input.close()
+    }
   }
 
-  /** A body being stored as it streams to the WebView; nothing is visible before [commit]. */
+  /** A body being stored as it streams through the door; nothing is visible before [commit]. */
   class Writer internal constructor(
     private val dir: File,
     private val name: String,
-    private val status: Int,
-    private val headers: List<Pair<String, String>>,
-    private val expected: Long?,
+    internal val status: Int,
+    internal val headers: List<Pair<String, String>>,
+    internal val expected: Long?,
+    private val flight: Flight,
   ) {
-    private val temp = File(dir, "$name.${suffix()}.tmp")
+    internal val temp = File(dir, "$name.${suffix()}.tmp")
     private var out: FileOutputStream? = try {
       FileOutputStream(temp)
     } catch (_: IOException) {
       null
     }
     private var size = 0L
+    @Volatile private var wroteAt = SystemClock.elapsedRealtime()
 
-    /** Never throws: a full disk must not break the page. */
+    /** Whether it is still storing: the temp file opened, and nothing gave up yet. */
+    val open: Boolean @Synchronized get() = out != null
+
+    /** Milliseconds since the last byte arrived (or since it started). */
+    fun idleMs(): Long = SystemClock.elapsedRealtime() - wroteAt
+
+    /** Never throws: a full disk must not break the page. Past [ENTRY_MAX_BYTES] it stops storing. */
+    @Synchronized
     fun write(buffer: ByteArray, offset: Int, length: Int) {
       val sink = out ?: return
+      wroteAt = SystemClock.elapsedRealtime()
+      if (size + length > ENTRY_MAX_BYTES) {
+        Log.d(TAG, "unstored $name: larger than $ENTRY_MAX_BYTES bytes")
+        return abandon()
+      }
       try {
         sink.write(buffer, offset, length)
         size += length
+        flight.grew(size)
       } catch (_: IOException) {
         abandon()
       }
     }
 
-    /** @param complete - the whole body passed through to the WebView. */
+    /** @param complete - the whole body arrived from the machine. */
+    @Synchronized
     fun commit(complete: Boolean) {
       val sink = out ?: return
       out = null
@@ -196,28 +312,41 @@ object HttpCache {
         }
         if (!metaTemp.renameTo(File(dir, "$name.json"))) throw IOException("rename failed")
         added(Entry(dir.name, name, status, headers, size, size + json.size))
+        flight.settle(true)
       } catch (_: IOException) {
         runCatching { sink.close() }
         temp.delete()
+        flight.settle(false)
       }
     }
 
+    /** Stop storing: the temp file goes, and the followers' connections are closed. */
+    @Synchronized
     fun abandon() {
       val sink = out ?: return
       out = null
       runCatching { sink.close() }
       temp.delete()
+      flight.settle(false)
     }
   }
 
-  /** @return a writer for a storable response, or null when the cache is not open. */
+  /**
+   * Start storing a storable response the flight's leader got; its followers
+   * read it from now on.
+   * @return the writer, or null when the cache is not open or the file cannot be written.
+   */
   @Synchronized
-  fun writer(machine: String, target: String, response: HttpHead): Writer? {
+  fun writer(flight: Flight, machine: String, target: String, response: HttpHead): Writer? {
     val top = root ?: return null
     val dir = File(top, machineDir(machine)).apply { mkdirs() }
     val kept = KEPT_HEADERS.mapNotNull { field -> response[field]?.let { field to it } }
     val expected = response["content-length"]?.toLongOrNull()
-    return Writer(dir, entryName(machine, target), response.status, kept, expected)
+    if (expected != null && expected > ENTRY_MAX_BYTES) return null
+    val writer = Writer(dir, entryName(machine, target), response.status, kept, expected, flight)
+    if (!writer.open) return null
+    flight.started(writer)
+    return writer
   }
 
   @Synchronized

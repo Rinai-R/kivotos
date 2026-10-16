@@ -7,6 +7,7 @@ import {
   type MachineLink,
   type PhoneMachineProbe,
   type RouteMode,
+  type Via,
 } from "../../kivotos/src/machines";
 import { zh } from "./machines";
 
@@ -124,6 +125,7 @@ const en = {
   loading: "Connecting to {name}…",
   offline: "Cannot load {name}",
   offlineDetail: "Check that dsh is running on the computer and Tailscale is connected.",
+  offlineLink: "{via}: {reason}",
   back: "Machines",
 };
 
@@ -236,6 +238,7 @@ const zhText: typeof en = {
   loading: "正在连接 {name}…",
   offline: "无法加载 {name}",
   offlineDetail: "请确认电脑上的 dsh 正在运行，且 Tailscale 已连接。",
+  offlineLink: "{via}：{reason}",
   back: "机器",
 };
 
@@ -269,6 +272,13 @@ export function downText(down: LinkDown): string {
   return down === "offline" || down === "unreachable" || down === "denied"
     ? t(`state.${down}`)
     : t(`reason.${down}`);
+}
+
+/** Why a page's door could not reach its machine, one line: each link tried and why it failed. */
+export function doorText(failures: readonly { via: Via; reason: LinkDown }[]): string {
+  return failures
+    .map(({ via, reason }) => t("offlineLink", { via: t(`via.${via}`), reason: downText(reason) }))
+    .join(" · ");
 }
 
 /**

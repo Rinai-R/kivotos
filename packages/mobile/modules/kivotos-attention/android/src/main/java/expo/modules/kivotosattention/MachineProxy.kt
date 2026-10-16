@@ -2,6 +2,8 @@ package expo.modules.kivotosattention
 
 import android.content.Context
 import android.os.SystemClock
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.util.Base64
 import android.util.Log
 import android.webkit.CookieManager
@@ -11,17 +13,25 @@ import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.ConnectException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.net.URI
+import java.net.UnknownHostException
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLPeerUnverifiedException
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Local doors to the machines. Each machine gets a loopback HTTP address the
@@ -116,6 +126,29 @@ object MachineProxy {
 
   private val doors = ConcurrentHashMap<String, Door>()
 
+  /** A link that did not reach a machine: `tailscale` or `relay`, a `LinkDown` word, and the error. */
+  private class LinkFailure(val via: String, val down: String, val message: String)
+
+  /** No link reached the machine. */
+  private class Unreachable(val failures: List<LinkFailure>) : IOException(failures.joinToString("; ") { "${it.via}: ${it.message}" })
+
+  /** The links that failed at each machine's last dial that reached none, by machine id. */
+  private val unreached = ConcurrentHashMap<String, List<LinkFailure>>()
+
+  /** Relay refusals (`wire.ErrCode*`) that are `LinkDown` words as they are. */
+  private val RELAY_DOWN = setOf("denied", "offline", "timeout")
+  private val CRLF = "\r\n".toByteArray(Charsets.US_ASCII)
+  private val LAST_CHUNK = "0\r\n\r\n".toByteArray(Charsets.US_ASCII)
+  /** A body being stored with no client left is given up after this long without a byte. */
+  private const val STALL_MS = 60_000L
+  private const val STALL_CHECK_MS = 5_000L
+  /** Checks the bodies being stored for [STALL_MS]. */
+  private val watchdog = Executors.newSingleThreadScheduledExecutor { task ->
+    Thread(task, "kivotos-door-watch").apply { isDaemon = true }
+  }
+  /** A URL in an error message: scheme, userinfo, authority, path, query, fragment. */
+  private val URL_IN_TEXT = Regex("""([A-Za-z][A-Za-z\d+.-]*://)([^/@\s?#]*@)?([^/\s?#]*)([^\s?#]*)(\?[^\s#]*)?(#\S*)?""")
+
   /**
    * Open (once) the door to a machine.
    * @return its base URL, `http://127.0.0.1:<port>`.
@@ -157,6 +190,7 @@ object MachineProxy {
       door.close()
       if (machine != null) doors[id] = listen(machine)
     }
+    unreached.keys.retainAll(byId.keys)
     HttpCache.retain(byId.keys)
   }
 
@@ -202,12 +236,13 @@ object MachineProxy {
       Machine.RELAY -> listOf(false)
       else -> if (Links.prefersRelay(machine)) listOf(false, true) else listOf(true, false)
     }
-    var failure: Exception? = null
+    val failures = mutableListOf<LinkFailure>()
     for (tailnet in order) {
       if (if (tailnet) door.uri == null else door.network == null) continue
       try {
         val upstream = if (tailnet) dialTailnet(door) else dialRelay(door)
         if (auto) Links.dialed(machine, tailnet, ok = true)
+        unreached.remove(machine.id)
         upstream.owner = door.upstreams
         door.upstreams.add(upstream)
         // Closed while dialing: the door's close did not see it.
@@ -215,10 +250,41 @@ object MachineProxy {
         return upstream
       } catch (error: Exception) {
         if (auto) Links.dialed(machine, tailnet, ok = false)
-        failure = error
+        failures.add(linkFailure(tailnet, error))
       }
     }
-    throw failure ?: IOException("no link to ${machine.name}")
+    if (failures.isEmpty()) failures.add(LinkFailure(if (door.uri != null) "relay" else "tailscale", "network", "the machine has no such link"))
+    unreached[machine.id] = failures
+    throw Unreachable(failures)
+  }
+
+  /**
+   * Why a link did not reach a machine, in the words of the machine model
+   * (`LinkDown` in packages/kivotos/src/machines.ts), as [Links] words its probes.
+   */
+  private fun linkFailure(tailnet: Boolean, failure: Exception): LinkFailure {
+    val errno = generateSequence<Throwable>(failure) { it.cause }.firstNotNullOfOrNull { (it as? ErrnoException)?.errno }
+    val down = when {
+      failure is RelayRefused -> if (failure.code in RELAY_DOWN) failure.code else "network"
+      failure is TlsReset -> "tls-reset"
+      !tailnet && (failure is ConnectException || failure is SocketTimeoutException || failure is UnknownHostException) -> "relay-unreachable"
+      errno == OsConstants.ECONNREFUSED -> "no-listener"
+      errno == OsConstants.ENETUNREACH -> "not-on-tailnet"
+      failure is SocketTimeoutException -> "timeout"
+      failure is SSLException -> "tls"
+      else -> "network"
+    }
+    return LinkFailure(if (tailnet) "tailscale" else "relay", down, failure.message ?: failure.javaClass.simpleName)
+  }
+
+  /**
+   * Why the door could not reach a machine the last time it tried, as JSON
+   * `[{via, reason}]`; `[]` when its last dial succeeded or none failed yet.
+   */
+  fun failure(machineId: String): String {
+    val list = JSONArray()
+    for (failure in unreached[machineId].orEmpty()) list.put(JSONObject().put("via", failure.via).put("reason", failure.down))
+    return list.toString()
   }
 
   private fun dialRelay(door: Door): Upstream {
@@ -277,8 +343,8 @@ object MachineProxy {
         if (head.has("upgrade")) {
           val opened = upstream ?: try {
             dial(door)
-          } catch (_: Exception) {
-            refuse(toClient, "502 Bad Gateway")
+          } catch (failure: Exception) {
+            unreachable(toClient, door, failure)
             return
           }
           upstream = opened
@@ -287,8 +353,12 @@ object MachineProxy {
           return
         }
         val exchange = Exchange(door, head, fromClient, toClient, upstream)
-        val keep = exchange.run()
-        upstream = exchange.upstream
+        val keep = try {
+          exchange.run()
+        } finally {
+          // Also after a failure, so a connection it dialed is closed below.
+          upstream = exchange.upstream
+        }
         if (!keep) return
         client.soTimeout = KEEPALIVE_MS
       }
@@ -314,32 +384,30 @@ object MachineProxy {
 
     /** @return whether the WebView connection stays open for another request. */
     fun run(): Boolean {
-      if (!cacheableRequest(head)) return forward(owned = false)
+      if (!cacheableRequest(head)) return forward(null)
       head["accept-encoding"] = VARIANT
-      if (hit()) return !head.closes
-      val other = HttpCache.claim(machine, target)
-      if (other == null) {
-        try {
-          return forward(owned = true)
-        } finally {
-          HttpCache.release(machine, target)
+      // Each pass ends served, or finds the flight it followed ended without a
+      // body to read; the next miss then leads a fetch itself.
+      while (true) {
+        if (hit()) return !head.closes
+        val claim = HttpCache.claim(machine, target) ?: continue
+        if (claim.leads) {
+          try {
+            return forward(claim.flight)
+          } finally {
+            HttpCache.land(claim.flight)
+          }
         }
+        val tail = claim.flight.follow() ?: continue
+        return tail.use(::follow)
       }
-      HttpCache.await(other)
-      if (hit()) return !head.closes
-      return forward(owned = false)
     }
 
     private fun hit(): Boolean {
       val (entry, body) = HttpCache.lookup(machine, target) ?: return false
       val reply = HttpHead("HTTP/1.1 ${entry.status} OK", entry.headers.toMutableList())
       reply["content-length"] = entry.size.toString()
-      val opened = try {
-        body.inputStream()
-      } catch (_: IOException) {
-        return false
-      }
-      opened.use { source ->
+      body.use { source ->
         toClient.write(reply.bytes())
         source.copyTo(toClient, 64 * 1024)
         toClient.flush()
@@ -348,13 +416,48 @@ object MachineProxy {
       return true
     }
 
-    private fun forward(owned: Boolean): Boolean {
+    /** Serve the body another request is fetching, as it arrives in the entry's temp file. */
+    private fun follow(tail: HttpCache.Flight.Tail): Boolean {
+      val reply = HttpHead("HTTP/1.1 ${tail.status} OK", tail.headers.toMutableList())
+      val length = tail.expected
+      if (length != null) reply["content-length"] = length.toString() else reply["transfer-encoding"] = "chunked"
+      toClient.write(reply.bytes())
+      toClient.flush()
+      val buffer = ByteArray(64 * 1024)
+      var sent = 0L
+      while (true) {
+        val count = try {
+          tail.read(buffer)
+        } catch (failure: IOException) {
+          // Cut short, as the leader's own response was.
+          Log.d(TAG, "joined '${door.machine.name}' ${target.substringBefore('?')} failed after $sent bytes: ${failure.message}")
+          return false
+        }
+        if (count < 0) break
+        if (length == null) toClient.write("${Integer.toHexString(count)}\r\n".toByteArray(Charsets.US_ASCII))
+        toClient.write(buffer, 0, count)
+        if (length == null) toClient.write(CRLF)
+        toClient.flush()
+        sent += count
+      }
+      if (length == null) toClient.write(LAST_CHUNK)
+      toClient.flush()
+      Log.d(TAG, "joined '${door.machine.name}' ${target.substringBefore('?')} bytes=$sent")
+      return !head.closes
+    }
+
+    /**
+     * Send the request to the machine and its response back.
+     * @param flight - the miss this request leads the fetch of; a storable
+     * response is stored, and read by the flight's followers as it arrives.
+     */
+    private fun forward(flight: HttpCache.Flight?): Boolean {
       val reused = upstream != null
       val up = upstream ?: try {
         dial(door).also { upstream = it }
       } catch (failure: Exception) {
-        Log.d(TAG, "unreachable '${door.machine.name}': ${failure.message}")
-        refuse(toClient, "502 Bad Gateway")
+        Log.d(TAG, "unreachable '${door.machine.name}' for ${head.method} ${target.substringBefore('?')}")
+        unreachable(toClient, door, failure)
         return false
       }
       address(door, head, up)
@@ -368,7 +471,7 @@ object MachineProxy {
       } ?: run {
         // Closed before answering. On a reused connection the WebView retries
         // a request whose connection ends without a response; otherwise say so.
-        if (!reused) refuse(toClient, "502 Bad Gateway")
+        if (!reused) refuse(toClient, "502 Bad Gateway", "${linkName(up.tailnet)}: ${door.machine.name} closed the connection before answering")
         return false
       }
       while (response.status in 100..199) {
@@ -378,13 +481,32 @@ object MachineProxy {
       }
       markImmutable(target, response)
       val framing = Framing.ofResponse(head.method, response)
-      val writer = if (owned && storable(response)) HttpCache.writer(machine, target, response) else null
+      val writer = if (flight != null && storable(response)) HttpCache.writer(flight, machine, target, response) else null
+      // Nothing to store: the followers fetch for themselves.
+      if (flight != null && writer == null) HttpCache.land(flight)
+      // A body being stored is read to its end even when this request's
+      // client goes away: the followers and the cache still want it. Not
+      // forever: past the entry cap the writer gives up storing, and with no
+      // client left a body without progress for STALL_MS is given up too.
+      val sink = if (writer != null) Detachable(toClient, writer) else toClient
+      val watch = if (writer != null && sink is Detachable) {
+        watchdog.scheduleWithFixedDelay({
+          if (sink.gone && writer.idleMs() > STALL_MS) {
+            Log.d(TAG, "stalled '${door.machine.name}' ${target.substringBefore('?')}: no client and no progress")
+            writer.abandon()
+            up.close()
+          }
+        }, STALL_CHECK_MS, STALL_CHECK_MS, TimeUnit.MILLISECONDS)
+      } else {
+        null
+      }
       var complete = false
       try {
-        toClient.write(response.bytes())
-        toClient.flush()
-        complete = copyBody(up.input, toClient, framing, writer?.let { it::write })
+        sink.write(response.bytes())
+        sink.flush()
+        complete = copyBody(up.input, sink, framing, writer?.let { it::write })
       } finally {
+        watch?.cancel(false)
         if (writer != null) {
           writer.commit(complete)
           Log.d(TAG, "${if (complete) "stored" else "unstored"} '${door.machine.name}' ${target.substringBefore('?')}")
@@ -396,7 +518,8 @@ object MachineProxy {
         return false
       }
       up.idleSince = SystemClock.elapsedRealtime()
-      return !head.closes
+      // A client that went away gets its connection closed.
+      return !head.closes && !(sink is Detachable && sink.gone)
     }
   }
 
@@ -441,9 +564,70 @@ object MachineProxy {
       name.equals("cookie", ignoreCase = true) && value.split(';').any { it.trim() == cookie }
     }
 
-  private fun refuse(sink: OutputStream, status: String) {
-    sink.write("HTTP/1.1 $status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+  /**
+   * Answer with a status and a short text body. Chromium shows its own error
+   * page for an error status without a body (`ERR_HTTP_RESPONSE_CODE_FAILURE`).
+   */
+  private fun refuse(sink: OutputStream, status: String, body: String = "") {
+    val text = if (body.isEmpty()) ByteArray(0) else "$body\n".toByteArray(Charsets.UTF_8)
+    val type = if (body.isEmpty()) "" else "Content-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\n"
+    sink.write("HTTP/1.1 $status\r\n${type}Content-Length: ${text.size}\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+    sink.write(text)
     sink.flush()
+  }
+
+  /**
+   * `502` naming each link tried and its reason in the machine model's words,
+   * e.g. `Tailscale: timeout; Relay: relay-unreachable`. The errors themselves
+   * go only to logcat.
+   */
+  private fun unreachable(sink: OutputStream, door: Door, failure: Exception) {
+    val failures = (failure as? Unreachable)?.failures
+    val links = failures?.joinToString("; ") { "${linkName(it.via == "tailscale")}: ${it.down}" } ?: "network"
+    failures?.forEach { Log.d(TAG, "unreachable '${door.machine.name}' via ${it.via}: ${it.down}: ${redact(it.message)}") }
+    refuse(sink, "502 Bad Gateway", "Cannot reach ${door.machine.name}. $links")
+  }
+
+  /** An error message for the log: URLs keep only scheme, host, port and path (no userinfo, query or fragment). */
+  private fun redact(text: String): String =
+    URL_IN_TEXT.replace(text) { match -> "${match.groupValues[1]}${match.groupValues[3]}${match.groupValues[4]}" }
+
+  private fun linkName(tailnet: Boolean): String = if (tailnet) "Tailscale" else "Relay"
+
+  /**
+   * A WebView connection that may go away mid-body: while the body is still
+   * being stored, writes after the first failure are dropped so it is read to
+   * its end; once the writer gave up, they fail, which ends the exchange.
+   */
+  private class Detachable(private val sink: OutputStream, private val writer: HttpCache.Writer) : OutputStream() {
+    @Volatile var gone = false
+      private set
+
+    override fun write(byte: Int) = write(byteArrayOf(byte.toByte()), 0, 1)
+
+    override fun write(buffer: ByteArray, offset: Int, length: Int) {
+      if (gone) return detached()
+      try {
+        sink.write(buffer, offset, length)
+      } catch (_: IOException) {
+        gone = true
+        detached()
+      }
+    }
+
+    override fun flush() {
+      if (gone) return detached()
+      try {
+        sink.flush()
+      } catch (_: IOException) {
+        gone = true
+        detached()
+      }
+    }
+
+    private fun detached() {
+      if (!writer.open) throw IOException("the client went away and nothing is being stored")
+    }
   }
 
   private fun close(socket: Socket) {
