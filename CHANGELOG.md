@@ -2,6 +2,26 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## v0.1.7
+
+- Settings → Remote access is redesigned: a card for this computer's links, each with a state tag and labelled actions (Pair phone, Invite, Leave network), and a table with one cell per machine and link. Invite and leaving are dialogs; leaving says what goes before it does. The full reason for a state is in each cell's tooltip, or a tap away on a phone. The network id is no longer shown.
+- A working link is no longer shown as down after one slow answer. Each check waits 6 s, and a link that was working stays in use, marked Unstable, until three checks in a row fail.
+- A relay whose TLS handshake is reset is named as such: "Connection reset: the hosting provider may be blocking <host>", on the computer and on the phone.
+- The machine switcher shows each machine on one line: a dot, the name and where it is, with "This computer · N ready" on the trigger. The arrow keys, Home and End move through it.
+- Android: the home list, the long-press sheet and Connections are redesigned on the same states. Removing a machine no longer leaves its whole relay network. Connections shows whether machines answer over Tailscale and can open the Tailscale app. A refused tailnet connection now reads "Not running Kivotos".
+- Android: going back to the list and opening the same machine again, or switching between machines in the sidebar, no longer reloads the page: the app keeps up to three pages loaded, and it loads the machines you switch to most ahead of time. On the emulator, a first switch went from about 1.5–1.9 s to under 0.1 s.
+- A computer keeps an idle relay session from another member open for a minute instead of 5 s, so switching back to it through the relay does not set up new sessions.
+
+### 中文
+
+- 设置 → 远程连接 重新设计：先是一张卡片，列出本机的每种连接方式，各带状态标签和按钮（配对手机、邀请设备、退出网络）；下面是机器表格，每台机器的每种连接方式各占一格。邀请和退出网络改为弹窗，退出前会说明会失去什么。每个状态的完整原因在格子的悬停提示里，手机上点一下就能看到。不再显示网络 ID。
+- 一次回应慢不再把正常的连接显示为断开。每次检查等 6 秒；原本正常的连接会继续使用并标为「不稳定」，连续 3 次失败才算连不上。
+- 中继的 TLS 握手被重置时会明确提示：「连接被重置：服务商可能在屏蔽 <域名>」，电脑和手机上都有。
+- 机器切换器每台机器占一行：状态点、名称和连接方式，触发按钮上显示「本机 · N 台可用」。可以用方向键、Home、End 在里面移动。
+- 安卓 App：首页列表、长按菜单和「连接」页按同一套状态重新设计。移除一台机器不再顺带退出整个中继网络。「连接」页显示各台机器是否经 Tailscale 有回应，并可以打开 Tailscale App。Tailnet 连接被拒时显示「未运行 Kivotos」。
+- 安卓 App：返回列表后再打开同一台机器、或在侧栏里切换机器，不再重新加载页面：App 最多保留 3 个页面，并会提前加载你最常切换的机器。模拟器上第一次切换从约 1.5–1.9 秒降到 0.1 秒以内。
+- 电脑把其它成员经中继连来的空闲会话保持一分钟（原来是 5 秒），经中继切回这台电脑时不必重新建立会话。
+
 ## v0.1.6
 
 - Each machine is listed once, wherever it is reached from, with how it is reached and, when it is not, why. A computer that is in your tailnet and in a relay network no longer shows up twice, and an unreachable one stays in the list with its reason instead of disappearing. (#11)
