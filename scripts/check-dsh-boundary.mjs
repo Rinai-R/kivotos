@@ -1,6 +1,6 @@
 // Keep dsh internals inside packages/kivotos/src/dsh/.
 //
-// Kivotos reads a handful of dsh 0.2.0-rc.2 internals, and each read is a
+// Kivotos reads a handful of dsh 0.2.1-rc.2 internals, and each read is a
 // probed coupling point in src/dsh/ (see src/dsh/compat.ts). A selector,
 // global or storage key written anywhere else would be a read nobody probes,
 // so this fails on one. Comments are not checked.

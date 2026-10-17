@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.0-rc.2's client stores, as Kivotos reads and writes them.
+ * dsh 0.2.1-rc.2's client stores, as Kivotos reads and writes them.
  *
  * dsh persists its client stores whole as JSON in localStorage under fixed
  * keys (`dsh-client-store` `attachPersistence`). The current Session is

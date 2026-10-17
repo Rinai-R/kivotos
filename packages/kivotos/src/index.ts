@@ -170,8 +170,8 @@ const DEFAULTS: KivotosConfig = {
   refreshSeconds: 30,
   offlineDays: 7,
   trace: "requests",
-  // One dsh 0.2.0-rc.2 page load stores about 6 MB (gzip); every launch of a
-  // peer's dsh revisions its plugin batches anew. 256 MB holds some 40 such
+  // One dsh 0.2.1-rc.2 page load stores about 11 MB (gzip); every launch of a
+  // peer's dsh revisions its plugin batches anew. 256 MB holds some 20 such
   // sets, a few launches of every peer in a household tailnet, before the
   // least recently used go.
   cacheMegabytes: 256,

@@ -1,5 +1,5 @@
 /**
- * The index dsh 0.2.0-rc.2 serves, and what Kivotos rewrites in it. dsh's
+ * The index dsh 0.2.1-rc.2 serves, and what Kivotos rewrites in it. dsh's
  * webServer renders every index from `apps/web/index.html` plus its injection
  * rows; the strings below are the exact ones rc.2 renders.
  *
@@ -35,7 +35,7 @@ export function coverViewport(html: string): Rewritten {
     };
   }
   const probe = VIEWPORT_ANY.test(html)
-    ? changed("the viewport meta is not the pinned 0.2.0-rc.2 form")
+    ? changed("the viewport meta is not the pinned 0.2.1-rc.2 form")
     : missing("the index has no viewport meta");
   return { html, probe };
 }
@@ -63,7 +63,7 @@ export function credentialedManifest(html: string): Rewritten {
     };
   }
   const probe = MANIFEST_ANY.test(html)
-    ? changed("the manifest link is not the pinned 0.2.0-rc.2 form")
+    ? changed("the manifest link is not the pinned 0.2.1-rc.2 form")
     : missing("the index has no manifest link");
   return { html, probe };
 }

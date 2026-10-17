@@ -17,7 +17,7 @@ const OWNS_HOST = scriptOf(injectOwnsHost("<head></head>"));
 /** The tail script dsh's webServer renders into every index it serves. */
 const READY_MARKUP = "(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()";
 /**
- * dsh 0.2.0-rc.2's web entry (apps/web/src/main.ts) when the desktop shell is
+ * dsh 0.2.1-rc.2's web entry (apps/web/src/main.ts) when the desktop shell is
  * present: install the shell's transport, apply its index rows, open the gate.
  */
 const WEB_ENTRY = `"use strict";

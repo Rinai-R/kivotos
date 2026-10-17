@@ -64,7 +64,7 @@ import {
 import { SseReader } from "./sse.ts";
 import { tracePath } from "./trace-path.ts";
 
-/** The slice of the dsh 0.2.0-rc.2 Client context Kivotos uses. */
+/** The slice of the dsh 0.2.1-rc.2 Client context Kivotos uses. */
 interface ClientContext {
   effect(factory: () => () => void, label?: string): void;
   locale: {

@@ -26,7 +26,7 @@ Kivotos는 DeepSeek Harness(dsh)용 오픈 소스 플러그인입니다. 한 머
 
 ### 사전 요구 사항
 
-- DeepSeek Harness `0.2.0-rc.2`
+- DeepSeek Harness `0.2.1-rc.2`
 - 모든 기기가 같은 [Tailscale](https://tailscale.com) 계정에 로그인되어 있거나, 직접 운영하는 릴레이 서버
 
 ### 플러그인

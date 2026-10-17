@@ -2,6 +2,16 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## Unreleased
+
+- Android: a machine page that cannot be reached shows the app's cover with the reason each link failed instead of Chromium's error page, and retries after 2, 5 and 10 seconds and then every 15 seconds. It retries at once when the app returns to the foreground or the network changes, and pauses while the app is in the background.
+- Target dsh 0.2.1-rc.2: the pinned release, the index fixture and the prerequisites now name it. Every coupling point still fits — the index rewrites, boot graph, desktop boot gate, phone frame and Session store — and the nightly check passes against it.
+
+### 中文
+
+- 安卓：机器页面连不上时不再显示 Chromium 的错误页，而是显示 App 自己的提示卡，说明每种连接方式失败的原因；会在 2、5、10 秒后各重试一次，之后每 15 秒重试，回到前台或网络变化时立即重试，后台时暂停。
+- 适配 dsh 0.2.1-rc.2：固定版本、index 测试夹具和前置条件都改为该版本。所有依赖点（index 改写、boot graph、桌面启动门、手机框架、Session 存储）仍然吻合，针对它的夜间检查通过。
+
 ## v0.1.7
 
 - Settings → Remote access is redesigned: a card for this computer's links, each with a state tag and labelled actions (Pair phone, Invite, Leave network), and a table with one cell per machine and link. Invite and leaving are dialogs; leaving says what goes before it does. The full reason for a state is in each cell's tooltip, or a tap away on a phone. The network id is no longer shown.

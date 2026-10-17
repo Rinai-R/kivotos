@@ -1,5 +1,5 @@
 /**
- * The dsh 0.2.0-rc.2 desktop shell, as a mounted machine's page meets it.
+ * The dsh 0.2.1-rc.2 desktop shell, as a mounted machine's page meets it.
  *
  * The shell (`apps/desktop/src/preload-app.ts`) exposes `dshDesktopBoot` to
  * every page of its `dsh-app://app` origin. dsh's web entry

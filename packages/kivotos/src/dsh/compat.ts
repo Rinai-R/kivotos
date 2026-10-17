@@ -21,7 +21,7 @@
  */
 
 /** The dsh release every shape in this adapter is pinned to. */
-export const PINNED_DSH = "0.2.0-rc.2";
+export const PINNED_DSH = "0.2.1-rc.2";
 
 /** Every place Kivotos relies on a dsh internal, in notice order. */
 export const COMPAT_POINTS = [
