@@ -32,6 +32,7 @@ import {
   guardDesktopBoot,
 } from "../packages/kivotos/src/dsh/desktop.ts";
 import { MARKERS as FRAME_MARKERS } from "../packages/kivotos/src/dsh/frame.ts";
+import { MARKERS as OPEN_IN_APP_MARKERS } from "../packages/kivotos/src/dsh/open-in-app.ts";
 import {
   MARKERS as INDEX_MARKERS,
   bootGraphOf,
@@ -55,6 +56,7 @@ const MARKERS = [
     ...DESKTOP_MARKERS,
     ...SESSION_MARKERS,
     ...FRAME_MARKERS,
+    ...OPEN_IN_APP_MARKERS,
     ...WEB_MARKERS,
   ]),
 ];
