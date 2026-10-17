@@ -26,7 +26,7 @@ Kivotos is an open source plugin for DeepSeek Harness (dsh). Open any of your ma
 
 ### Prerequisites
 
-- DeepSeek Harness `0.2.0-rc.2`
+- DeepSeek Harness `0.2.1-rc.2`
 - [Tailscale](https://tailscale.com) signed in to the same account on every device, or your own relay server
 
 ### Plugin

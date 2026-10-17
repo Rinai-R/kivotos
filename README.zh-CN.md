@@ -26,7 +26,7 @@ Kivotos 是 DeepSeek Harness（dsh）的开源插件。在任意一台机器上�
 
 ### 前置条件
 
-- DeepSeek Harness `0.2.0-rc.2`
+- DeepSeek Harness `0.2.1-rc.2`
 - 所有设备登录同一个 [Tailscale](https://tailscale.com) 账号，或者有一台自建的中继服务器
 
 ### 插件

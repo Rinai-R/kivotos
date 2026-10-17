@@ -54,7 +54,7 @@ body:
     attributes:
       label: Versions
       description: Kivotos, DeepSeek Harness, Android app or relay image, and the operating systems involved.
-      placeholder: "Kivotos 0.1.5, dsh 0.2.0-rc.2 desktop, macOS 15, Android 15"
+      placeholder: "Kivotos 0.1.5, dsh 0.2.1-rc.2 desktop, macOS 15, Android 15"
     validations:
       required: true
 

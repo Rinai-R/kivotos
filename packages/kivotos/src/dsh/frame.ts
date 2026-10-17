@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.0-rc.2's rendered frame, as the phone stylesheet repositions it.
+ * dsh 0.2.1-rc.2's rendered frame, as the phone stylesheet repositions it.
  *
  * dsh ships no phone layout and no slot owns the frame grid, so the phone
  * stylesheet reads dsh internals: CSS-module class suffixes (`_sidebarCol`,
@@ -14,7 +14,7 @@
  * - `phone-conversation`: header, composer and scroller spacing
  *   (ui-conversation ConversationRoot);
  * - `phone-settings`: the Settings panel fills the screen with its sections
- *   as a scrolling tab row (ui-settings SettingsPanel).
+ *   as a scrolling tab row (ui-settings-general SettingsRoot).
  *
  * A group whose probe failed is withheld; dsh's own layout stays.
  *

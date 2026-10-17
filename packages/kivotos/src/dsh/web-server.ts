@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.0-rc.2's webServer, as Kivotos proxies it: its own API paths and the
+ * dsh 0.2.1-rc.2's webServer, as Kivotos proxies it: its own API paths and the
  * naming of the build assets it serves.
  *
  * Nothing here is probed at run time. A renamed path or a new asset naming
