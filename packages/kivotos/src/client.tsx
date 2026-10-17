@@ -9,6 +9,9 @@
  * - `settings.section`: "Remote access", this machine's links and the
  *   machines it knows, with their modes (settings.tsx).
  *
+ * A page served through a peer mount hides dsh's host-local "Open In" controls,
+ * which would launch applications on the other machine (dsh/open-in-app.ts).
+ *
  * Built by scripts/build.mjs into the `window.__ModuleLoader__.load` form dsh
  * expects, with `react` taken from dsh's module require.
  */
@@ -31,6 +34,7 @@ import {
   type CompatReport,
 } from "./dsh/compat.ts";
 import { DESKTOP_SCHEME, desktopBridge, probeDesktopBridge } from "./dsh/desktop.ts";
+import { hidePeerOpenInApp } from "./dsh/open-in-app.ts";
 import {
   onSessionRowTap,
   phoneStylesheet,
@@ -254,6 +258,11 @@ function currentPeer(): string | null {
   const match = PEER_PATH.exec(window.location.pathname);
   return match === null ? null : decodeURIComponent(match[1]);
 }
+
+// A peer page shows another machine's UI. The host-local open controls on it
+// would launch applications on that machine, so the stylesheet hides them
+// (open-in-app.ts). The attribute is page-lifetime, like the navigation.
+if (currentPeer() !== null) document.documentElement.dataset.kivotosPeer = "";
 
 function useMedia(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
@@ -1182,7 +1191,7 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   useCloseDrawerOnSelect(layout && phone && !collapsed, toggleSidebar);
   return (
     <>
-      <style>{BASE_CSS + SETTINGS_CSS}</style>
+      <style>{BASE_CSS + SETTINGS_CSS + hidePeerOpenInApp()}</style>
       <style>{phoneStylesheet(report, PHONE)}</style>
       {layout && phone && !collapsed ? (
         <button
