@@ -32,7 +32,7 @@ Kivotos has no UI of its own for sessions. It adds four things:
 - `packages/kivotos/src/attention.ts`: `AttentionTracker`, which folds every Session's log (`approval/asked`, `approval/decided`, `ask_user_question` calls and answers, `turn/end`) into attention frames for `/kivotos/events`.
 - `packages/kivotos/src/attention-hub.ts`: `AttentionHub` and `AttentionBoard`, the other machines' attention gathered on this Host for its own pages. See "Desktop attention" below.
 - `packages/kivotos/src/sse.ts`: `SseReader`, the Server-Sent Events parser both the hub and the client module use (no Node imports).
-- `packages/kivotos/src/client.tsx`: client module (machine switcher, pairing QR, drawer toggle, phone shell and backdrop, the dsh compatibility notice).
+- `packages/kivotos/src/client.tsx`: client module (machine switcher, pairing QR, drawer toggle, phone shell and backdrop, the dsh compatibility notice, the audio document renderer and the Files path action).
 - `packages/kivotos/src/dsh/`: the dsh adapter, the only code that knows dsh internals. See "The dsh adapter" below.
 - `packages/kivotos/scripts/build.mjs`: esbuild build. `dist/index.js` is one ESM file for Node; `dist/client.js` is wrapped in `window.__ModuleLoader__.load` with `react` taken from dsh's module `require`.
 - `packages/kivotos/locale/en.json`, `packages/kivotos/locale/zh.json`: locale dictionaries.
@@ -158,14 +158,16 @@ Android app:
 
 Kivotos proxies dsh's own UI, so it relies on some dsh 0.2.1-rc.2 internals that are not plugin API. `src/dsh/` is the **only** place that may know one. Everything else calls its functions and never writes a dsh selector, page global, storage key, API path or asset pattern itself; `npm run check:dsh` (`scripts/check-dsh-boundary.mjs`, in the pre-commit hook and the `check` job) fails on one. dsh's plugin API (`ctx.slots`, `ctx.webServer`, `ctx.layout`, typed in `src/dsh.ts`) is not an internal and is used directly.
 
-| Module          | dsh part it owns                                                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `compat.ts`     | the machinery: coupling points, `Probe`, `CompatWatch` (host log), `PageVerdicts` (page probes), the `__KIVOTOS_COMPAT__` page report |
-| `index-html.ts` | the served index: viewport and manifest rewrites, `__DSH_BOOT__` graph, `__DSH_BOOT_READY__` gate, `__DSH_TRANSPORT__`/`ownsHost`     |
-| `desktop.ts`    | the desktop shell's `dshDesktopBoot` bridge and `guardDesktopBoot` (#3)                                                               |
-| `sessions.ts`   | `localStorage["dsh.sessions.current"]`, the per-peer storage namespace, `#kivotos-session=`                                           |
-| `frame.ts`      | the rendered frame, conversation and Settings panel, and the phone stylesheet built from them                                         |
-| `web-server.ts` | `/api/remote.mux` and the Vite asset naming (not probed; degrades by itself)                                                          |
+| Module           | dsh part it owns                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `compat.ts`      | the machinery: coupling points, `Probe`, `CompatWatch` (host log), `PageVerdicts` (page probes), the `__KIVOTOS_COMPAT__` page report |
+| `index-html.ts`  | the served index: viewport and manifest rewrites, `__DSH_BOOT__` graph, `__DSH_BOOT_READY__` gate, `__DSH_TRANSPORT__`/`ownsHost`     |
+| `desktop.ts`     | the desktop shell's `dshDesktopBoot` bridge and `guardDesktopBoot` (#3)                                                               |
+| `sessions.ts`    | `localStorage["dsh.sessions.current"]`, the per-peer storage namespace, `#kivotos-session=`                                           |
+| `files.ts`       | the `dsh-resource://file/session/…` address the Files path action opens                                                               |
+| `open-in-app.ts` | the host-local Open In controls a peer page hides                                                                                     |
+| `frame.ts`       | the rendered frame, conversation and Settings panel, and the phone stylesheet built from them                                         |
+| `web-server.ts`  | `/api/remote.mux` and the Vite asset naming (not probed; degrades by itself)                                                          |
 
 Every function that relies on an internal probes it in the same place it uses it, so the two cannot disagree: a rewrite returns `{ html, probe }` and leaves the page as dsh served it when the probe fails; the phone stylesheet is built from `frame.ts` `PARTS`, and a test fails if it uses a selector that is not a declared part.
 

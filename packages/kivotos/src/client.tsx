@@ -11,6 +11,8 @@
  *
  * A page served through a peer mount hides dsh's host-local "Open In" controls,
  * which would launch applications on the other machine (dsh/open-in-app.ts).
+ * The right Sidebar's document preview gains an audio renderer, and the Files
+ * header an "Open path…" action that opens a file outside the workspace.
  *
  * Built by scripts/build.mjs into the `window.__ModuleLoader__.load` form dsh
  * expects, with `react` taken from dsh's module require.
@@ -21,6 +23,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { AUDIO_EXTENSIONS, audioMimeOf } from "./audio.ts";
 import type { AttentionNotice, AttentionState, PeerAttention } from "./attention-hub.ts";
 import type { AttentionFrame } from "./attention.ts";
 import {
@@ -35,6 +38,7 @@ import {
 } from "./dsh/compat.ts";
 import { DESKTOP_SCHEME, desktopBridge, probeDesktopBridge } from "./dsh/desktop.ts";
 import { hidePeerOpenInApp } from "./dsh/open-in-app.ts";
+import { sessionFileAddress } from "./dsh/files.ts";
 import {
   onSessionRowTap,
   phoneStylesheet,
@@ -76,12 +80,28 @@ interface ClientContext {
     bind(ns: string): Translate;
   };
   layout: { toggleSidebar(): void };
+  /** File-extension renderers (dsh-client-ui-sidebar-documentpreview). */
+  documentPreviews?: {
+    register(definition: {
+      id: string;
+      extensions: readonly string[];
+      binaryExtensions?: readonly string[];
+      priority?: "builtin" | "extension";
+      title: () => string;
+      loading: "text-pages" | "bytes-complete" | "renderer";
+      wrap?: boolean;
+    }): () => void;
+  };
+  /** The right Sidebar's navigation controller (dsh-client-ui-sidebar-right). */
+  sidebarRight?: { openResource(address: string): void };
   slots: {
     inject(name: string, register: () => () => void): void;
     register<Props>(
       registration: {
         name: string;
+        /** Entry id for a list or single slot; the key for a keyed slot. */
         id?: string;
+        key?: string;
         order?: number;
         locale?: string;
         /** Navigation label of a `settings.section`. */
@@ -95,6 +115,8 @@ interface ClientContext {
 }
 
 const NS = "kivotos";
+/** The document renderer id, shared by its registry entry and its keyed slot body. */
+const AUDIO_PREVIEW_ID = "kivotos-audio";
 /** The Kivotos phone app names itself in its WebView's User-Agent (packages/mobile MachineView). */
 const IN_APP = /\bKivotos\b/.test(navigator.userAgent);
 /**
@@ -135,6 +157,12 @@ const ZH = {
   "compat.phoneSettings": "手机全屏设置页",
   "compat.sessionStore": "按会话打开机器",
   "machines.blockedDesktop": "已停用：桌面应用的启动方式已变化",
+  "preview.audio": "音频",
+  "preview.audioUnsupported": "这个浏览器无法播放该音频格式。",
+  "files.openPath": "打开路径…",
+  "files.openPathPlaceholder": "绝对路径，或相对当前目录的路径",
+  "files.open": "打开",
+  "files.cancel": "取消",
 };
 const EN: Record<keyof typeof ZH, string> = {
   "machines.local": "This computer",
@@ -167,6 +195,12 @@ const EN: Record<keyof typeof ZH, string> = {
   "compat.phoneSettings": "Full-screen Settings on phones",
   "compat.sessionStore": "Opening a machine on a Session",
   "machines.blockedDesktop": "Off: the desktop app's boot changed",
+  "preview.audio": "Audio",
+  "preview.audioUnsupported": "This browser cannot play this audio format.",
+  "files.openPath": "Open path…",
+  "files.openPathPlaceholder": "An absolute path, or a path relative to this directory",
+  "files.open": "Open",
+  "files.cancel": "Cancel",
 };
 
 /** The machine switcher, the drawer toggle and the backdrop: Kivotos' own markup. */
@@ -200,7 +234,19 @@ const BASE_CSS = `
 .kivotos-machines-trigger[data-narrow] .kivotos-attention-dot{position:absolute;top:8px;right:8px;width:7px;height:7px}
 .kivotos-drawer-toggle{display:none;width:28px;height:28px;align-items:center;justify-content:center;margin-right:8px;padding:0;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .kivotos-drawer-toggle:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.kivotos-backdrop{position:fixed;inset:0;z-index:29;border:none;padding:0;background:var(--dsw-alias-bg-mask-1);cursor:default}`;
+.kivotos-backdrop{position:fixed;inset:0;z-index:29;border:none;padding:0;background:var(--dsw-alias-bg-mask-1);cursor:default}
+.kivotos-audio{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;box-sizing:border-box;height:100%;min-height:240px;padding:24px}
+.kivotos-audio audio{width:min(520px,100%)}
+.kivotos-audio-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:18px}
+.kivotos-audio-error{max-width:420px;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:18px;text-align:center}
+.kivotos-open-path{display:inline-flex;align-items:center;height:24px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:24px;cursor:pointer;white-space:nowrap}
+.kivotos-open-path:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.kivotos-open-path-form{display:flex;align-items:center;gap:4px}
+.kivotos-open-path-input{box-sizing:border-box;width:min(340px,40vw);height:24px;padding:0 6px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}
+.kivotos-open-path-go,.kivotos-open-path-cancel{height:24px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.kivotos-open-path-go{color:var(--dsw-alias-link)}
+.kivotos-open-path-go:hover,.kivotos-open-path-cancel:hover{background:var(--dsw-alias-interactive-bg-hover)}
+`;
 
 /**
  * The notice a failed point raises: dsh's own toast (ui-primitives Toast,
@@ -1145,7 +1191,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   );
 }
 
-export const inject = ["slots", "locale", "layout"];
+export const inject = ["slots", "locale", "layout", "documentPreviews", "sidebarRight"];
 
 /** Slot props Kivotos injects next to the dsh-supplied ones. */
 interface Injected {
@@ -1381,8 +1427,140 @@ function reportLoadTiming(): () => void {
     clearTimeout(timeout);
   };
 }
+/** What the audio document body receives from the preview. */
+interface AudioPreviewProps {
+  content: { readonly kind: string; readonly data?: Uint8Array<ArrayBuffer> };
+  resourceAddress: string;
+  t: Translate;
+}
+
+/** The file name at the end of a resource address. */
+function fileNameOfAddress(address: string): string {
+  const encoded = address.slice(address.lastIndexOf("/") + 1);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
 /**
- * Client plugin body: dictionaries and the three slot contributions.
+ * The document preview's audio body: one native player over the complete bytes
+ * the owner loaded. The Blob URL is transient view state and is revoked when
+ * the bytes or the tab go away; no audio data reaches a Session or a store.
+ */
+function AudioPreview({ content, resourceAddress, t }: AudioPreviewProps): ReactNode {
+  const name = useMemo(() => fileNameOfAddress(resourceAddress), [resourceAddress]);
+  const data = content.kind === "bytes" ? content.data : undefined;
+  const [url, setUrl] = useState("");
+  const [failed, setFailed] = useState(false);
+  const failedToPlay = useCallback(() => setFailed(true), []);
+  useEffect(() => {
+    if (data === undefined) {
+      setUrl("");
+      return undefined;
+    }
+    const next = URL.createObjectURL(
+      new Blob([data], { type: audioMimeOf(name) || "application/octet-stream" }),
+    );
+    setUrl(next);
+    setFailed(false);
+    return () => URL.revokeObjectURL(next);
+  }, [data, name]);
+  if (data === undefined) return null;
+  return (
+    <div className="kivotos-audio">
+      <span className="kivotos-audio-label" title={name}>
+        {name === "" ? t("preview.audio") : name}
+      </span>
+      {url === "" ? null : <audio controls preload="metadata" src={url} onError={failedToPlay} />}
+      {failed ? <span className="kivotos-audio-error">{t("preview.audioUnsupported")}</span> : null}
+    </div>
+  );
+}
+
+/** What the Files-header action receives: the displayed directory and the opener. */
+interface OpenFilePathProps {
+  t: Translate;
+  absolutePath: string;
+  openFile: (path: string) => void;
+}
+
+/** Whether a path is absolute in either spelling the Host accepts. */
+function isAbsolutePath(path: string): boolean {
+  return /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(path);
+}
+
+/**
+ * The Files-header action: open a file by absolute path, or by a path relative
+ * to the directory the tree shows, in the document preview. The preview's own
+ * file reader resolves absolute paths outside the workspace, so this reaches
+ * another workspace without a second file browser.
+ */
+function OpenFilePath({ t, absolutePath, openFile }: OpenFilePathProps): ReactNode {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const close = useCallback(() => {
+    setOpen(false);
+    setValue("");
+  }, []);
+  const openForm = useCallback(() => setOpen(true), []);
+  const onChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setValue(event.target.value);
+  }, []);
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Escape") close();
+    },
+    [close],
+  );
+  const submit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const path = value.trim();
+      if (path === "") return;
+      const root = absolutePath.replace(/[\\/]+$/, "");
+      openFile(isAbsolutePath(path) ? path : `${root}/${path}`);
+      close();
+    },
+    [absolutePath, close, openFile, value],
+  );
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="kivotos-open-path"
+        title={t("files.openPath")}
+        onClick={openForm}
+      >
+        {t("files.openPath")}
+      </button>
+    );
+  }
+  return (
+    <form className="kivotos-open-path-form" onSubmit={submit}>
+      <input
+        className="kivotos-open-path-input"
+        aria-label={t("files.openPath")}
+        placeholder={t("files.openPathPlaceholder")}
+        value={value}
+        autoFocus
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+      />
+      <button type="submit" className="kivotos-open-path-go">
+        {t("files.open")}
+      </button>
+      <button type="button" className="kivotos-open-path-cancel" onClick={close}>
+        {t("files.cancel")}
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Client plugin body: dictionaries, the machine switcher, the phone shell, the
+ * audio document renderer and the Files path action.
  * @param ctx - Client plugin context.
  */
 export function apply(ctx: ClientContext): void {
@@ -1443,4 +1621,44 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject("shell.overlay", () =>
     ctx.slots.register({ name: "shell.overlay", id: "kivotos-compat", locale: NS }, CompatNotice),
   );
+
+  // The audio renderer and the Files path action extend dsh's own Sidebar:
+  // no second file browser and no second player.
+  const previews = ctx.documentPreviews;
+  if (previews !== undefined) {
+    ctx.effect(
+      () =>
+        previews.register({
+          id: AUDIO_PREVIEW_ID,
+          extensions: AUDIO_EXTENSIONS,
+          binaryExtensions: AUDIO_EXTENSIONS,
+          title: () => t("preview.audio"),
+          loading: "bytes-complete",
+        }),
+      "kivotos: audio preview",
+    );
+    ctx.slots.inject("sidebar.right.tab.document", () =>
+      ctx.slots.register(
+        { name: "sidebar.right.tab.document", key: AUDIO_PREVIEW_ID, locale: NS },
+        AudioPreview,
+      ),
+    );
+  }
+  if (ctx.sidebarRight?.openResource !== undefined) {
+    const openFile = (path: string): void => {
+      const sessionId = currentSession(window.localStorage);
+      if (sessionId !== "") ctx.sidebarRight?.openResource(sessionFileAddress(sessionId, path));
+    };
+    ctx.slots.inject("sidebar.right.tab.files.actions", () =>
+      ctx.slots.register(
+        {
+          name: "sidebar.right.tab.files.actions",
+          id: "kivotos-open-path",
+          locale: NS,
+          inject: () => ({ openFile }),
+        },
+        OpenFilePath,
+      ),
+    );
+  }
 }
