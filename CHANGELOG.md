@@ -2,7 +2,7 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
-## Unreleased
+## v0.1.8
 
 - Android: a machine page that cannot be reached shows the app's cover with the reason each link failed instead of Chromium's error page, and retries after 2, 5 and 10 seconds and then every 15 seconds. It retries at once when the app returns to the foreground or the network changes, and pauses while the app is in the background.
 - Target dsh 0.2.1-rc.2: the pinned release, the index fixture and the prerequisites now name it. Every coupling point still fits — the index rewrites, boot graph, desktop boot gate, phone frame and Session store — and the nightly check passes against it.
