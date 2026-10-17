@@ -6,11 +6,15 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 - Android: a machine page that cannot be reached shows the app's cover with the reason each link failed instead of Chromium's error page, and retries after 2, 5 and 10 seconds and then every 15 seconds. It retries at once when the app returns to the foreground or the network changes, and pauses while the app is in the background.
 - Target dsh 0.2.1-rc.2: the pinned release, the index fixture and the prerequisites now name it. Every coupling point still fits — the index rewrites, boot graph, desktop boot gate, phone frame and Session store — and the nightly check passes against it.
+- A machine opened through Kivotos no longer shows the host-local "Open in" controls, which would launch applications on the other machine. The machine's own page keeps them.
+- The right Sidebar previews audio files (mp3, wav, flac, ogg/oga, m4a, aac and opus) with a native player, and the Files header can open an absolute or workspace-relative path in the preview.
 
 ### 中文
 
 - 安卓：机器页面连不上时不再显示 Chromium 的错误页，而是显示 App 自己的提示卡，说明每种连接方式失败的原因；会在 2、5、10 秒后各重试一次，之后每 15 秒重试，回到前台或网络变化时立即重试，后台时暂停。
 - 适配 dsh 0.2.1-rc.2：固定版本、index 测试夹具和前置条件都改为该版本。所有依赖点（index 改写、boot graph、桌面启动门、手机框架、Session 存储）仍然吻合，针对它的夜间检查通过。
+- 通过 Kivotos 打开的机器页面不再显示「用 xxx 打开」：这些操作会在另一台机器上启动应用。机器自己的页面仍然保留。
+- 右侧栏可以用原生播放器预览音频文件（mp3、wav、flac、ogg/oga、m4a、aac、opus），文件页头也可以按绝对路径或相对路径打开预览。
 
 ## v0.1.7
 
