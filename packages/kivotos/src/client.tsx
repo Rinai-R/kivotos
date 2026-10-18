@@ -11,7 +11,7 @@
  *
  * A page served through a peer mount hides dsh's host-local "Open In" controls,
  * which would launch applications on the other machine (dsh/open-in-app.ts).
- * The right Sidebar's document preview gains an audio renderer, and the Files
+ * The right Sidebar's document preview gains audio and video renderers, and the Files
  * header an "Open path…" action that opens a file outside the workspace.
  *
  * Built by scripts/build.mjs into the `window.__ModuleLoader__.load` form dsh
@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AUDIO_EXTENSIONS, audioMimeOf } from "./audio.ts";
+import { VIDEO_EXTENSIONS, videoMimeOf } from "./video.ts";
 import type { AttentionNotice, AttentionState, PeerAttention } from "./attention-hub.ts";
 import type { AttentionFrame } from "./attention.ts";
 import {
@@ -117,6 +118,8 @@ interface ClientContext {
 const NS = "kivotos";
 /** The document renderer id, shared by its registry entry and its keyed slot body. */
 const AUDIO_PREVIEW_ID = "kivotos-audio";
+/** The video renderer id, shared by its registry entry and its keyed slot body. */
+const VIDEO_PREVIEW_ID = "kivotos-video";
 /** The Kivotos phone app names itself in its WebView's User-Agent (packages/mobile MachineView). */
 const IN_APP = /\bKivotos\b/.test(navigator.userAgent);
 /**
@@ -159,6 +162,8 @@ const ZH = {
   "machines.blockedDesktop": "已停用：桌面应用的启动方式已变化",
   "preview.audio": "音频",
   "preview.audioUnsupported": "这个浏览器无法播放该音频格式。",
+  "preview.video": "视频",
+  "preview.videoUnsupported": "这个浏览器无法播放该视频格式。",
   "files.openPath": "打开路径…",
   "files.openPathPlaceholder": "绝对路径，或相对当前目录的路径",
   "files.open": "打开",
@@ -197,6 +202,8 @@ const EN: Record<keyof typeof ZH, string> = {
   "machines.blockedDesktop": "Off: the desktop app's boot changed",
   "preview.audio": "Audio",
   "preview.audioUnsupported": "This browser cannot play this audio format.",
+  "preview.video": "Video",
+  "preview.videoUnsupported": "This browser cannot play this video format.",
   "files.openPath": "Open path…",
   "files.openPathPlaceholder": "An absolute path, or a path relative to this directory",
   "files.open": "Open",
@@ -239,6 +246,11 @@ const BASE_CSS = `
 .kivotos-audio audio{width:min(520px,100%)}
 .kivotos-audio-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:18px}
 .kivotos-audio-error{max-width:420px;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:18px;text-align:center}
+.kivotos-video{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;box-sizing:border-box;min-height:100%;padding:24px}
+.kivotos-video video{display:block;width:min(760px,100%);max-height:calc(100vh - 200px);border-radius:12px;background:#000}
+.kivotos-video-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:18px}
+.kivotos-video-error{max-width:420px;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:18px;text-align:center}
+@media (max-width:767px){.kivotos-video{padding:16px}}
 .kivotos-open-path{display:inline-flex;align-items:center;height:24px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:24px;cursor:pointer;white-space:nowrap}
 .kivotos-open-path:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .kivotos-open-path-form{display:flex;align-items:center;gap:4px}
@@ -1479,6 +1491,50 @@ function AudioPreview({ content, resourceAddress, t }: AudioPreviewProps): React
   );
 }
 
+/** What the video document body receives from the preview. */
+interface VideoPreviewProps {
+  content: { readonly kind: string; readonly data?: Uint8Array<ArrayBuffer> };
+  resourceAddress: string;
+  t: Translate;
+}
+
+/**
+ * The document preview's video body: one native player over the complete bytes
+ * the owner loaded. The Blob URL is transient view state and is revoked when
+ * the bytes or the tab go away; no video data reaches a Session or a store.
+ */
+function VideoPreview({ content, resourceAddress, t }: VideoPreviewProps): ReactNode {
+  const name = useMemo(() => fileNameOfAddress(resourceAddress), [resourceAddress]);
+  const data = content.kind === "bytes" ? content.data : undefined;
+  const [url, setUrl] = useState("");
+  const [failed, setFailed] = useState(false);
+  const failedToPlay = useCallback(() => setFailed(true), []);
+  useEffect(() => {
+    if (data === undefined) {
+      setUrl("");
+      return undefined;
+    }
+    const next = URL.createObjectURL(
+      new Blob([data], { type: videoMimeOf(name) || "application/octet-stream" }),
+    );
+    setUrl(next);
+    setFailed(false);
+    return () => URL.revokeObjectURL(next);
+  }, [data, name]);
+  if (data === undefined) return null;
+  return (
+    <div className="kivotos-video">
+      <span className="kivotos-video-label" title={name}>
+        {name === "" ? t("preview.video") : name}
+      </span>
+      {failed ? <span className="kivotos-video-error">{t("preview.videoUnsupported")}</span> : null}
+      {failed || url === "" ? null : (
+        <video controls playsInline preload="auto" src={url} onError={failedToPlay} />
+      )}
+    </div>
+  );
+}
+
 /** What the Files-header action receives: the displayed directory and the opener. */
 interface OpenFilePathProps {
   t: Translate;
@@ -1641,6 +1697,23 @@ export function apply(ctx: ClientContext): void {
       ctx.slots.register(
         { name: "sidebar.right.tab.document", key: AUDIO_PREVIEW_ID, locale: NS },
         AudioPreview,
+      ),
+    );
+    ctx.effect(
+      () =>
+        previews.register({
+          id: VIDEO_PREVIEW_ID,
+          extensions: VIDEO_EXTENSIONS,
+          binaryExtensions: VIDEO_EXTENSIONS,
+          title: () => t("preview.video"),
+          loading: "bytes-complete",
+        }),
+      "kivotos: video preview",
+    );
+    ctx.slots.inject("sidebar.right.tab.document", () =>
+      ctx.slots.register(
+        { name: "sidebar.right.tab.document", key: VIDEO_PREVIEW_ID, locale: NS },
+        VideoPreview,
       ),
     );
   }
