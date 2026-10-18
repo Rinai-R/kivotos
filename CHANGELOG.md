@@ -2,6 +2,14 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## Unreleased
+
+- The right Sidebar previews video files (mp4, m4v, mov, webm and ogv) with a native player, the same way it previews audio.
+
+### 中文
+
+- 右侧栏可以用原生播放器预览视频文件（mp4、m4v、mov、webm、ogv），和音频预览的方式一致。
+
 ## v0.1.8
 
 - Android: a machine page that cannot be reached shows the app's cover with the reason each link failed instead of Chromium's error page, and retries after 2, 5 and 10 seconds and then every 15 seconds. It retries at once when the app returns to the foreground or the network changes, and pauses while the app is in the background.
