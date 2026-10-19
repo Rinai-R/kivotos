@@ -16,7 +16,7 @@ import java.util.concurrent.Future
 /** What a dsh index boots from: its boot graph revision and the root-relative targets to load. */
 data class BootResources(val rev: String, val targets: List<String>)
 
-/** The boot graph global as dsh 0.2.0-rc.2 renders it (`webserver/injections.ts`): JSON with `<` escaped. */
+/** The boot graph global as dsh 0.2.1-rc.2 renders it (`webserver/injections.ts`): JSON with `<` escaped. */
 private val BOOT_GRAPH = Regex("""<script>globalThis\["__DSH_BOOT__"\] = (.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
 
 /** `src` and `href` attributes naming a build asset, document-relative or root-relative. */
@@ -64,9 +64,11 @@ fun rootTarget(reference: String): String? = try {
  * comes back after a failed attempt). It reads the index through the machine's
  * door and fetches the missing resources through the door too, two at a time
  * over all machines, so they are stored by the same rules as the WebView's own
- * requests. An unchanged boot graph `rev` skips the fetch. On a metered network
- * it runs only while the app is in the foreground; otherwise it waits for the
- * app to come forward. Failures only reach logcat.
+ * requests, and a batch is put together from the pieces held already
+ * ([Pieces]) as it is for the page. An unchanged boot graph `rev` skips the
+ * fetch. On a metered network it runs only while the app is in the
+ * foreground; otherwise it waits for the app to come forward. Failures only
+ * reach logcat.
  */
 object Prefetch {
   private const val TAG = "KivotosCache"

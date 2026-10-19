@@ -21,15 +21,20 @@ import java.security.SecureRandom
  * (dsh's revisioned plugin batches, and content-hashed Vite assets).
  *
  * An entry is `<name>.body` (the body as received, gzip when the machine
- * compressed it) and `<name>.json` (status, replayed headers, size), under one
- * directory per machine in the app's cache directory. Both are written to temp
- * files, synced and renamed, `.json` last; [init] deletes whatever is not a
- * complete entry. Least recently used entries go past [MAX_BYTES].
+ * compressed it; not content-encoded for a batch [Pieces] put together) and
+ * `<name>.json` (status, replayed headers, size), under one directory per
+ * machine in the app's cache directory. Both are written to temp files, synced
+ * and renamed, `.json` last; [init] deletes whatever is not a complete entry.
+ * Least recently used entries go past [MAX_BYTES].
+ *
+ * The pieces of dsh plugin batches ([Pieces]) are entries of one more
+ * directory, [PIECES], shared by every machine and named by the SHA-256 of
+ * their bytes, which is checked before one is stored.
  *
  * Concurrent misses for one entry fetch once ([Flight], the `flights` of the
  * computer-side cache): the first request leads and tees the body into the
  * entry's temp file; the others read that file as it grows, or, once the
- * entry is stored, from disk. dsh 0.2.0-rc.2 ignores `Range` on its plugin
+ * entry is stored, from disk. dsh 0.2.1-rc.2 ignores `Range` on its plugin
  * batches (`200`, chunked, no `ETag` or `Last-Modified`), so an interrupted
  * body cannot be resumed and is deleted.
  */
@@ -37,21 +42,26 @@ object HttpCache {
   private const val TAG = "KivotosCache"
 
   /**
-   * Cap over all machines. The computer-side cache's default: a dsh 0.2.0-rc.2
-   * client is about 6 MB and its batches change with every dsh launch, so this
-   * holds several revisions of several machines while staying a small share of
-   * a phone's storage. Android may also reclaim the cache directory itself.
+   * Cap over all machines. The computer-side cache's default: a dsh 0.2.1-rc.2
+   * page load is about 11 MB (about 9 MB of it one plugin batch, 11 MB put
+   * together from pieces), and its batch
+   * URLs change whenever a plugin's files change, so this holds several
+   * revisions of several machines while staying a small share of a phone's
+   * storage. Android may also reclaim the cache directory itself.
    */
   const val MAX_BYTES = 256L * 1024 * 1024
 
   /**
    * Cap of one entry: a response larger than this is passed through but not
-   * stored. The largest dsh 0.2.0-rc.2 response is its ~5.4 MB plugin batch.
+   * stored. The largest dsh 0.2.1-rc.2 response is its ~9 MB plugin
+   * batch, 11 MB put together.
    */
   const val ENTRY_MAX_BYTES = MAX_BYTES / 8
 
   private const val ROOT = "kivotos-http"
   private const val REV_FILE = "rev"
+  /** The directory of the batch pieces; machine directories are 32 hex digits. */
+  private const val PIECES = "pieces"
 
   /** One stored response. */
   class Entry(
@@ -264,7 +274,9 @@ object HttpCache {
     } catch (_: IOException) {
       null
     }
-    private var size = 0L
+    /** Body bytes stored so far. */
+    var size = 0L
+      private set
     @Volatile private var wroteAt = SystemClock.elapsedRealtime()
 
     /** Whether it is still storing: the temp file opened, and nothing gave up yet. */
@@ -300,18 +312,7 @@ object HttpCache {
         if (!complete || (expected != null && size != expected)) throw IOException("incomplete body")
         sink.fd.sync()
         sink.close()
-        val body = File(dir, "$name.body")
-        if (!temp.renameTo(body)) throw IOException("rename failed")
-        val list = JSONArray()
-        headers.forEach { (field, value) -> list.put(JSONArray().put(field).put(value)) }
-        val json = JSONObject().put("status", status).put("headers", list).put("size", size).toString().toByteArray()
-        val metaTemp = File(dir, "$name.json.${suffix()}.tmp")
-        FileOutputStream(metaTemp).use { meta ->
-          meta.write(json)
-          meta.fd.sync()
-        }
-        if (!metaTemp.renameTo(File(dir, "$name.json"))) throw IOException("rename failed")
-        added(Entry(dir.name, name, status, headers, size, size + json.size))
+        place(dir, name, temp, status, headers, size)
         flight.settle(true)
       } catch (_: IOException) {
         runCatching { sink.close() }
@@ -347,6 +348,128 @@ object HttpCache {
     if (!writer.open) return null
     flight.started(writer)
     return writer
+  }
+
+  /**
+   * Store the body [Pieces] put together for a batch, as the flight's leader:
+   * the stored [pieces] in order, then [tail]. Unlike a [writer]'s, its
+   * followers see none of it before it is stored, and it is stored only when
+   * it is [size] bytes with this [sha256].
+   * @return whether it is stored.
+   */
+  fun assemble(
+    flight: Flight,
+    machine: String,
+    target: String,
+    headers: List<Pair<String, String>>,
+    pieces: List<String>,
+    tail: ByteArray,
+    size: Long,
+    sha256: String,
+  ): Boolean {
+    val top = root ?: return false
+    if (size > ENTRY_MAX_BYTES) return false
+    val dir = File(top, machineDir(machine)).apply { mkdirs() }
+    val name = entryName(machine, target)
+    val temp = File(dir, "$name.${suffix()}.tmp")
+    return try {
+      val digest = MessageDigest.getInstance("SHA-256")
+      var written = 0L
+      FileOutputStream(temp).use { out ->
+        val buffer = ByteArray(64 * 1024)
+        for (piece in pieces) {
+          (openPiece(piece) ?: throw IOException("piece $piece is gone")).use { input ->
+            while (true) {
+              val count = input.read(buffer)
+              if (count < 0) break
+              written += count
+              if (written > size) throw IOException("longer than the batch")
+              out.write(buffer, 0, count)
+              digest.update(buffer, 0, count)
+            }
+          }
+        }
+        out.write(tail)
+        digest.update(tail)
+        written += tail.size
+        if (written != size || hex(digest.digest()) != sha256) throw IOException("not the batch's bytes")
+        out.fd.sync()
+      }
+      place(dir, name, temp, 200, headers, size)
+      flight.settle(true)
+      true
+    } catch (_: IOException) {
+      temp.delete()
+      false
+    }
+  }
+
+  @Synchronized
+  fun hasPiece(sha256: String): Boolean = entries.containsKey("$PIECES/$sha256")
+
+  /**
+   * Store a piece: the first [size] bytes of [source], when their SHA-256 is [sha256].
+   * @return whether it is stored.
+   */
+  fun storePiece(sha256: String, size: Long, source: InputStream): Boolean {
+    val dir = File(root ?: return false, PIECES).apply { mkdirs() }
+    if (size > ENTRY_MAX_BYTES) return false
+    val temp = File(dir, "$sha256.${suffix()}.tmp")
+    return try {
+      val digest = MessageDigest.getInstance("SHA-256")
+      FileOutputStream(temp).use { out ->
+        val buffer = ByteArray(64 * 1024)
+        var left = size
+        while (left > 0) {
+          val count = source.read(buffer, 0, minOf(left, buffer.size.toLong()).toInt())
+          if (count < 0) throw IOException("the piece ended early")
+          out.write(buffer, 0, count)
+          digest.update(buffer, 0, count)
+          left -= count
+        }
+        if (hex(digest.digest()) != sha256) throw IOException("not the piece's bytes")
+        out.fd.sync()
+      }
+      place(dir, sha256, temp, 200, emptyList(), size)
+      true
+    } catch (_: IOException) {
+      temp.delete()
+      false
+    }
+  }
+
+  /** @return a stored piece, opened and marked recently used; null when it is not stored. */
+  @Synchronized
+  private fun openPiece(sha256: String): InputStream? {
+    val entry = entries["$PIECES/$sha256"] ?: return null
+    val dir = File(root, PIECES)
+    return try {
+      FileInputStream(File(dir, "$sha256.body")).also {
+        File(dir, "$sha256.json").setLastModified(System.currentTimeMillis())
+      }
+    } catch (_: IOException) {
+      forget(entry)
+      null
+    }
+  }
+
+  /**
+   * Move a synced body into place as entry [name] of [dir], then its
+   * metadata, and count it.
+   * @throws IOException when a file cannot be written or renamed.
+   */
+  private fun place(dir: File, name: String, temp: File, status: Int, headers: List<Pair<String, String>>, size: Long) {
+    if (!temp.renameTo(File(dir, "$name.body"))) throw IOException("rename failed")
+    val list = JSONArray()
+    headers.forEach { (field, value) -> list.put(JSONArray().put(field).put(value)) }
+    val json = JSONObject().put("status", status).put("headers", list).put("size", size).toString().toByteArray()
+    val metaTemp = File(dir, "$name.json.${suffix()}.tmp")
+    FileOutputStream(metaTemp).use { meta ->
+      meta.write(json)
+      meta.fd.sync()
+    }
+    if (!metaTemp.renameTo(File(dir, "$name.json"))) throw IOException("rename failed")
+    added(Entry(dir.name, name, status, headers, size, size + json.size))
   }
 
   @Synchronized
@@ -393,7 +516,7 @@ object HttpCache {
     val top = root ?: return
     val keep = ids.map(::machineDir).toSet()
     for (dir in top.listFiles().orEmpty()) {
-      if (dir.name in keep) continue
+      if (dir.name in keep || dir.name == PIECES) continue
       entries.values.filter { it.dir == dir.name }.forEach(::forget)
       dir.deleteRecursively()
       Log.i(TAG, "dropped machine dir=${dir.name}")
@@ -478,4 +601,7 @@ fun entryName(machine: String, target: String): String = sha256Hex("$machine\n$V
 fun machineDir(machine: String): String = sha256Hex(machine).take(32)
 
 private fun sha256Hex(text: String): String =
-  MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+  hex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
+
+/** Lowercase hexadecimal, as the computer writes SHA-256 digests. */
+fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }

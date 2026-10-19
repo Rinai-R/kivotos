@@ -51,15 +51,18 @@ import {
 import {
   forwardHttp,
   forwardUpgrade,
+  getBody,
   getJson,
   HOP_HEADER,
   hostnameOf,
   remoteIp,
   sendJson,
+  type BodyAnswer,
   type HttpStats,
   type Upstream,
   type UpgradeTrace,
 } from "./proxy.ts";
+import { PieceManifests } from "./pieces.ts";
 import { RelayHost } from "./relay-host.ts";
 import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
 import { tracePath } from "./trace-path.ts";
@@ -98,6 +101,11 @@ const TRACE_CLIENT_PATH = "/kivotos/trace/client";
 const TRACE_CLIENT_MAX_BYTES = 256 * 1024;
 /** Tells the client module, on pages the tailnet listener served, to report its load timings. */
 const TRACE_FLAG = "<script>globalThis.__KIVOTOS_TRACE__=true</script>";
+/** What one of this computer's plugin batches is made of (pieces.ts), for the phone. */
+const PIECES_PATH = "/kivotos/pieces";
+/** Largest loopback body a piece manifest reads: a batch is about 11 MB. */
+const PIECES_BODY_MAX_BYTES = 64 * 1024 * 1024;
+const PIECES_TIMEOUT_MS = 60_000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Earliest re-probe of the tailnet after a refresh, when a mount's request failed. */
@@ -170,10 +178,10 @@ const DEFAULTS: KivotosConfig = {
   refreshSeconds: 30,
   offlineDays: 7,
   trace: "requests",
-  // One dsh 0.2.1-rc.2 page load stores about 11 MB (gzip); every launch of a
-  // peer's dsh revisions its plugin batches anew. 256 MB holds some 20 such
-  // sets, a few launches of every peer in a household tailnet, before the
-  // least recently used go.
+  // One dsh 0.2.1-rc.2 page load stores about 11 MB (about 9 MB of it the
+  // plugin batch); every launch of a peer's dsh revisions its plugin batches
+  // anew. 256 MB holds some 20 such sets, a few launches of every peer in a
+  // household tailnet, before the least recently used go.
   cacheMegabytes: 256,
   cacheWarm: true,
   notify: true,
@@ -573,6 +581,7 @@ export class Frontend {
   private readonly attention: AttentionTracker;
   private readonly trace: TraceLog;
   private readonly self: () => SelfView;
+  private readonly pieces: PieceManifests;
 
   constructor(
     ctx: HostContext,
@@ -585,6 +594,7 @@ export class Frontend {
     this.trace = trace;
     this.self = self;
     this.session = new LoopbackSession(ctx, trace);
+    this.pieces = new PieceManifests((target, headers) => this.local(target, headers));
   }
 
   private upstream(cookie: string): Upstream {
@@ -594,6 +604,20 @@ export class Frontend {
       authority: this.session.authority,
       cookie,
     };
+  }
+
+  /** A whole loopback body, for the piece manifests. */
+  private async local(target: string, headers: IncomingHttpHeaders): Promise<BodyAnswer> {
+    const upstream = this.upstream(await this.session.get());
+    const answer = await getBody(
+      upstream,
+      target,
+      headers,
+      PIECES_TIMEOUT_MS,
+      PIECES_BODY_MAX_BYTES,
+    );
+    if (answer.status === 401) this.session.invalidate();
+    return answer;
   }
 
   async request(req: IncomingMessage, res: ServerResponse, who: Caller): Promise<void> {
@@ -632,6 +656,24 @@ export class Frontend {
       streamAttention(req, res, attention, after, (frames) =>
         trace.record("sse.close", { id, frames, durationMs: ms(performance.now() - opened) }),
       );
+      return;
+    }
+    if (parsed.pathname === PIECES_PATH && req.method === "GET") {
+      const started = performance.now();
+      const batch = parsed.searchParams.get("batch") ?? "";
+      const outcome = await this.pieces.manifest(batch);
+      const found = !("reason" in outcome);
+      trace.record("http", {
+        ...base,
+        status: found ? 200 : 404,
+        local: true,
+        batch: tracePath(batch),
+        ...(found
+          ? { pieces: outcome.pieces.length, bytes: outcome.bytes }
+          : { reason: outcome.reason }),
+        totalMs: ms(performance.now() - started),
+      });
+      sendJson(res, found ? 200 : 404, found ? outcome : { reason: outcome.reason });
       return;
     }
     if (parsed.pathname === TRACE_CLIENT_PATH && req.method === "POST") {

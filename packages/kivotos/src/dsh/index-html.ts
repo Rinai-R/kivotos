@@ -71,12 +71,18 @@ export function credentialedManifest(html: string): Rewritten {
 /** The boot graph script (`webserver/injections.ts`), JSON with `<` escaped. */
 const BOOT_GRAPH_SCRIPT = /<script>globalThis\["__DSH_BOOT__"\] = (.*?)<\/script>/s;
 
-/** A parsed `__DSH_BOOT__` graph, reduced to what the warm-up reads. */
+/** A parsed `__DSH_BOOT__` graph, reduced to what the warm-up and the piece manifests read. */
 export interface BootGraph {
   /** The graph's revision: unchanged means the same resources. */
   readonly rev: string;
   /** The batches' URLs, in boot order. */
   readonly urls: readonly string[];
+  /**
+   * Each batch's rows by batch URL: the URL each row is served at on its own
+   * (`entries[].url`), in batch order. A batch whose rows the graph does not
+   * name that way is left out.
+   */
+  readonly rows: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -107,14 +113,28 @@ function graphOf(json: string): BootGraph | undefined {
   const rev: unknown = Reflect.get(graph, "rev");
   const batches: unknown = Reflect.get(graph, "batches");
   if (typeof rev !== "string" || !Array.isArray(batches)) return undefined;
+  const own = new Map<string, string>();
+  const entries: unknown = Reflect.get(graph, "entries");
+  for (const entry of Array.isArray(entries) ? (entries as unknown[]) : []) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const id: unknown = Reflect.get(entry, "id");
+    const url: unknown = Reflect.get(entry, "url");
+    if (typeof id === "string" && typeof url === "string") own.set(id, url);
+  }
   const urls: string[] = [];
+  const rows = new Map<string, string[]>();
   for (const batch of batches as unknown[]) {
     const url: unknown =
       typeof batch === "object" && batch !== null ? Reflect.get(batch, "url") : undefined;
     if (typeof url !== "string") return undefined;
     urls.push(url);
+    const ids: unknown = Reflect.get(batch as object, "entries");
+    const row = Array.isArray(ids) ? (ids as unknown[]).map((id) => own.get(String(id))) : [];
+    if (row.length > 0 && row.every((item): item is string => item !== undefined)) {
+      rows.set(url, row);
+    }
   }
-  return { rev, urls };
+  return { rev, urls, rows };
 }
 
 /**

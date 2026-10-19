@@ -53,6 +53,17 @@ test("every index rewrite applies to the index dsh 0.2.1-rc.2 serves", () => {
   assert.equal(guardDesktopBoot(PINNED, "/kivotos/peer/b").probe.state, "ok");
   // The warm-up reads its targets from the same graph the probe accepted.
   assert.ok((bootResources(PINNED)?.targets.length ?? 0) > 0);
+  // The piece manifests read every batch's rows, each served on its own URL.
+  const graph = bootGraphOf(PINNED).graph;
+  assert.deepEqual(
+    graph?.urls.map((url) => graph.rows.get(url)?.length),
+    [1, 57, 11],
+  );
+  assert.ok(
+    [...(graph?.rows.values() ?? [])]
+      .flat()
+      .every((row) => /^plugins\/\?\?[^,]+&rev=\w+$/.test(row)),
+  );
 });
 
 test("a changed index is served as dsh sent it, and says which markup moved", () => {
