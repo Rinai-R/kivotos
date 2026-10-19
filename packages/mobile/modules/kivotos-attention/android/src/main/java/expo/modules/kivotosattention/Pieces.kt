@@ -8,6 +8,7 @@ import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicReference
@@ -39,11 +40,17 @@ interface MachineGet : Closeable {
  * and SHA-256. Anything else, a machine whose Kivotos has no manifest
  * included, leaves the batch to be fetched whole: the page never gets bytes
  * that are not the batch's.
+ *
+ * With no piece held and six or more rows, one whole batch beats forty round
+ * trips: the door fetches it once, splits it against the manifest, and stores
+ * the pieces for the next update. Fewer missing pieces are fetched one by one.
  */
 object Pieces {
   private const val TAG = "KivotosCache"
   private const val MANIFEST_PATH = "/kivotos/pieces"
   private const val MANIFEST_MAX_BYTES = 1024 * 1024
+  /** At or above this many missing pieces, one whole batch beats this many round trips. */
+  private const val COLD_WHOLE_MIN = 6
   /** Pieces downloading at a time, over all machines. */
   private val slots = Semaphore(2)
 
@@ -88,6 +95,36 @@ object Pieces {
       val manifest = manifest(first, prefix, batch)
       val manifestWire = first.wire
       val missing = manifest.pieces.filter { !HttpCache.hasPiece(it.sha256) }.distinctBy { it.sha256 }
+      if (missing.size == manifest.pieces.size && manifest.pieces.size >= COLD_WHOLE_MIN) {
+        val whole = readWhole(first, target, manifest.bytes)
+        if (whole.size.toLong() != manifest.bytes || sha256(whole) != manifest.sha256) {
+          throw Fallback("the whole batch is not its manifest")
+        }
+        var offset = 0
+        for (piece in manifest.pieces) {
+          val end = offset + piece.bytes.toInt()
+          if (end > whole.size) throw Fallback("the whole batch is shorter than its pieces")
+          val bytes = whole.copyOfRange(offset, end)
+          if (sha256(bytes) != piece.sha256) throw Fallback("a piece is not in the whole batch")
+          if (!HttpCache.storePiece(piece.sha256, piece.bytes, bytes.inputStream())) {
+            throw Fallback("a piece is not stored")
+          }
+          offset = end
+        }
+        if (offset + manifest.tail.size != whole.size) {
+          throw Fallback("the whole batch is not its pieces and tail")
+        }
+        val stored = HttpCache.assemble(
+          flight, machine, target, manifest.headers, manifest.pieces.map { it.sha256 }, manifest.tail, manifest.bytes, manifest.sha256,
+        )
+        if (!stored) throw Fallback("the whole batch is not stored")
+        Log.i(
+          TAG,
+          "pieces '$label' rev=$rev rows=${manifest.pieces.size} cold-whole manifestWire=$manifestWire " +
+            "wire=${first.wire - manifestWire} bytes=${manifest.bytes} ms=${SystemClock.elapsedRealtime() - started}",
+        )
+        return true
+      }
       val queue = ConcurrentLinkedQueue(missing)
       val failure = AtomicReference<String?>(null)
       fun work(client: MachineGet) {
@@ -169,6 +206,25 @@ object Pieces {
     if (!sound) throw Fallback("a malformed manifest")
     return Manifest(bytes, sha256, head.fields, pieces, tail)
   }
+
+  /** Read one whole batch, decoding gzip, and never past its manifest's size. */
+  private fun readWhole(client: MachineGet, target: String, limit: Long): ByteArray {
+    return client.get(target, "*/*") { head, body ->
+      if (head.status != 200) throw Fallback("the whole batch answered ${head.status}")
+      val out = ByteArrayOutputStream()
+      val buffer = ByteArray(64 * 1024)
+      while (true) {
+        val count = body.read(buffer)
+        if (count < 0) break
+        if (out.size().toLong() + count > limit) throw Fallback("the whole batch is longer than its manifest")
+        out.write(buffer, 0, count)
+      }
+      out.toByteArray()
+    }
+  }
+
+  private fun sha256(bytes: ByteArray): String =
+    hex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
   private fun readText(body: InputStream): String {
     val out = ByteArrayOutputStream()

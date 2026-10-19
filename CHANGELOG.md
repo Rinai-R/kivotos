@@ -5,12 +5,12 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 ## Unreleased
 
 - The right Sidebar previews video files (mp4, m4v, mov, webm and ogv) with a native player, the same way it previews audio.
-- A phone that misses a dsh plugin batch asks the host what the batch is made of and downloads only the pieces it does not already hold, keyed by content and shared across machines. The host offers a manifest only when its rows add up to the batch byte for byte; the phone stores the assembled batch only when its size and SHA-256 match. Anything else fetches the batch whole, so a plugin update no longer re-downloads the whole ~9 MB batch: only the changed rows are fetched.
+- A phone that misses a dsh plugin batch asks the host what the batch is made of and downloads only the pieces it does not already hold, keyed by content and shared across machines. The host offers a manifest only when its rows add up to the batch byte for byte; the phone stores the assembled batch only when its size and SHA-256 match. Anything else fetches the batch whole, so a plugin update no longer re-downloads the whole ~9 MB batch: only the changed rows are fetched. On a cold cache with six or more rows it fetches the batch once and splits it locally against the manifest, instead of one request per row.
 
 ### 中文
 
 - 右侧栏可以用原生播放器预览视频文件（mp4、m4v、mov、webm、ogv），和音频预览的方式一致。
-- 手机缺少 dsh 插件包时，先向宿主机询问这个包由哪些片段组成，只下载自己没有的片段；片段按内容寻址并跨机器共享。宿主机只有在逐字节核对片段能拼回整个包后才提供 manifest；手机只有在拼出的总大小和 SHA-256 匹配时才落盘。任何一步不对就回退整包下载。升级一个插件后不再重下整个约 9 MB 的包，只下载变化的行。
+- 手机缺少 dsh 插件包时，先向宿主机询问这个包由哪些片段组成，只下载自己没有的片段；片段按内容寻址并跨机器共享。宿主机只有在逐字节核对片段能拼回整个包后才提供 manifest；手机只有在拼出的总大小和 SHA-256 匹配时才落盘。任何一步不对就回退整包下载。升级一个插件后不再重下整个约 9 MB 的包，只下载变化的行。空缓存且片段有 6 个以上时，先整包下载一次并在本地按 manifest 切开，避免一行一个请求。
 
 ## v0.1.8
 
