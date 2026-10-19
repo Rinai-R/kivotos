@@ -225,6 +225,56 @@ function jsonObject(bytes: Buffer): Record<string, unknown> | undefined {
   }
 }
 
+/** What {@link getBody} read. */
+export interface BodyAnswer {
+  status: number;
+  headers: IncomingHttpHeaders;
+  body: Buffer;
+}
+
+/**
+ * GET a whole body from `upstream` (the loopback dsh), not content-encoded.
+ * @param headers - request headers; Host, Cookie and the hop mark are the upstream's.
+ * @returns the answer; rejects when the connection fails or times out, when
+ * the body is content-encoded, or when it is larger than `limit` bytes.
+ */
+export function getBody(
+  upstream: Upstream,
+  path: string,
+  headers: IncomingHttpHeaders,
+  timeoutMs: number,
+  limit: number,
+): Promise<BodyAnswer> {
+  const { promise, resolve, reject } = Promise.withResolvers<BodyAnswer>();
+  const req = upstreamRequest(upstream, {
+    method: "GET",
+    path,
+    headers: forwardHeaders({ ...headers, "accept-encoding": "identity" }, upstream),
+  });
+  req.setTimeout(timeoutMs, () => req.destroy(new Error(`GET ${path}: timed out`)));
+  req.on("response", (res) => {
+    const encoding = res.headers["content-encoding"];
+    if (encoding !== undefined && encoding !== "identity") {
+      req.destroy(new Error(`GET ${path}: content-encoding ${encoding}`));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    res.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > limit) req.destroy(new Error(`GET ${path}: larger than ${limit} bytes`));
+      else chunks.push(chunk);
+    });
+    res.on("end", () =>
+      resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }),
+    );
+    res.on("error", reject);
+  });
+  req.on("error", reject);
+  req.end();
+  return promise;
+}
+
 /**
  * Forward one HTTP exchange to `upstream`. Responses stream (dsh HMR is an
  * EventSource) except uncompressed HTML handed to `options.html`. Upstream

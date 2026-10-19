@@ -173,6 +173,81 @@ fun copyBody(source: InputStream, sink: OutputStream, framing: Framing, tap: ((B
   }
 }
 
+/**
+ * One message body read as a stream, its framing removed: what a door reads
+ * for itself rather than passing on. It ends where the body does, so the
+ * connection can carry the next exchange once it is [drain]ed.
+ */
+class BodyInput(private val source: InputStream, private val framing: Framing) : InputStream() {
+  /** Body bytes read off the wire so far, chunk framing excluded. */
+  var wire = 0L
+    private set
+  /** Bytes left in the current chunk, or of the whole body for a framed length. */
+  private var left = (framing as? Framing.Length)?.bytes ?: 0L
+  private var chunks = 0
+  private var ended = framing == Framing.None
+
+  override fun read(): Int {
+    val one = ByteArray(1)
+    return if (read(one, 0, 1) < 0) -1 else one[0].toInt() and 0xff
+  }
+
+  override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+    if (ended) return -1
+    if (length == 0) return 0
+    val open = when (framing) {
+      Framing.None -> false
+      is Framing.Length -> left > 0
+      Framing.Chunked -> left > 0 || nextChunk()
+      Framing.UntilClose -> true
+    }
+    if (!open) {
+      ended = true
+      return -1
+    }
+    val want = if (framing == Framing.UntilClose) length else minOf(length.toLong(), left).toInt()
+    val count = source.read(buffer, offset, want)
+    if (count < 0) {
+      if (framing != Framing.UntilClose) throw IOException("closed inside a message body")
+      ended = true
+      return -1
+    }
+    left -= count
+    wire += count
+    return count
+  }
+
+  /** Read the rest of the body and drop it. */
+  fun drain() {
+    val buffer = ByteArray(32 * 1024)
+    while (read(buffer, 0, buffer.size) >= 0) Unit
+  }
+
+  /** @return false at the last chunk (its trailer fields read). */
+  private fun nextChunk(): Boolean {
+    if (chunks++ > 0) line() // The CRLF closing the chunk before.
+    val size = line().substringBefore(';').trim().toLongOrNull(16) ?: throw IOException("bad chunk size")
+    if (size == 0L) {
+      while (line().isNotEmpty()) Unit // Trailer fields, then the blank line.
+      return false
+    }
+    left = size
+    return true
+  }
+
+  private fun line(): String {
+    val bytes = ByteArrayOutputStream()
+    while (true) {
+      val byte = source.read()
+      if (byte < 0) throw IOException("closed inside chunk framing")
+      if (byte == 10) break
+      bytes.write(byte)
+      if (bytes.size() > 4096) throw IOException("chunk line too long")
+    }
+    return String(bytes.toByteArray(), Charsets.ISO_8859_1).trimEnd('\r')
+  }
+}
+
 /** Copy everything until the source ends; a tunnel after a protocol switch. */
 fun pump(source: InputStream, sink: OutputStream) {
   val buffer = ByteArray(32 * 1024)

@@ -25,6 +25,8 @@ import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.GZIPInputStream
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLException
@@ -72,6 +74,8 @@ object MachineProxy {
    * kept-alive connections after 5 s (`keepAliveTimeout`).
    */
   private const val UPSTREAM_IDLE_MS = 4_000L
+  /** A GET of the door's own ([Client]) that takes longer is given up. */
+  private const val OWN_GET_MS = 60_000L
 
   /** One secret per app process; the WebView gets it as a cookie. */
   private val token: String = Base64.encodeToString(
@@ -381,6 +385,8 @@ object MachineProxy {
   ) {
     private val machine = door.machine.id
     private val target = head.target
+    /** Whether this exchange tried to put its batch together already. */
+    private var pieced = false
 
     /** @return whether the WebView connection stays open for another request. */
     fun run(): Boolean {
@@ -392,6 +398,20 @@ object MachineProxy {
         if (hit()) return !head.closes
         val claim = HttpCache.claim(machine, target) ?: continue
         if (claim.leads) {
+          if (!pieced && Pieces.batch(target)) {
+            pieced = true
+            val first = Client(door)
+            if (Pieces.assemble(door.machine.name, machine, target, claim.flight, first) { Client(door) }) {
+              HttpCache.land(claim.flight)
+              continue
+            }
+            // No link reached the machine: say so now rather than dial it again.
+            first.unreached?.let { failure ->
+              HttpCache.land(claim.flight)
+              unreachable(toClient, door, failure)
+              return false
+            }
+          }
           try {
             return forward(claim.flight)
           } finally {
@@ -509,7 +529,7 @@ object MachineProxy {
         watch?.cancel(false)
         if (writer != null) {
           writer.commit(complete)
-          Log.d(TAG, "${if (complete) "stored" else "unstored"} '${door.machine.name}' ${target.substringBefore('?')}")
+          Log.d(TAG, "${if (complete) "stored" else "unstored"} '${door.machine.name}' ${target.substringBefore('?')} bytes=${writer.size}")
         }
       }
       if (!complete || framing == Framing.UntilClose || response.closes) {
@@ -520,6 +540,67 @@ object MachineProxy {
       up.idleSince = SystemClock.elapsedRealtime()
       // A client that went away gets its connection closed.
       return !head.closes && !(sink is Detachable && sink.gone)
+    }
+  }
+
+  /**
+   * GETs the door makes itself (a batch's manifest and pieces, [Pieces]), one
+   * at a time over a connection of its own to the machine, kept between them.
+   * One that takes longer than [OWN_GET_MS] is given up: its connection is closed.
+   */
+  private class Client(private val door: Door) : MachineGet {
+    private var upstream: Upstream? = null
+    override var wire = 0L
+      private set
+    /** Why no link reached the machine, when that is how a GET failed. */
+    var unreached: Unreachable? = null
+      private set
+
+    override fun <T> get(target: String, accept: String, read: (HttpHead, InputStream) -> T): T {
+      upstream?.let { if (SystemClock.elapsedRealtime() - it.idleSince > UPSTREAM_IDLE_MS) close() }
+      val up = upstream ?: try {
+        dial(door).also { upstream = it }
+      } catch (failure: Unreachable) {
+        unreached = failure
+        throw failure
+      }
+      val done = AtomicBoolean(false)
+      val timer = watchdog.schedule({ if (!done.get()) up.close() }, OWN_GET_MS, TimeUnit.MILLISECONDS)
+      var body: BodyInput? = null
+      try {
+        val head = HttpHead(
+          "GET $target HTTP/1.1",
+          mutableListOf("Host" to door.origin.removePrefix("http://"), "Accept" to accept, "Accept-Encoding" to VARIANT),
+        )
+        address(door, head, up)
+        up.output.write(head.bytes())
+        up.output.flush()
+        var response = HttpHead.read(up.input) ?: throw IOException("closed before answering")
+        while (response.status in 100..199) response = HttpHead.read(up.input) ?: throw IOException("closed before answering")
+        val framing = Framing.ofResponse("GET", response)
+        val raw = BodyInput(up.input, framing).also { body = it }
+        val decoded = when (val coding = response["content-encoding"]?.trim()?.lowercase()) {
+          null, "", "identity" -> raw
+          "gzip", "x-gzip" -> GZIPInputStream(raw, 64 * 1024)
+          else -> throw IOException("content-encoding $coding")
+        }
+        val result = read(response, decoded)
+        raw.drain()
+        if (framing == Framing.UntilClose || response.closes) close() else up.idleSince = SystemClock.elapsedRealtime()
+        return result
+      } catch (failure: Exception) {
+        close()
+        throw failure
+      } finally {
+        done.set(true)
+        timer.cancel(false)
+        wire += body?.wire ?: 0
+      }
+    }
+
+    override fun close() {
+      upstream?.close()
+      upstream = null
     }
   }
 
