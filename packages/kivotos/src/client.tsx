@@ -41,6 +41,7 @@ import { DESKTOP_SCHEME, desktopBridge, probeDesktopBridge } from "./dsh/desktop
 import { hidePeerOpenInApp } from "./dsh/open-in-app.ts";
 import { sessionFileAddress } from "./dsh/files.ts";
 import {
+  dismissTopLayer,
   onSessionRowTap,
   phoneStylesheet,
   probePhoneConversation,
@@ -493,7 +494,38 @@ function openMachine(peer: string | null, machine?: MachineInfo): void {
 /** What the phone app's injected bridge adds to its pages (packages/mobile/src/bridge.ts). */
 interface AppBridge {
   __kivotosSwitch?: boolean;
+  /** What the app's hardware Back asks the page first (`usePhoneBack`). */
+  __kivotosBack?: () => boolean;
   ReactNativeWebView?: { postMessage(data: string): void };
+}
+
+/**
+ * The phone app's hardware Back, inside dsh first, as a native app's stack:
+ * a menu or Settings over the page goes first (`dismissTopLayer`), then the
+ * conversation goes back to its Session list (the drawer opens). With the
+ * Session list open the page has nothing left to go back to: it answers
+ * false and the app shows its machine list. The app asks
+ * `window.__kivotosBack` and falls back to its list when a page (an older
+ * Kivotos) has none.
+ * @param active - the drawer layout applies (phone width, frame as pinned).
+ * @param collapsed - the drawer is closed.
+ * @param toggleSidebar - opens or closes the drawer.
+ */
+function usePhoneBack(active: boolean, collapsed: boolean, toggleSidebar: () => void): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    const page = window as unknown as AppBridge;
+    const back = (): boolean => {
+      if (dismissTopLayer(document)) return true;
+      if (!collapsed) return false;
+      toggleSidebar();
+      return true;
+    };
+    page.__kivotosBack = back;
+    return () => {
+      if (page.__kivotosBack === back) delete page.__kivotosBack;
+    };
+  }, [active, collapsed, toggleSidebar]);
 }
 
 /**
@@ -1247,6 +1279,7 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const report = useCompat();
   const layout = usable(report, "phone-layout");
   useCloseDrawerOnSelect(layout && phone && !collapsed, toggleSidebar);
+  usePhoneBack(layout && phone, collapsed, toggleSidebar);
   return (
     <>
       <style>{BASE_CSS + SETTINGS_CSS + hidePeerOpenInApp()}</style>

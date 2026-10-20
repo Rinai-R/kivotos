@@ -54,6 +54,12 @@ export const PARTS = {
   themeCube: suffix("themeCube"),
   /** A Session row in the sidebar tree; workspace folders carry aria-expanded. */
   treeItem: "[role=treeitem]",
+  /** The Settings panel's close button, in its header. */
+  close: suffix("close"),
+  /** An open dsh menu (account menu, row menus); it closes on a press outside it. */
+  menu: "[role=menu]",
+  /** A dsh modal dialog, such as the preview notice, closed only by its own buttons. */
+  modal: '[role=dialog][aria-modal="true"]',
 } as const;
 
 const P = PARTS;
@@ -241,9 +247,41 @@ export function onSessionRowTap(onOpen: () => void): () => void {
   return () => sidebar?.removeEventListener("click", onClick);
 }
 
+/** Kivotos' own machine switcher list (client.tsx), which closes like a dsh menu. */
+const SWITCHER_LIST = ".kivotos-machines-list";
+
+/**
+ * Spend a phone Back on the topmost layer dsh shows over the page, as a
+ * native app's Back would: an open menu is dismissed (by a press outside it,
+ * which is how dsh's menus and the switcher close); the Settings panel or a
+ * modal dialog is closed by its own close button (`_close`, as dsh marks it
+ * on both); a modal without one (the preview notice) keeps Back, like a
+ * non-cancelable native dialog.
+ * @param page - the page dsh rendered.
+ * @returns whether Back was spent here; false leaves it to the caller.
+ */
+export function dismissTopLayer(page: Document): boolean {
+  if (page.querySelector(`${P.menu}, ${SWITCHER_LIST}`) !== null) {
+    const outside = page.querySelector(P.centerCol) ?? page.body;
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+      const Event = type.startsWith("pointer") ? PointerEvent : MouseEvent;
+      outside.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, composed: true }));
+    }
+    return true;
+  }
+  const modals = page.querySelectorAll(P.modal);
+  const modal = modals.item(modals.length - 1);
+  const close =
+    modal === null
+      ? page.querySelector(`${P.settings} ${P.header} > button${P.close}`)
+      : modal.querySelector(`button${P.close}`);
+  if (close instanceof HTMLElement) close.click();
+  return modal !== null || close !== null;
+}
+
 /** Strings the nightly check expects in dsh's bundles (scripts/dsh-compat.mjs). */
 export const MARKERS = Object.values(PARTS)
-  .filter((part) => part !== PARTS.treeItem)
+  .filter((part) => part !== PARTS.treeItem && part !== PARTS.menu && part !== PARTS.modal)
   .map(
     (part) => /^\[class\*="(_\w+)"\]$/.exec(part)?.[1] ?? /^\[?([\w-]+)/.exec(part)?.[1] ?? part,
   );
