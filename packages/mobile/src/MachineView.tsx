@@ -22,6 +22,7 @@ import {
 } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import {
   assignScript,
+  backScript,
   BRIDGE,
   openSessionScript,
   parseBridgeMessage,
@@ -44,6 +45,12 @@ const USER_AGENT_NAME = "Kivotos";
 const RETRY_MS = [2000, 5000, 10_000, 15_000];
 /** Retries on a network change or a return to the app closer together than this are one. */
 const RETRY_BURST_MS = 1000;
+/**
+ * How long a Back waits for the page's answer (`kivotos.back`) before the app
+ * takes it: a page that hangs, or does not run the bridge, never keeps the
+ * user in it.
+ */
+const BACK_ANSWER_MS = 400;
 
 /** The page's main document did not load: the app's cover replaces it. */
 interface Failure {
@@ -124,6 +131,10 @@ export const MachineView = memo(function MachineView(props: Props) {
   const web = useRef<WebView>(null);
   const holder = useRef<View>(null);
   const canGoBack = useRef(false);
+  // The last hardware Back offered to the page, and the timer that takes it
+  // when the page does not answer (`BACK_ANSWER_MS`).
+  const backSeq = useRef(0);
+  const backWait = useRef<ReturnType<typeof setTimeout> | null>(null);
   // A Session to open once dsh is up: the request the page was mounted with, or one that came while it loaded.
   const pending = useRef(open?.sessionId ?? null);
   const handled = useRef(open?.seq);
@@ -179,21 +190,55 @@ export const MachineView = memo(function MachineView(props: Props) {
     if (visible && shell.current) reportReady();
   }, [visible, reportReady]);
 
-  // Only the page on screen takes the hardware Back.
+  // Only the page on screen takes the hardware Back: the WebView's history
+  // first, then the page itself (a menu, Settings, the conversation back to
+  // its Session list; `backScript`), and only what the page leaves goes to
+  // the app (a peer's page to its computer's, a row's page to the list).
+  // A page whose shell is not up, or behind the offline card, has nothing to
+  // go back to.
+  const failed = failure !== null;
+  const onHardwareBack = useCallback((): boolean => {
+    if (canGoBack.current) {
+      web.current?.goBack();
+      return true;
+    }
+    // The page is still answering the last Back.
+    if (backWait.current !== null) return true;
+    if (failed || !shell.current || web.current === null) {
+      onBack(viewKey);
+      return true;
+    }
+    backSeq.current += 1;
+    const seq = backSeq.current;
+    backWait.current = setTimeout(() => {
+      backWait.current = null;
+      if (seq === backSeq.current) onBack(viewKey);
+    }, BACK_ANSWER_MS);
+    web.current.injectJavaScript(backScript(seq));
+    return true;
+  }, [failed, viewKey, onBack]);
   useEffect(() => {
     if (!visible) return undefined;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (canGoBack.current) web.current?.goBack();
-      else onBack(viewKey);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [visible, viewKey, onBack]);
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+    return () => {
+      subscription.remove();
+      if (backWait.current !== null) clearTimeout(backWait.current);
+      backWait.current = null;
+    };
+  }, [visible, onHardwareBack]);
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const message = parseBridgeMessage(event.nativeEvent.data);
       if (message === null) return;
+      if (message.type === "kivotos.back") {
+        // Only the answer to the Back still waiting counts.
+        if (message.seq !== backSeq.current || backWait.current === null) return;
+        clearTimeout(backWait.current);
+        backWait.current = null;
+        if (!message.handled) onBack(viewKey);
+        return;
+      }
       // A document that loaded without an error runs the bridge: the page is back.
       if (!errored.current) setFailure(null);
       if (message.type === "kivotos.switch") {
@@ -224,7 +269,7 @@ export const MachineView = memo(function MachineView(props: Props) {
       session.current = message.sessionId;
       if (visible) onSession(viewKey, message.sessionId);
     },
-    [viewKey, visible, onSession, onSwitch, onReady, reportReady],
+    [viewKey, visible, onSession, onSwitch, onReady, onBack, reportReady],
   );
   const onNavigation = useCallback((state: WebViewNavigation) => {
     canGoBack.current = state.canGoBack;
@@ -294,7 +339,6 @@ export const MachineView = memo(function MachineView(props: Props) {
   }, [failure, visible, active, retry]);
 
   // ... and at once when the phone's network changes, only in the foreground.
-  const failed = failure !== null;
   useEffect(() => {
     if (!failed || !visible || !active) return undefined;
     return onNetwork(retryNow);

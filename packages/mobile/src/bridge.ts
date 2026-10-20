@@ -82,6 +82,22 @@ export function assignScript(path: string): string {
   return `location.assign(${JSON.stringify(path)}); true;`;
 }
 
+/**
+ * Script that offers the hardware Back to the page first: the plugin's
+ * `window.__kivotosBack` (packages/kivotos/src/client.tsx, `usePhoneBack`)
+ * closes what dsh shows over the conversation, or opens its Session list, and
+ * answers whether it did. A page without one (an older Kivotos) answers false.
+ * @param seq - which Back this answers, so a late answer to an earlier one is ignored.
+ * @returns script source; the page posts `kivotos.back`.
+ */
+export function backScript(seq: number): string {
+  return `(() => {
+  let handled = false;
+  try { handled = typeof window.__kivotosBack === "function" && window.__kivotosBack() === true; } catch (e) {}
+  window.ReactNativeWebView.postMessage(JSON.stringify({ type: "kivotos.back", seq: ${seq}, handled }));
+})(); true;`;
+}
+
 /** The machine a switcher row names, as the page's computer knows it (`MachineInfo`). */
 export interface SwitchTarget {
   /** The computer's mount id; null for "This computer", the page's computer itself. */
@@ -106,6 +122,8 @@ export type BridgeMessage =
   | { type: "ready" }
   /** {@link PEERS_SCRIPT}'s answer; null when the computer did not list its machines. */
   | { type: "kivotos.peers"; machines: ListedMachine[] | null }
+  /** {@link backScript}'s answer: whether the page spent the Back itself. */
+  | { type: "kivotos.back"; seq: number; handled: boolean }
   | {
       type: "kivotos.switch";
       machine: SwitchTarget;
@@ -195,6 +213,10 @@ export function parseBridgeMessage(data: string): BridgeMessage | null {
       type: "kivotos.peers",
       machines: Array.isArray(message.machines) ? message.machines.flatMap(listedOf) : null,
     };
+  if (message.type === "kivotos.back")
+    return typeof message.seq === "number"
+      ? { type: "kivotos.back", seq: message.seq, handled: message.handled === true }
+      : null;
   if (message.type !== "session" || typeof message.sessionId !== "string") return null;
   return { type: "session", sessionId: message.sessionId, path: String(message.path ?? "") };
 }
