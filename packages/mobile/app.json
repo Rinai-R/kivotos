@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kivotos",
     "slug": "kivotos",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.rinai.kivotos",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -46,7 +46,12 @@
         }
       ],
       "expo-localization",
-      ["expo-camera", { "recordAudioAndroid": false }]
+      [
+        "expo-camera",
+        {
+          "recordAudioAndroid": false
+        }
+      ]
     ]
   }
 }

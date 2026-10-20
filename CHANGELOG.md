@@ -4,13 +4,19 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+## v0.1.9
+
+- The right Sidebar previews audio files (mp3, wav, flac, ogg/oga, m4a, aac and opus) with a native player, and the Files header can open an absolute or workspace-relative path in the preview.
 - The right Sidebar previews video files (mp4, m4v, mov, webm and ogv) with a native player, the same way it previews audio.
+- A machine opened through Kivotos no longer shows the host-local "Open in" controls, which would launch applications on the other machine. The machine's own page keeps them.
 - A phone that misses a dsh plugin batch asks the host what the batch is made of and downloads only the pieces it does not already hold, keyed by content and shared across machines. The host offers a manifest only when its rows add up to the batch byte for byte; the phone stores the assembled batch only when its size and SHA-256 match. Anything else fetches the batch whole, so a plugin update no longer re-downloads the whole ~9 MB batch: only the changed rows are fetched. On a cold cache with six or more rows it fetches the batch once and splits it locally against the manifest, instead of one request per row.
 - The phone's Back goes back inside dsh first, the way a native app's stack does: it closes an open menu, the machine switcher, Settings or a dialog that has a close button, then takes a conversation back to its Session list; only from the Session list does it return to the machine list. A computer with an older Kivotos keeps the old behavior.
 
 ### 中文
 
+- 右侧栏可以用原生播放器预览音频文件（mp3、wav、flac、ogg/oga、m4a、aac、opus），文件页头也可以按绝对路径或相对路径打开预览。
 - 右侧栏可以用原生播放器预览视频文件（mp4、m4v、mov、webm、ogv），和音频预览的方式一致。
+- 通过 Kivotos 打开的机器页面不再显示「用 xxx 打开」：这些操作会在另一台机器上启动应用。机器自己的页面仍然保留。
 - 手机缺少 dsh 插件包时，先向宿主机询问这个包由哪些片段组成，只下载自己没有的片段；片段按内容寻址并跨机器共享。宿主机只有在逐字节核对片段能拼回整个包后才提供 manifest；手机只有在拼出的总大小和 SHA-256 匹配时才落盘。任何一步不对就回退整包下载。升级一个插件后不再重下整个约 9 MB 的包，只下载变化的行。空缓存且片段有 6 个以上时，先整包下载一次并在本地按 manifest 切开，避免一行一个请求。
 - 手机上的返回键先在 dsh 内部回退，和原生 App 的页面栈一致：先关掉打开的菜单、机器切换器、设置页或带关闭按钮的弹窗，再从会话回到会话列表；只有在会话列表时才回到机器列表。电脑上的 Kivotos 较旧时保持原来的行为。
 
@@ -18,15 +24,11 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 - Android: a machine page that cannot be reached shows the app's cover with the reason each link failed instead of Chromium's error page, and retries after 2, 5 and 10 seconds and then every 15 seconds. It retries at once when the app returns to the foreground or the network changes, and pauses while the app is in the background.
 - Target dsh 0.2.1-rc.2: the pinned release, the index fixture and the prerequisites now name it. Every coupling point still fits — the index rewrites, boot graph, desktop boot gate, phone frame and Session store — and the nightly check passes against it.
-- A machine opened through Kivotos no longer shows the host-local "Open in" controls, which would launch applications on the other machine. The machine's own page keeps them.
-- The right Sidebar previews audio files (mp3, wav, flac, ogg/oga, m4a, aac and opus) with a native player, and the Files header can open an absolute or workspace-relative path in the preview.
 
 ### 中文
 
 - 安卓：机器页面连不上时不再显示 Chromium 的错误页，而是显示 App 自己的提示卡，说明每种连接方式失败的原因；会在 2、5、10 秒后各重试一次，之后每 15 秒重试，回到前台或网络变化时立即重试，后台时暂停。
 - 适配 dsh 0.2.1-rc.2：固定版本、index 测试夹具和前置条件都改为该版本。所有依赖点（index 改写、boot graph、桌面启动门、手机框架、Session 存储）仍然吻合，针对它的夜间检查通过。
-- 通过 Kivotos 打开的机器页面不再显示「用 xxx 打开」：这些操作会在另一台机器上启动应用。机器自己的页面仍然保留。
-- 右侧栏可以用原生播放器预览音频文件（mp3、wav、flac、ogg/oga、m4a、aac、opus），文件页头也可以按绝对路径或相对路径打开预览。
 
 ## v0.1.7
 
