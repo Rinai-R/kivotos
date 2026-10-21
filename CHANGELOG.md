@@ -7,10 +7,13 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 - The machine switcher no longer lists this computer twice when an old relay identity of it (same name and OS, an earlier node id) is no longer reported: that entry is dropped instead of being kept as an offline machine.
 - This computer's own approvals, questions and finished turns now appear on its row in the machine switcher (and the trigger), like another machine's, including a turn that finished in a Session that is not on screen.
 
+- Switching Sessions on a phone no longer opens the software keyboard: dsh focuses the composer by itself after a Session switch, and the page now blurs that focus unless the last press was inside the composer. A tap on the composer still types as before.
+
 ### 中文
 
 - 机器切换器不再把同一台电脑显示两次：当它旧的 relay 身份（同名同 OS、旧的 node id）不再被上报时，这条记录会直接丢掉，而不是保留成离线机器。
 - 本机自己的审批、提问和已完成的任务现在也会出现在机器切换器里本机那一行（以及触发器上），和其他机器一样；不在当前会话里完成的任务也会显示。
+- 手机上切换会话不再弹出输入法：dsh 在切换会话后会自己 focus 输入框，现在除非最后一次按下发生在输入框内，页面会立即 blur；主动点输入框仍然正常输入。
 
 ## v0.1.9
 
