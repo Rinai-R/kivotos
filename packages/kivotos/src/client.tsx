@@ -348,6 +348,8 @@ const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
 const ATTENTION_RETRY_MIN_MS = 1_000;
 const ATTENTION_RETRY_MAX_MS = 60_000;
 const NO_ATTENTION: AttentionState = { notify: { waiting: false, finished: false }, peers: [] };
+/** The board row of this computer's own Sessions (attention-hub.ts `SELF_ID`). */
+const SELF_ID = "self";
 
 /** The latest `state` event, shared by every switcher on the page. */
 let attention = NO_ATTENTION;
@@ -591,9 +593,10 @@ function notifyFrame(
   if (!(waiting ? attention.notify.waiting : attention.notify.finished)) return;
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   if (document.hasFocus()) return;
+  const samePage = peer === SELF_ID ? currentPeer() === null : peer === currentPeer();
   const onScreen =
     document.visibilityState === "visible" &&
-    peer === currentPeer() &&
+    samePage &&
     frame.sessionId === currentSession(window.localStorage);
   if (onScreen) return;
   const name = attention.peers.find((row) => row.id === peer)?.name ?? peer;
@@ -602,6 +605,12 @@ function notifyFrame(
   notification.addEventListener("click", () => {
     window.focus();
     notification.close();
+    if (peer === SELF_ID) {
+      // This page is the machine: store the Session and reload, as dsh restores it.
+      selectSession(window.localStorage, frame.sessionId);
+      window.location.reload();
+      return;
+    }
     openSession(peer, frame.sessionId);
   });
   notification.addEventListener("close", () => {
@@ -1212,7 +1221,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             unavailable={false}
             blocked={undefined}
             current={peer === null}
-            attention={undefined}
+            attention={summary.rows.get(SELF_ID)}
             t={t}
           />
           {machines.machines.map((row) => (

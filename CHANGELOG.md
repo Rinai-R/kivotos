@@ -4,6 +4,14 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- The machine switcher no longer lists this computer twice when an old relay identity of it (same name and OS, an earlier node id) is no longer reported: that entry is dropped instead of being kept as an offline machine.
+- This computer's own approvals, questions and finished turns now appear on its row in the machine switcher (and the trigger), like another machine's, including a turn that finished in a Session that is not on screen.
+
+### 中文
+
+- 机器切换器不再把同一台电脑显示两次：当它旧的 relay 身份（同名同 OS、旧的 node id）不再被上报时，这条记录会直接丢掉，而不是保留成离线机器。
+- 本机自己的审批、提问和已完成的任务现在也会出现在机器切换器里本机那一行（以及触发器上），和其他机器一样；不在当前会话里完成的任务也会显示。
+
 ## v0.1.9
 
 - The right Sidebar previews audio files (mp3, wav, flac, ogg/oga, m4a, aac and opus) with a native player, and the Files header can open an absolute or workspace-relative path in the preview.
