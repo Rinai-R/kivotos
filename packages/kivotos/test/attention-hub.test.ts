@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AttentionBoard } from "../src/attention-hub.ts";
-import type { AttentionFrame, AttentionKind } from "../src/attention.ts";
+import { AttentionBoard, AttentionHub, SELF_ID } from "../src/attention-hub.ts";
+import { AttentionTracker, type AttentionFrame, type AttentionKind } from "../src/attention.ts";
+import type { TraceLog } from "../src/trace.ts";
 import { SseReader } from "../src/sse.ts";
 
 let next = 0;
@@ -119,4 +120,37 @@ test("seeding a row keeps its open waits and finished turns without telling them
   // The same history arriving later is not news and does not duplicate the turn.
   assert.equal(board.receive("self", { ...done }, true), undefined);
   assert.equal(board.view([{ id: "self", name: "this computer" }])[0].finished.length, 1);
+});
+
+test("the hub follows this computer's own attention as the self row", () => {
+  const tracker = new AttentionTracker();
+  const hub = new AttentionHub(
+    { record: () => undefined } as unknown as TraceLog,
+    { waiting: true, finished: true },
+    { tracker, name: () => "this computer" },
+  );
+  try {
+    tracker.observe(
+      { id: "s1" },
+      { type: "approval/asked", time: 1, data: { id: "a1", reason: "allow?" } },
+    );
+    let self = hub.state().peers.find((row) => row.id === SELF_ID);
+    assert.equal(self?.name, "this computer");
+    assert.deepEqual(
+      self?.pending.map((wait) => wait.key),
+      ["a1"],
+    );
+
+    tracker.observe(
+      { id: "s2" },
+      { type: "turn/end", time: 2, data: { turn: 1, reason: { kind: "completed" } } },
+    );
+    self = hub.state().peers.find((row) => row.id === SELF_ID);
+    assert.deepEqual(
+      self?.finished.map((turn) => turn.key),
+      ["turn:1"],
+    );
+  } finally {
+    hub.close();
+  }
 });
