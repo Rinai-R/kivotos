@@ -43,6 +43,7 @@ import { sessionFileAddress } from "./dsh/files.ts";
 import {
   dismissTopLayer,
   onSessionRowTap,
+  PARTS,
   phoneStylesheet,
   probePhoneConversation,
   probePhoneLayout,
@@ -1282,6 +1283,41 @@ function DrawerToggle({ t, toggleSidebar }: Injected): ReactNode {
  * Kivotos' stylesheet, the phone layout it only applies when the frame it
  * positions is there, and the open-drawer backdrop.
  */
+/**
+ * Keep dsh from opening the phone's keyboard when it focuses the composer by
+ * itself. dsh 0.2.1-rc.2's `focusDraftEditor` (ui-conversation) focuses the
+ * composer after a Session switch; on a desktop that is convenient, on a phone
+ * it raises the soft keyboard over a Session the user only wanted to read.
+ * A focus is allowed only when the last press was inside the composer, so a
+ * tap on the composer still types as before.
+ * @param active - the drawer layout applies (phone width, frame as pinned).
+ */
+function usePhoneComposerFocus(active: boolean): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    let fromComposer = false;
+    let pressedAt = 0;
+    const onPress = (event: Event): void => {
+      const target = event.target as Element | null;
+      fromComposer = target?.closest(PARTS.composer) !== null;
+      pressedAt = Date.now();
+    };
+    const onFocus = (event: FocusEvent): void => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || target.closest(PARTS.composer) === null) return;
+      const typed = fromComposer && Date.now() - pressedAt < 1000;
+      fromComposer = false;
+      if (!typed) target.blur();
+    };
+    document.addEventListener("pointerdown", onPress, true);
+    document.addEventListener("focusin", onFocus, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPress, true);
+      document.removeEventListener("focusin", onFocus, true);
+    };
+  }, [active]);
+}
+
 function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const phone = useMedia(PHONE);
   const collapsed = useSidebarCollapsed();
@@ -1289,6 +1325,7 @@ function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const layout = usable(report, "phone-layout");
   useCloseDrawerOnSelect(layout && phone && !collapsed, toggleSidebar);
   usePhoneBack(layout && phone, collapsed, toggleSidebar);
+  usePhoneComposerFocus(layout && phone);
   return (
     <>
       <style>{BASE_CSS + SETTINGS_CSS + hidePeerOpenInApp()}</style>
