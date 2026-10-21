@@ -1101,6 +1101,22 @@ export class PeerRoutes {
       const own = this.self.node;
       const others = sightings.filter((sighting) => own === undefined || sighting.node !== own);
       this.book.update(via, others, now, absent);
+      // An identity of this computer from before a reinstall or rename has a
+      // different node id, so the filter above misses it. Once its link stops
+      // reporting it, it would linger as a second "Rinai's MacBook Pro"; drop
+      // it instead of retaining it. A real machine with the same name and OS
+      // stays while its link reports it (discard skips current entries).
+      if (own !== undefined && this.self.name !== "") {
+        const self = this.self;
+        this.book.discard(
+          (entry) =>
+            entry.via === "relay" &&
+            entry.pinned !== true &&
+            entry.node !== own &&
+            entry.name === self.name &&
+            entry.os === self.os,
+        );
+      }
     }
     this.reconcile(this.book.machines(now));
     for (const { peer } of this.mounted.values()) void this.cache.warm(peer.id, peer.upstream);
@@ -1607,11 +1623,15 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   }, "kivotos: mount cache");
 
   // Constructing these registers nothing; the effects below do.
-  const hub = new AttentionHub(trace, {
-    waiting: config.notify,
-    finished: config.notify && config.notifyFinished,
-  });
-  const routes = new PeerRoutes(ctx, trace, cache, hub, compat, {
+  const hub: AttentionHub = new AttentionHub(
+    trace,
+    {
+      waiting: config.notify,
+      finished: config.notify && config.notifyFinished,
+    },
+    { tracker: attention, name: () => routes.self.name },
+  );
+  const routes: PeerRoutes = new PeerRoutes(ctx, trace, cache, hub, compat, {
     file: path.join(dshHome(), "kivotos", "machines.json"),
     retentionMs: config.offlineDays * DAY_MS,
   });

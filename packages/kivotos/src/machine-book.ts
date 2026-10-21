@@ -327,6 +327,23 @@ export class MachineBook<T> {
     this.pruneModes();
   }
 
+  /**
+   * Drop remembered entries matching `predicate`, except one a link reports
+   * now. A retired identity of this computer can linger this way: its node id
+   * differs from the current one, so the caller's self filter cannot see it,
+   * and retention would otherwise list it for `offlineDays`.
+   * @param predicate - decides by what was remembered (via, key, node, name, os).
+   */
+  discard(predicate: (entry: Remembered) => boolean): void {
+    for (const [slot, entry] of this.memory) {
+      if (this.current.get(entry.via)?.has(entry.key)) continue;
+      if (!predicate(entry)) continue;
+      this.memory.delete(slot);
+      this.failures.delete(slot);
+    }
+    this.pruneModes();
+  }
+
   private retained(entry: Remembered, now: number): boolean {
     return entry.lastSeen !== undefined && now - entry.lastSeen <= this.retentionMs;
   }

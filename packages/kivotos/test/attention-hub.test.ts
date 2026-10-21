@@ -101,3 +101,22 @@ test("the SSE reader splits events across chunks and line endings, and keeps bar
     { event: "message", data: "one\ntwo" },
   ]);
 });
+
+test("seeding a row keeps its open waits and finished turns without telling them again", () => {
+  const board = new AttentionBoard();
+  const ask = frame("approval", "s1", "a1");
+  const done = frame("done", "s2", "turn:1");
+  board.seed("self", [ask, done]);
+  const [row] = board.view([{ id: "self", name: "this computer" }]);
+  assert.deepEqual(
+    row.pending.map((wait) => wait.key),
+    ["a1"],
+  );
+  assert.deepEqual(
+    row.finished.map((turn) => turn.key),
+    ["turn:1"],
+  );
+  // The same history arriving later is not news and does not duplicate the turn.
+  assert.equal(board.receive("self", { ...done }, true), undefined);
+  assert.equal(board.view([{ id: "self", name: "this computer" }])[0].finished.length, 1);
+});

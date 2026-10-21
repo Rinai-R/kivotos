@@ -500,3 +500,38 @@ test("the phone suspects its own Tailscale only when every tailnet machine has n
   assert.equal(tailnetDownOnPhone(probe(["timeout"], false)), false);
   assert.equal(tailnetDownOnPhone(probe([])), false);
 });
+
+test("a retired relay identity of this computer can be discarded, but a reported one stays", () => {
+  const book = new MachineBook<string>(7 * DAY);
+  book.update("relay", [{ ...relayOf(NODE_H, "online"), name: "mac", target: "relay-h" }], T0);
+  // A previous identity of this computer, seen once and no longer reported.
+  book.update("relay", [{ ...relayOf(NODE_I, "offline"), name: "mac", lastSeen: T0 }], T0);
+  book.update("relay", [], T0 + 1000, { state: "offline" });
+  assert.deepEqual(
+    book.machines(T0 + 1000).map((machine) => machine.id),
+    [machineIdOf(NODE_H), machineIdOf(NODE_I)],
+  );
+  // The caller knows this computer's current name and OS and drops the old one.
+  book.discard(
+    (entry) =>
+      entry.via === "relay" &&
+      entry.node !== NODE_H &&
+      entry.name === "mac" &&
+      entry.os === "macOS",
+  );
+  assert.deepEqual(
+    book.machines(T0 + 1000).map((machine) => machine.id),
+    [machineIdOf(NODE_H)],
+  );
+  // A reported entry is never discarded: a real machine with the same name stays.
+  book.update(
+    "relay",
+    [{ ...relayOf(NODE_I, "online"), name: "mac", target: "relay-i" }],
+    T0 + 2000,
+  );
+  book.discard((entry) => entry.node === NODE_I && entry.name === "mac");
+  assert.equal(
+    book.machines(T0 + 2000).some((machine) => machine.id === machineIdOf(NODE_I)),
+    true,
+  );
+});
