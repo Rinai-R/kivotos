@@ -154,3 +154,20 @@ test("the hub follows this computer's own attention as the self row", () => {
     hub.close();
   }
 });
+
+test("seeing one Session clears only that Session's finished turns", () => {
+  const board = new AttentionBoard();
+  board.seed("self", [
+    frame("done", "s1", "turn:1"),
+    frame("done", "s2", "turn:1"),
+    frame("failed", "s1", "turn:2"),
+  ]);
+  board.seen("self", "s1");
+  const [row] = board.view([{ id: "self", name: "this computer" }]);
+  assert.deepEqual(
+    row.finished.map((turn) => `${turn.sessionId}/${turn.key}`),
+    ["s2/turn:1"],
+  );
+  board.seen("self");
+  assert.equal(board.view([{ id: "self", name: "this computer" }])[0].finished.length, 0);
+});

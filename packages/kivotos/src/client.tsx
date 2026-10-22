@@ -633,21 +633,54 @@ function followAttention(t: Translate): () => void {
   let retryMs = ATTENTION_RETRY_MIN_MS;
   let timer: number | undefined;
   let seenSent = false;
+  /** Self finished turns already marked seen, by Session and frame key. */
+  const seenSelf = new Set<string>();
 
-  const onState = (next: AttentionState): void => {
-    setAttention(next);
-    // This page is that machine: its finished turns are seen.
-    const finished = next.peers.some((row) => row.id === page && row.finished.length > 0);
-    if (!finished) seenSent = false;
-    if (!finished || seenSent) return;
-    seenSent = true;
+  /**
+   * Mark what this page shows as seen. A peer page marks all of that machine's
+   * finished turns when it opens, as before. This computer's own page is
+   * always open, so it marks only the finished turns of the Session on screen;
+   * when the user switches to the Session that finished, they are seen and
+   * the switcher's dot goes. The poll covers a switch, which sends no state.
+   */
+  const markSeen = (next: AttentionState): void => {
+    if (page !== null) {
+      const finished = next.peers.some((row) => row.id === page && row.finished.length > 0);
+      if (!finished) seenSent = false;
+      if (!finished || seenSent) return;
+      seenSent = true;
+      void fetch(ATTENTION_SEEN_PATH, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ peer: page }),
+        signal: abort.signal,
+      }).catch(() => undefined);
+      return;
+    }
+    const self = next.peers.find((row) => row.id === SELF_ID);
+    if (self === undefined) return;
+    const current = currentSession(window.localStorage);
+    const fresh = self.finished.filter(
+      (frame) => frame.sessionId === current && !seenSelf.has(`${frame.sessionId}\n${frame.key}`),
+    );
+    if (fresh.length === 0) return;
+    for (const frame of fresh) seenSelf.add(`${frame.sessionId}\n${frame.key}`);
     void fetch(ATTENTION_SEEN_PATH, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ peer: page }),
+      body: JSON.stringify({ peer: SELF_ID, sessionId: current }),
       signal: abort.signal,
-    }).catch(() => undefined);
+    }).catch(() => {
+      for (const frame of fresh) seenSelf.delete(`${frame.sessionId}\n${frame.key}`);
+    });
   };
+
+  const onState = (next: AttentionState): void => {
+    setAttention(next);
+    markSeen(next);
+  };
+  // dsh writes the current Session without an event this page can observe.
+  const poll = window.setInterval(() => markSeen(attention), 500);
 
   const connect = async (): Promise<void> => {
     try {
@@ -679,6 +712,7 @@ function followAttention(t: Translate): () => void {
   return () => {
     abort.abort();
     window.clearTimeout(timer);
+    window.clearInterval(poll);
     for (const notification of shown.values()) notification.close();
     setAttention(NO_ATTENTION);
   };
