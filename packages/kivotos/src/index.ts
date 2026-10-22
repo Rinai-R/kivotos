@@ -71,7 +71,7 @@ import { TraceLog, type TraceLevel } from "./trace.ts";
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const PEER_PREFIX = "/kivotos/peer";
 const HELLO_PATH = "/kivotos/hello";
 const EVENTS_PATH = "/kivotos/events";
@@ -1569,10 +1569,7 @@ function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => voi
       const body = await readJsonBody(req, 1024);
       const peer: unknown =
         typeof body === "object" && body !== null ? Reflect.get(body, "peer") : undefined;
-      const sessionId: unknown =
-        typeof body === "object" && body !== null ? Reflect.get(body, "sessionId") : undefined;
-      if (typeof peer === "string")
-        hub.seen(peer, typeof sessionId === "string" && sessionId !== "" ? sessionId : undefined);
+      if (typeof peer === "string") hub.seen(peer);
       res.writeHead(204);
       res.end();
     },
@@ -1626,14 +1623,10 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
   }, "kivotos: mount cache");
 
   // Constructing these registers nothing; the effects below do.
-  const hub: AttentionHub = new AttentionHub(
-    trace,
-    {
-      waiting: config.notify,
-      finished: config.notify && config.notifyFinished,
-    },
-    { tracker: attention, name: () => routes.self.name },
-  );
+  const hub: AttentionHub = new AttentionHub(trace, {
+    waiting: config.notify,
+    finished: config.notify && config.notifyFinished,
+  });
   const routes: PeerRoutes = new PeerRoutes(ctx, trace, cache, hub, compat, {
     file: path.join(dshHome(), "kivotos", "machines.json"),
     retentionMs: config.offlineDays * DAY_MS,

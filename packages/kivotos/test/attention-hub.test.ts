@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AttentionBoard, AttentionHub, SELF_ID } from "../src/attention-hub.ts";
-import { AttentionTracker, type AttentionFrame, type AttentionKind } from "../src/attention.ts";
-import type { TraceLog } from "../src/trace.ts";
+import { AttentionBoard } from "../src/attention-hub.ts";
+import type { AttentionFrame, AttentionKind } from "../src/attention.ts";
 import { SseReader } from "../src/sse.ts";
 
 let next = 0;
@@ -101,73 +100,4 @@ test("the SSE reader splits events across chunks and line endings, and keeps bar
     { event: "live", data: "" },
     { event: "message", data: "one\ntwo" },
   ]);
-});
-
-test("seeding a row keeps its open waits and finished turns without telling them again", () => {
-  const board = new AttentionBoard();
-  const ask = frame("approval", "s1", "a1");
-  const done = frame("done", "s2", "turn:1");
-  board.seed("self", [ask, done]);
-  const [row] = board.view([{ id: "self", name: "this computer" }]);
-  assert.deepEqual(
-    row.pending.map((wait) => wait.key),
-    ["a1"],
-  );
-  assert.deepEqual(
-    row.finished.map((turn) => turn.key),
-    ["turn:1"],
-  );
-  // The same history arriving later is not news and does not duplicate the turn.
-  assert.equal(board.receive("self", { ...done }, true), undefined);
-  assert.equal(board.view([{ id: "self", name: "this computer" }])[0].finished.length, 1);
-});
-
-test("the hub follows this computer's own attention as the self row", () => {
-  const tracker = new AttentionTracker();
-  const hub = new AttentionHub(
-    { record: () => undefined } as unknown as TraceLog,
-    { waiting: true, finished: true },
-    { tracker, name: () => "this computer" },
-  );
-  try {
-    tracker.observe(
-      { id: "s1" },
-      { type: "approval/asked", time: 1, data: { id: "a1", reason: "allow?" } },
-    );
-    let self = hub.state().peers.find((row) => row.id === SELF_ID);
-    assert.equal(self?.name, "this computer");
-    assert.deepEqual(
-      self?.pending.map((wait) => wait.key),
-      ["a1"],
-    );
-
-    tracker.observe(
-      { id: "s2" },
-      { type: "turn/end", time: 2, data: { turn: 1, reason: { kind: "completed" } } },
-    );
-    self = hub.state().peers.find((row) => row.id === SELF_ID);
-    assert.deepEqual(
-      self?.finished.map((turn) => turn.key),
-      ["turn:1"],
-    );
-  } finally {
-    hub.close();
-  }
-});
-
-test("seeing one Session clears only that Session's finished turns", () => {
-  const board = new AttentionBoard();
-  board.seed("self", [
-    frame("done", "s1", "turn:1"),
-    frame("done", "s2", "turn:1"),
-    frame("failed", "s1", "turn:2"),
-  ]);
-  board.seen("self", "s1");
-  const [row] = board.view([{ id: "self", name: "this computer" }]);
-  assert.deepEqual(
-    row.finished.map((turn) => `${turn.sessionId}/${turn.key}`),
-    ["s2/turn:1"],
-  );
-  board.seen("self");
-  assert.equal(board.view([{ id: "self", name: "this computer" }])[0].finished.length, 0);
 });

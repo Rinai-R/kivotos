@@ -4,6 +4,14 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+## v0.2.2
+
+- The machine switcher no longer shows attention marks for the machine currently on screen, this computer or a peer page: dsh shows that machine's own approvals and turns itself. Other machines keep their marks; no stuck dot on the machine in front.
+
+### 中文
+
+- 机器切换器不再显示当前前台机器的 attention 标记，无论是本机还是 peer 页面：那台机器自己的审批和任务由 dsh 界面显示。其他机器仍然保留标记；前台机器不会再出现清不掉的红/黄/绿点。
+
 ## v0.2.1
 
 - A finished turn on this computer no longer leaves a machine-switcher dot that never clears: the current machine marks only the Session on screen as seen, so switching to the Session that finished clears its dot, while a turn that finishes in another Session still shows one.

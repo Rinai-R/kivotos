@@ -349,8 +349,6 @@ const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
 const ATTENTION_RETRY_MIN_MS = 1_000;
 const ATTENTION_RETRY_MAX_MS = 60_000;
 const NO_ATTENTION: AttentionState = { notify: { waiting: false, finished: false }, peers: [] };
-/** The board row of this computer's own Sessions (attention-hub.ts `SELF_ID`). */
-const SELF_ID = "self";
 
 /** The latest `state` event, shared by every switcher on the page. */
 let attention = NO_ATTENTION;
@@ -594,10 +592,9 @@ function notifyFrame(
   if (!(waiting ? attention.notify.waiting : attention.notify.finished)) return;
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   if (document.hasFocus()) return;
-  const samePage = peer === SELF_ID ? currentPeer() === null : peer === currentPeer();
   const onScreen =
     document.visibilityState === "visible" &&
-    samePage &&
+    peer === currentPeer() &&
     frame.sessionId === currentSession(window.localStorage);
   if (onScreen) return;
   const name = attention.peers.find((row) => row.id === peer)?.name ?? peer;
@@ -606,12 +603,6 @@ function notifyFrame(
   notification.addEventListener("click", () => {
     window.focus();
     notification.close();
-    if (peer === SELF_ID) {
-      // This page is the machine: store the Session and reload, as dsh restores it.
-      selectSession(window.localStorage, frame.sessionId);
-      window.location.reload();
-      return;
-    }
     openSession(peer, frame.sessionId);
   });
   notification.addEventListener("close", () => {
@@ -633,54 +624,21 @@ function followAttention(t: Translate): () => void {
   let retryMs = ATTENTION_RETRY_MIN_MS;
   let timer: number | undefined;
   let seenSent = false;
-  /** Self finished turns already marked seen, by Session and frame key. */
-  const seenSelf = new Set<string>();
-
-  /**
-   * Mark what this page shows as seen. A peer page marks all of that machine's
-   * finished turns when it opens, as before. This computer's own page is
-   * always open, so it marks only the finished turns of the Session on screen;
-   * when the user switches to the Session that finished, they are seen and
-   * the switcher's dot goes. The poll covers a switch, which sends no state.
-   */
-  const markSeen = (next: AttentionState): void => {
-    if (page !== null) {
-      const finished = next.peers.some((row) => row.id === page && row.finished.length > 0);
-      if (!finished) seenSent = false;
-      if (!finished || seenSent) return;
-      seenSent = true;
-      void fetch(ATTENTION_SEEN_PATH, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ peer: page }),
-        signal: abort.signal,
-      }).catch(() => undefined);
-      return;
-    }
-    const self = next.peers.find((row) => row.id === SELF_ID);
-    if (self === undefined) return;
-    const current = currentSession(window.localStorage);
-    const fresh = self.finished.filter(
-      (frame) => frame.sessionId === current && !seenSelf.has(`${frame.sessionId}\n${frame.key}`),
-    );
-    if (fresh.length === 0) return;
-    for (const frame of fresh) seenSelf.add(`${frame.sessionId}\n${frame.key}`);
-    void fetch(ATTENTION_SEEN_PATH, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ peer: SELF_ID, sessionId: current }),
-      signal: abort.signal,
-    }).catch(() => {
-      for (const frame of fresh) seenSelf.delete(`${frame.sessionId}\n${frame.key}`);
-    });
-  };
 
   const onState = (next: AttentionState): void => {
     setAttention(next);
-    markSeen(next);
+    // This page is that machine: its finished turns are seen.
+    const finished = next.peers.some((row) => row.id === page && row.finished.length > 0);
+    if (!finished) seenSent = false;
+    if (!finished || seenSent) return;
+    seenSent = true;
+    void fetch(ATTENTION_SEEN_PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ peer: page }),
+      signal: abort.signal,
+    }).catch(() => undefined);
   };
-  // dsh writes the current Session without an event this page can observe.
-  const poll = window.setInterval(() => markSeen(attention), 500);
 
   const connect = async (): Promise<void> => {
     try {
@@ -712,7 +670,6 @@ function followAttention(t: Translate): () => void {
   return () => {
     abort.abort();
     window.clearTimeout(timer);
-    window.clearInterval(poll);
     for (const notification of shown.values()) notification.close();
     setAttention(NO_ATTENTION);
   };
@@ -1030,15 +987,18 @@ interface AttentionSummary {
 function useAttentionSummary(t: Translate): AttentionSummary {
   const board = useSyncExternalStore(subscribeAttention, () => attention);
   return useMemo(() => {
+    // The machine in front is read in dsh itself: it never gets a switcher dot.
+    const current = currentPeer();
+    const peers = board.peers.filter((row) => row.id !== current);
     // One machine can be mounted twice (two links); its waits count once.
     const waits = new Set(
-      board.peers.flatMap((row) => row.pending.map((frame) => `${frame.sessionId}\n${frame.key}`)),
+      peers.flatMap((row) => row.pending.map((frame) => `${frame.sessionId}\n${frame.key}`)),
     );
-    const tone = finishedTone(board.peers.flatMap((row) => row.finished));
+    const tone = finishedTone(peers.flatMap((row) => row.finished));
     let label = t("machines.label");
     if (waits.size > 0) label = t("machines.labelWaiting", { count: waits.size });
     else if (tone !== undefined) label = t("machines.labelFinished");
-    const rows = new Map(board.peers.map((row) => [row.id, row]));
+    const rows = new Map(peers.map((row) => [row.id, row]));
     return { rows, waiting: waits.size, tone, label };
   }, [board, t]);
 }
@@ -1256,7 +1216,7 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             unavailable={false}
             blocked={undefined}
             current={peer === null}
-            attention={summary.rows.get(SELF_ID)}
+            attention={undefined}
             t={t}
           />
           {machines.machines.map((row) => (
