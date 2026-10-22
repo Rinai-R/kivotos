@@ -4,6 +4,8 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- A finished turn on this computer no longer leaves a machine-switcher dot that never clears: the current machine marks only the Session on screen as seen, so switching to the Session that finished clears its dot, while a turn that finishes in another Session still shows one.
+
 ## v0.2.0
 
 - The machine switcher no longer lists this computer twice when an old relay identity of it (same name and OS, an earlier node id) is no longer reported: that entry is dropped instead of being kept as an offline machine.
@@ -11,6 +13,8 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 - Switching Sessions on a phone no longer opens the software keyboard: dsh focuses the composer by itself after a Session switch, and the page now blurs that focus unless the last press was inside the composer. A tap on the composer still types as before.
 
 ### 中文
+
+- 本机完成的任务不再留下一个永远清不掉的机器切换器圆点：只有当前显示的 Session 会被标记为已读，切到完成的那条会话后圆点消失；在别的会话里完成的任务仍然会显示圆点。
 
 - 机器切换器不再把同一台电脑显示两次：当它旧的 relay 身份（同名同 OS、旧的 node id）不再被上报时，这条记录会直接丢掉，而不是保留成离线机器。
 - 本机自己的审批、提问和已完成的任务现在也会出现在机器切换器里本机那一行（以及触发器上），和其他机器一样；不在当前会话里完成的任务也会显示。

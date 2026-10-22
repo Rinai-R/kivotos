@@ -136,9 +136,24 @@ export class AttentionBoard {
     }
   }
 
-  /** The machine was opened: its finished turns are no longer news. */
-  seen(peer: string): void {
-    if (this.finished.delete(peer)) this.version += 1;
+  /**
+   * The machine was opened: its finished turns are no longer news. With a
+   * `sessionId`, only that Session's finished turns are cleared: the current
+   * machine's own row keeps another Session's turn until that Session is shown.
+   */
+  seen(peer: string, sessionId?: string): void {
+    const list = this.finished.get(peer);
+    if (list === undefined) return;
+    if (sessionId === undefined) {
+      this.finished.delete(peer);
+      this.version += 1;
+      return;
+    }
+    const kept = list.filter((frame) => frame.sessionId !== sessionId);
+    if (kept.length === list.length) return;
+    if (kept.length === 0) this.finished.delete(peer);
+    else this.finished.set(peer, kept);
+    this.version += 1;
   }
 
   /**
@@ -423,8 +438,8 @@ export class AttentionHub {
   }
 
   /** A page opened this machine. */
-  seen(id: string): void {
-    this.board.seen(id);
+  seen(id: string, sessionId?: string): void {
+    this.board.seen(id, sessionId);
     this.changed();
   }
 

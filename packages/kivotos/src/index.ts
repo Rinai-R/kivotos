@@ -1569,7 +1569,10 @@ function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => voi
       const body = await readJsonBody(req, 1024);
       const peer: unknown =
         typeof body === "object" && body !== null ? Reflect.get(body, "peer") : undefined;
-      if (typeof peer === "string") hub.seen(peer);
+      const sessionId: unknown =
+        typeof body === "object" && body !== null ? Reflect.get(body, "sessionId") : undefined;
+      if (typeof peer === "string")
+        hub.seen(peer, typeof sessionId === "string" && sessionId !== "" ? sessionId : undefined);
       res.writeHead(204);
       res.end();
     },
