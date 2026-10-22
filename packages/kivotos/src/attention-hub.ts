@@ -7,13 +7,12 @@
  * and serves the result on this Host's webServer as `/kivotos/attention`, so a
  * page needs one connection, not one per machine, and a frame that reaches it
  * through two mounts of the same machine is told once. This Host's own
- * Sessions are on that board too: the machine switcher shows them on the
- * current machine's row, and a finished turn in a Session that is not on
- * screen is visible without opening it.
+ * Sessions are not on the board: dsh shows them on their own page, and the
+ * current machine must never get a machine-switcher dot from them.
  */
 import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import { performance } from "node:perf_hooks";
-import type { AttentionFrame, AttentionTracker } from "./attention.ts";
+import type { AttentionFrame } from "./attention.ts";
 import type { Via } from "./machines.ts";
 import { forwardHeaders, upstreamRequest, type Upstream } from "./proxy.ts";
 import { SseReader } from "./sse.ts";
@@ -30,9 +29,6 @@ const RETRY_MAX_MS = 60_000;
 /** SSE comment interval towards the page. */
 const HEARTBEAT_MS = 25_000;
 const EVENTS_PATH = "/kivotos/events";
-
-/** The board row of this Host's own Sessions; machine ids are never this. */
-export const SELF_ID = "self";
 
 /** One machine's row on the board. */
 export interface PeerAttention {
@@ -136,46 +132,9 @@ export class AttentionBoard {
     }
   }
 
-  /**
-   * The machine was opened: its finished turns are no longer news. With a
-   * `sessionId`, only that Session's finished turns are cleared: the current
-   * machine's own row keeps another Session's turn until that Session is shown.
-   */
-  seen(peer: string, sessionId?: string): void {
-    const list = this.finished.get(peer);
-    if (list === undefined) return;
-    if (sessionId === undefined) {
-      this.finished.delete(peer);
-      this.version += 1;
-      return;
-    }
-    const kept = list.filter((frame) => frame.sessionId !== sessionId);
-    if (kept.length === list.length) return;
-    if (kept.length === 0) this.finished.delete(peer);
-    else this.finished.set(peer, kept);
-    this.version += 1;
-  }
-
-  /**
-   * Replay frames that happened before this board started listening,
-   * without making any of them news: open waits, settled waits and the
-   * finished turns a row should start with.
-   */
-  seed(peer: string, frames: readonly AttentionFrame[]): void {
-    for (const frame of frames) {
-      if (frame.kind !== "done" && frame.kind !== "failed") {
-        this.receive(peer, frame, false);
-        continue;
-      }
-      const turn = `${frame.kind}\n${frame.sessionId}\n${frame.key}`;
-      if (this.told.has(turn)) continue;
-      remember(this.told, turn);
-      const list = this.finished.get(peer) ?? [];
-      list.push(frame);
-      if (list.length > FINISHED_PER_PEER) list.shift();
-      this.finished.set(peer, list);
-      this.version += 1;
-    }
+  /** The machine was opened: its finished turns are no longer news. */
+  seen(peer: string): void {
+    if (this.finished.delete(peer)) this.version += 1;
   }
 
   /** The peer is no longer mounted. */
@@ -387,29 +346,12 @@ export class AttentionHub {
   private readonly pages = new Set<ServerResponse>();
   private readonly trace: TraceLog;
   private readonly notify: NotifyConfig;
-  /** This Host's own attention, folded into the ${SELF_ID} row. */
-  private readonly local:
-    | { tracker: AttentionTracker; name: () => string; unsubscribe: () => void }
-    | undefined;
   private announced = 0;
   private scheduled = false;
 
-  /**
-   * @param local - this Host's own attention, which the board shows as
-   *   {@link SELF_ID}; its name is read when a page asks for the board.
-   */
-  constructor(
-    trace: TraceLog,
-    notify: NotifyConfig,
-    local?: { tracker: AttentionTracker; name: () => string },
-  ) {
+  constructor(trace: TraceLog, notify: NotifyConfig) {
     this.trace = trace;
     this.notify = notify;
-    if (local === undefined) return;
-    this.board.epoch(SELF_ID, local.tracker.epoch);
-    this.board.seed(SELF_ID, local.tracker.since(0));
-    const unsubscribe = local.tracker.subscribe((frame) => this.receive(SELF_ID, frame, true));
-    this.local = { ...local, unsubscribe };
   }
 
   /**
@@ -438,8 +380,8 @@ export class AttentionHub {
   }
 
   /** A page opened this machine. */
-  seen(id: string, sessionId?: string): void {
-    this.board.seen(id, sessionId);
+  seen(id: string): void {
+    this.board.seen(id);
     this.changed();
   }
 
@@ -464,9 +406,7 @@ export class AttentionHub {
   /** The board as a page reads it. */
   state(): AttentionState {
     const peers = [...this.feeds.values()].map(({ peer }) => peer());
-    const rows =
-      this.local === undefined ? peers : [{ id: SELF_ID, name: this.local.name() }, ...peers];
-    return { notify: this.notify, peers: this.board.view(rows) };
+    return { notify: this.notify, peers: this.board.view(peers) };
   }
 
   /**
@@ -493,7 +433,6 @@ export class AttentionHub {
 
   /** Stop every feed and end every page's stream. */
   close(): void {
-    this.local?.unsubscribe();
     for (const { feed } of this.feeds.values()) feed.stop();
     this.feeds.clear();
     for (const page of this.pages) page.end();
