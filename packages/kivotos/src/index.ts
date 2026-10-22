@@ -71,7 +71,7 @@ import { TraceLog, type TraceLevel } from "./trace.ts";
 export const name = "kivotos";
 export const inject = ["webServer", "connection"];
 
-const VERSION = "0.1.9";
+const VERSION = "0.2.0";
 const PEER_PREFIX = "/kivotos/peer";
 const HELLO_PATH = "/kivotos/hello";
 const EVENTS_PATH = "/kivotos/events";

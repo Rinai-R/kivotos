@@ -4,9 +4,10 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+## v0.2.0
+
 - The machine switcher no longer lists this computer twice when an old relay identity of it (same name and OS, an earlier node id) is no longer reported: that entry is dropped instead of being kept as an offline machine.
 - This computer's own approvals, questions and finished turns now appear on its row in the machine switcher (and the trigger), like another machine's, including a turn that finished in a Session that is not on screen.
-
 - Switching Sessions on a phone no longer opens the software keyboard: dsh focuses the composer by itself after a Session switch, and the page now blurs that focus unless the last press was inside the composer. A tap on the composer still types as before.
 
 ### 中文
