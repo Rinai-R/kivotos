@@ -4,6 +4,18 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- On a phone, Enter in the composer writes a line break instead of sending: dsh sends on a plain Enter and writes the line break for Shift+Enter, and a phone's keyboard has no Shift; the send button still sends.
+- On a phone, the welcome page no longer leaves a large blank at the top with the hero pushed down the screen: dsh centers that hero and a phone's tall screen turned the centering into blank space; a conversation with messages keeps dsh's layout.
+- In the Kivotos app the page no longer adds the system's safe-area insets on top of the app's own padding: a WebView that reports them (a phone with a display cutout) left a blank strip above the header, which an emulator without a cutout never showed.
+- A file dropped or picked on another machine's page in the desktop window now uploads to that machine: the desktop preload exposes this computer's file paths to the page as well, and dsh wrote them into the draft as references the other machine could not resolve. A dropped directory and files pasted from the clipboard keep dsh's behaviour.
+
+### 中文
+
+- 手机输入框里的回车现在是换行，不再把消息发出去：dsh 对纯回车是发送、对 Shift+回车才是换行，而手机键盘没有 Shift；发送仍然用发送按钮。
+- 手机上的欢迎页不再在顶部留出一大片空白：dsh 会把欢迎页的标题和输入框垂直居中，手机屏幕更高，空白就被放大了；现在欢迎页靠上，有消息的会话维持 dsh 原样。
+- 在 Kivotos App 里，页面不再在 App 自己留出的安全区之上再叠一层系统安全区：会报告安全区的 WebView（有刘海/挖孔的真机）原来会在顶部多留一条空白，而没有 cutout 的模拟器复现不出来。
+- 在桌面窗口里打开另一台机器的页面时，拖入或选择文件现在会真正上传到那台机器：桌面端 preload 会把本机文件路径也暴露给该页面，dsh 原来只把路径写成引用，对端解析不到。拖入文件夹、从剪贴板粘贴文件维持 dsh 原有行为。
+
 ## v0.2.2
 
 - The machine switcher no longer shows attention marks for the machine currently on screen, this computer or a peer page: dsh shows that machine's own approvals and turns itself. Other machines keep their marks; no stuck dot on the machine in front.
