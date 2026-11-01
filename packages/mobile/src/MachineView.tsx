@@ -90,6 +90,8 @@ interface Props {
   onSwitch: (viewKey: string, target: SwitchTarget, sessionId: string | undefined) => boolean;
   /** The WebView's renderer is gone: this page cannot be shown again. */
   onGone: (viewKey: string) => void;
+  /** The page started loading a document (a reload, or a new generation of it). */
+  onLoad: (viewKey: string) => void;
   /**
    * dsh's shell is up in the page, or the page was shown again with it up.
    * `listed`: what the computer lists, with `listPeers` on screen; else null.
@@ -125,7 +127,7 @@ function useKeyboardInset(bottomInset: number): number {
 /** One machine's complete dsh UI. */
 export const MachineView = memo(function MachineView(props: Props) {
   const { viewKey, machine, path, name, visible, listPeers, open } = props;
-  const { onBack, onSession, onSwitch, onGone, onReady, onFailed } = props;
+  const { onBack, onSession, onSwitch, onGone, onLoad, onReady, onFailed } = props;
   const styles = useStyles(createStyles);
   const colors = useColors();
   const web = useRef<WebView>(null);
@@ -280,7 +282,8 @@ export const MachineView = memo(function MachineView(props: Props) {
     shell.current = false;
     // A page mounted hidden (loaded ahead): its WebView may not have existed when the effect ran.
     applyVisible();
-  }, [applyVisible]);
+    onLoad(viewKey);
+  }, [applyVisible, onLoad, viewKey]);
   const onLoadEnd = useCallback(() => setLoaded(true), []);
   // The main document failed (both callbacks report only the main frame): cover it.
   const fail = useCallback(() => {
