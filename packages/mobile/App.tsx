@@ -72,6 +72,14 @@ export default function App() {
   /** When the latest probe came back. */
   const probedAt = useRef(Number.NEGATIVE_INFINITY);
   const viewsRef = useRef<LiveView[]>([]);
+  /**
+   * What each page's computer last listed with a route (`onReady`'s `listed`,
+   * from its `/kivotos/peers`), by the page key it was asked of — for a row's
+   * page, that key is its machine id. A switch goes through a computer when it
+   * lists the target with a route (`switchTarget`); the entry is dropped when
+   * that page loads a document again, so a stale list never routes a switch.
+   */
+  const listedRef = useRef(new Map<string, ListedMachine[]>());
   const openSeq = useRef(0);
   /** The stored list has been read: before that, a probe would be folded into an empty list and saved over it. */
   const restored = useRef(false);
@@ -210,7 +218,8 @@ export default function App() {
       if (viewKey !== shownRef.current) return true;
       const from = viewsRef.current.find((live) => live.key === viewKey);
       if (from === undefined) return false;
-      const to = switchTarget(machinesRef.current, probeRef.current, from, target);
+      const listed = listedRef.current.get(from.machine) ?? null;
+      const to = switchTarget(machinesRef.current, probeRef.current, from, target, listed);
       if (to === null) return false;
       let open: OpenRequest | null = null;
       if (sessionId !== undefined) {
@@ -227,11 +236,13 @@ export default function App() {
   /**
    * A page's shell is up. One loading ahead lets the next one start; a phone
    * row's page on screen loads ahead the pages its switcher would show for
-   * the machines its computer lists with a route (`preloadTargets`).
+   * the machines its computer lists with a route (`preloadTargets`). What it
+   * listed is kept for switches from its pages until the page loads again.
    */
   const onReady = useCallback(
     (viewKey: string, listed: ListedMachine[] | null) => {
       preloader.loaded(viewKey);
+      if (listed !== null) listedRef.current.set(viewKey, listed);
       if (viewKey !== shownRef.current || listed === null) return;
       const from = viewsRef.current.find((live) => live.key === viewKey);
       if (from === undefined || from.peer !== null) return;
@@ -241,6 +252,11 @@ export default function App() {
     },
     [preloader],
   );
+
+  /** A page loads a new document: what it listed for switches is stale. */
+  const onLoad = useCallback((viewKey: string) => {
+    listedRef.current.delete(viewKey);
+  }, []);
 
   /** A page did not load: one loaded ahead goes; the next switch to it loads it again. */
   const onFailed = useCallback((viewKey: string) => {
@@ -416,6 +432,7 @@ export default function App() {
               onSession={onSession}
               onSwitch={onSwitch}
               onGone={onGone}
+              onLoad={onLoad}
               onReady={onReady}
               onFailed={onFailed}
               onBack={back}

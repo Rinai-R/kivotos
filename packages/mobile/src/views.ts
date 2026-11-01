@@ -1,4 +1,4 @@
-import { routeOf, type PhoneProbe } from "../../kivotos/src/machines";
+import { routeOf, type PhoneProbe } from "../../kivotos/src/machines.ts";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import type { ListedMachine, SwitchTarget } from "./bridge";
 
@@ -182,10 +182,51 @@ export function machineForTarget(
 }
 
 /**
- * Where a page's switcher sends the phone: the phone's own row for the
- * target ({@link machineForTarget}), else the target as the page's computer
- * mounts it, through that computer's door. "This computer" (`id` null) on a
- * peer's page is the computer's own page.
+ * Whether the phone reaches its own row `row` over Tailscale directly: its
+ * latest probe found the Tailscale link online, and the machine's mode does
+ * not send it through the relay instead.
+ *
+ * Written to read the same under today's modes (`auto` — absent — or the one
+ * link a machine is held to) and under the two priorities (Tailscale first,
+ * relay first) that replace them: `relay` is the mode that prefers, or only
+ * uses, the relay, so a machine held to it is never taken for a direct
+ * Tailscale one, whatever its Tailscale link says.
+ */
+function tailscaleDirect(row: Machine, probe: PhoneProbe | null): boolean {
+  const links = probe?.machines.find((entry) => entry.id === row.id)?.links;
+  const tailnetOnline =
+    links !== undefined &&
+    links.some((link) => link.via === "tailscale" && link.state === "online");
+  // Widened from `Via`: both mode vocabularies are read here, and `auto` is
+  // not one of today's stored values (absent means it).
+  const mode: string | undefined = row.mode;
+  const directTailscale =
+    tailnetOnline && (mode === undefined || mode === "auto" || mode === "tailscale");
+  const relayFirst = mode === "relay";
+  return directTailscale && !relayFirst;
+}
+
+/**
+ * Whether a page's computer lists a machine, by the mount id a switcher names
+ * it with, with a route now (its `/kivotos/peers` `route !== null`).
+ */
+function listedRoute(listed: readonly ListedMachine[] | null, id: string): boolean {
+  return listed?.some((entry) => entry.target.id === id && entry.online) === true;
+}
+
+/**
+ * Where a page's switcher sends the phone:
+ * - the phone's own row for the target when Tailscale reaches it directly
+ *   ({@link tailscaleDirect}): nothing is faster;
+ * - else, when the page's computer lists the target with a route (`listed`,
+ *   what that page last answered for `/kivotos/peers`), the target as its
+ *   computer mounts it, through that computer's door and cache
+ *   (`/kivotos/peer/<id>/`): the phone's own row may reach it only over the
+ *   relay, while its computer's way there may be a direct one, and its mount
+ *   also reuses the cache and the door the page already has;
+ * - else the phone's own row ({@link machineForTarget}), else the computer's
+ *   mount as before.
+ * "This computer" (`id` null) on a peer's page is the computer's own page.
  * @returns the page to show, or null when there is none (the page goes by itself).
  */
 export function switchTarget(
@@ -193,14 +234,21 @@ export function switchTarget(
   probe: PhoneProbe | null,
   from: LiveView,
   target: SwitchTarget,
+  listed: readonly ListedMachine[] | null,
 ): { machine: Machine; peer: LiveView["peer"] } | null {
   const parent = machines.find((machine) => machine.id === from.machine);
   if (parent === undefined) return null;
-  const row = target.id === null ? null : machineForTarget(machines, target, probe);
-  if (row !== null && row.id !== parent.id) return { machine: row, peer: null };
-  if (target.id === null || row !== null)
+  if (target.id === null) return from.peer === null ? null : { machine: parent, peer: null };
+  const row = machineForTarget(machines, target, probe);
+  // The switcher named this computer itself: its own page, or none of this one.
+  if (row !== null && row.id === parent.id)
     return from.peer === null ? null : { machine: parent, peer: null };
-  if (target.id === from.peer?.id) return null;
+  const samePeer = from.peer !== null && target.id === from.peer.id;
+  if (row !== null && tailscaleDirect(row, probe)) return { machine: row, peer: null };
+  if (!samePeer && listedRoute(listed, target.id))
+    return { machine: parent, peer: { id: target.id, name: target.name } };
+  if (row !== null) return { machine: row, peer: null };
+  if (samePeer) return null;
   return { machine: parent, peer: { id: target.id, name: target.name } };
 }
 
@@ -211,10 +259,11 @@ export function switchTarget(
  * (`recent`, mount ids, most recent first), else the first listed. Never
  * `from` itself, and at most {@link PRELOAD_MAX}.
  *
- * A machine the phone has its own row for is loaded through that row only
- * when `probe`, the phone's latest probe and only when it is fresh, found a
- * route to it; else through the computer's mount, which the computer just
- * listed with a route.
+ * `switchTarget` picks the page a switch would show: the phone's own row for a
+ * machine Tailscale reaches directly, else the computer's mount. `probe` is
+ * the phone's latest probe when it is fresh (the probes stop while a page is
+ * shown), so a stale or missing one never loads a direct page the switch would
+ * not show; without it the computer's mount is loaded ahead.
  */
 export function preloadTargets(
   machines: readonly Machine[],
@@ -232,14 +281,8 @@ export function preloadTargets(
   const keys = new Set([from.key]);
   for (const { target } of lately.length > 0 ? lately : online) {
     if (target.id === null) continue;
-    let to = switchTarget(machines, probe, from, target);
+    const to = switchTarget(machines, probe, from, target, listed);
     if (to === null) continue;
-    if (to.peer === null) {
-      const row = to.machine;
-      const links = probe?.machines.find((entry) => entry.id === row.id);
-      if (links === undefined || routeOf(links, row.mode ?? "auto") === null)
-        to = { machine: parent, peer: { id: target.id, name: target.name } };
-    }
     const key = keyOf(to.machine.id, to.peer);
     if (keys.has(key)) continue;
     keys.add(key);

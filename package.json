@@ -38,7 +38,7 @@
     "typecheck": "npm run typecheck -w packages/kivotos && npm run typecheck -w packages/mobile",
     "build": "npm run build -w packages/kivotos",
     "dev": "node scripts/dev.mjs",
-    "test": "npm test -w packages/kivotos",
+    "test": "npm test -w packages/kivotos && npm test -w packages/mobile",
     "prepare": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {

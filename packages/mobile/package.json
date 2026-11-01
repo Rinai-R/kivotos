@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android --clean",
     "typecheck": "tsc --noEmit",
-    "apk": "expo prebuild --platform android --clean --no-install && cd android && ./gradlew assembleRelease"
+    "apk": "expo prebuild --platform android --clean --no-install && cd android && ./gradlew assembleRelease",
+    "test": "node --test \"test/*.test.ts\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -24,6 +25,7 @@
     "react-native-webview": "13.16.1"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   }

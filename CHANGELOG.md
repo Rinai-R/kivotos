@@ -4,6 +4,12 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- Opening another machine from a machine's page in the phone app now goes through that machine when it is the faster way there: if the phone's own route to the target is not a direct Tailscale one (no row for it, its probe found no route, or only the relay reaches it) and the page's computer lists it with a route, the app opens it as that computer's mount (`/kivotos/peer/<id>/`), reusing the page's door and cache instead of dialling the target over the relay itself. A direct Tailscale route is still used directly, as the fastest way. The pages loaded ahead follow the same choice, so the warmed page is the one the switch shows.
+
+### 中文
+
+- 手机 App 里从一台机器的页面打开另一台机器时，如果手机自己过去更慢（没有它的机器行、探测没有路由，或只有中继可达），而当前页面的电脑列出它有路由，App 现在会经这台电脑打开它（`/kivotos/peer/<id>/`），复用该页面的门和缓存，而不是让手机自己走中继。有 Tailscale 直达时仍然直连（最快）。预加载也按同样的选择，预热的就是切换时会显示的页面。
+
 ## v0.2.2
 
 - The machine switcher no longer shows attention marks for the machine currently on screen, this computer or a peer page: dsh shows that machine's own approvals and turns itself. Other machines keep their marks; no stuck dot on the machine in front.
