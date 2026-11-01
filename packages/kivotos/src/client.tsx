@@ -78,7 +78,7 @@ import {
 import { SseReader } from "./sse.ts";
 import { tracePath } from "./trace-path.ts";
 
-/** The slice of the dsh 0.2.1-rc.2 Client context Kivotos uses. */
+/** The slice of the dsh 0.2.1-rc.5 Client context Kivotos uses. */
 interface ClientContext {
   effect(factory: () => () => void, label?: string): void;
   locale: {
@@ -1282,7 +1282,7 @@ function DrawerToggle({ t, toggleSidebar }: Injected): ReactNode {
  */
 /**
  * Keep dsh from opening the phone's keyboard when it focuses the composer by
- * itself. dsh 0.2.1-rc.2's `focusDraftEditor` (ui-conversation) focuses the
+ * itself. dsh 0.2.1-rc.5's `focusDraftEditor` (ui-conversation) focuses the
  * composer after a Session switch; on a desktop that is convenient, on a phone
  * it raises the soft keyboard over a Session the user only wanted to read.
  * A focus is allowed only when the last press was inside the composer, so a

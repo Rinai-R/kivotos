@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.1-rc.2's session-scoped file resource address, as the Files action
+ * dsh 0.2.1-rc.5's session-scoped file resource address, as the Files action
  * opens one.
  *
  * dsh names a previewable file `dsh-resource://file/session/<session>/<path>`

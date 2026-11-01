@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.1-rc.2 in the desktop window, as a peer page hands dsh this
+ * dsh 0.2.1-rc.5 in the desktop window, as a peer page hands dsh this
  * computer's file paths instead of the files themselves.
  *
  * The desktop shell's preload exposes `__DSH_HOST_PATHS__` to every document of

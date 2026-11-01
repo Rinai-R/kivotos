@@ -2,7 +2,7 @@
  * Serving-side cache of peer mounts.
  *
  * Opening a peer loads its whole dsh client over the link, about 11 MB in dsh
- * 0.2.1-rc.2, most of it one gzip plugin batch. Responses that never change at
+ * 0.2.1-rc.5, most of it one gzip plugin batch. Responses that never change at
  * their URL are kept under `$DSH_HOME/kivotos/cache/<peer id>/` and answered
  * from disk to every client of this dsh, the desktop window included (its
  * `dsh-app://` pages never reach Chromium's HTTP cache).
