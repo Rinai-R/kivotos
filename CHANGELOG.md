@@ -2,6 +2,14 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## Unreleased
+
+- Support DeepSeek Harness 0.2.1-rc.5: the page probes, the pinned index fixture and the adapter markers were re-verified against the new release; the index rewrite and the client bundles still match.
+
+### 中文
+
+- 支持 DeepSeek Harness 0.2.1-rc.5：页面探测、固定 index 夹具和适配器标记已在新版本上重新验证，index 改写和客户端 bundle 仍然匹配。
+
 ## v0.3.0
 
 - How a machine is reached is now a priority with a fallback instead of an exclusive link: Tailscale first (the default, the relay when it fails) or the relay first (the tailnet listener when it fails). The computer's Remote access dropdown and the phone's long-press sheet offer exactly these two, a machine with one link shows no choice, and a saved `auto` from an older version reads as the default (Tailscale first). `POST /kivotos/mode` takes only the two values; `auto` is refused now.
