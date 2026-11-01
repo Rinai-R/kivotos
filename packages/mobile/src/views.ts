@@ -1,4 +1,4 @@
-import { routeOf, type PhoneProbe } from "../../kivotos/src/machines.ts";
+import { DEFAULT_ROUTE_MODE, routeOf, type PhoneProbe } from "../../kivotos/src/machines.ts";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import type { ListedMachine, SwitchTarget } from "./bridge";
 
@@ -177,33 +177,25 @@ export function machineForTarget(
       : machines.find((row) => authorityOf(row.url) === target.address));
   if (machine === undefined) return null;
   const links = probe?.machines.find((entry) => entry.id === machine.id);
-  if (links !== undefined && routeOf(links, machine.mode ?? "auto") === null) return null;
+  if (links !== undefined && routeOf(links, machine.mode ?? DEFAULT_ROUTE_MODE) === null)
+    return null;
   return machine;
 }
 
 /**
  * Whether the phone reaches its own row `row` over Tailscale directly: its
- * latest probe found the Tailscale link online, and the machine's mode does
- * not send it through the relay instead.
- *
- * Written to read the same under today's modes (`auto` — absent — or the one
- * link a machine is held to) and under the two priorities (Tailscale first,
- * relay first) that replace them: `relay` is the mode that prefers, or only
- * uses, the relay, so a machine held to it is never taken for a direct
- * Tailscale one, whatever its Tailscale link says.
+ * latest probe found the Tailscale link online, and the mode's route is that
+ * link. A Tailscale-first machine is direct when its listener answers; a
+ * relay-first one is direct only while the relay does not, since the tailnet
+ * listener is then its fallback.
  */
 function tailscaleDirect(row: Machine, probe: PhoneProbe | null): boolean {
   const links = probe?.machines.find((entry) => entry.id === row.id)?.links;
-  const tailnetOnline =
-    links !== undefined &&
-    links.some((link) => link.via === "tailscale" && link.state === "online");
-  // Widened from `Via`: both mode vocabularies are read here, and `auto` is
-  // not one of today's stored values (absent means it).
-  const mode: string | undefined = row.mode;
-  const directTailscale =
-    tailnetOnline && (mode === undefined || mode === "auto" || mode === "tailscale");
-  const relayFirst = mode === "relay";
-  return directTailscale && !relayFirst;
+  if (links === undefined) return false;
+  const online = (via: "tailscale" | "relay"): boolean =>
+    links.some((link) => link.via === via && link.state === "online");
+  if (!online("tailscale")) return false;
+  return routeOf({ links }, row.mode ?? DEFAULT_ROUTE_MODE) === "tailscale";
 }
 
 /**

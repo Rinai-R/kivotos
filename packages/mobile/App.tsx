@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   addPhoneMachines,
   applyPhoneProbe,
+  DEFAULT_ROUTE_MODE,
   leavePhoneNetwork,
   routeOf,
   setPhoneMode,
@@ -294,7 +295,8 @@ export default function App() {
     const machine = machinesRef.current.find((row) => row.id === recent.current.row);
     const links = probe.machines.find((entry) => entry.id === machine?.id);
     if (machine === undefined || links === undefined) return;
-    if (routeOf(links, machine.mode ?? "auto") !== null) preloader.plan([{ machine, peer: null }]);
+    if (routeOf(links, machine.mode ?? DEFAULT_ROUTE_MODE) !== null)
+      preloader.plan([{ machine, peer: null }]);
   }, [probe, preloader]);
 
   /** Probe every link; the probe also brings the list new relay members, node ids and renames. */

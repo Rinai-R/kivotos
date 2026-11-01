@@ -96,6 +96,17 @@ test("a machine held to Tailscale stays on the phone's own row", () => {
   assert.deepEqual(to, { machine: heldToTailscale, peer: null });
 });
 
+test("a relay-first machine is direct only once its relay fails", () => {
+  const relayFirst: Machine = { ...B, mode: "relay" };
+  // The relay works: it is the route, so this is not a direct Tailscale page.
+  const relayUp = switchTarget([A, relayFirst], directProbe, view(A), target, [listedB]);
+  assert.deepEqual(relayUp, { machine: A, peer: { id: MOUNT, name: "lab-b" } });
+  // The relay is down: the machine falls back to Tailscale, a direct page again.
+  const relayDown = probeOf([{ id: B.id, links: bothLinks("online", "unreachable") }]);
+  const fallback = switchTarget([A, relayFirst], relayDown, view(A), target, [listedB]);
+  assert.deepEqual(fallback, { machine: relayFirst, peer: null });
+});
+
 test("This computer and the peer page keep their pages", () => {
   const peerPage = view(A, { id: MOUNT, name: "lab-b" });
   /** "This computer" on a peer's page is that computer's own page. */

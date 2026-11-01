@@ -42,7 +42,6 @@ import {
 } from "./machine-book.ts";
 import {
   isRouteMode,
-  pinnedVia,
   type LinkReason,
   type MachineInfo,
   type RouteMode,
@@ -900,8 +899,6 @@ interface Peer {
   upstream: Upstream;
   /** The link {@link upstream} goes through. */
   via: Via;
-  /** The one link the machine's mode holds it to; null in auto. */
-  pinned: Via | null;
 }
 
 /** What this computer tells its peers (`/kivotos/hello`) and its pages (`/kivotos/peers`). */
@@ -1011,8 +1008,6 @@ function rejected(ctx: HostContext, req: IncomingMessage, res: ServerResponse): 
 /** A mounted machine's routes on the webServer. */
 interface Mount {
   peer: Peer;
-  /** Exchanges in flight through the mount (WebSockets, streams), and the link each runs over. */
-  open: Map<{ destroy(): unknown }, Via>;
   dispose: () => void;
 }
 
@@ -1136,12 +1131,8 @@ export class PeerRoutes {
 
   private reconcile(machines: BookMachine<Upstream>[]): void {
     const next = new Map<string, Peer>();
-    /** The one link each machine's mode holds it to, mounted or not. */
-    const pins = new Map<string, Via | null>();
     for (const machine of machines) {
       const { id, route, target } = machine;
-      const pinned = pinnedVia(machine, machine.mode);
-      pins.set(id, pinned);
       if (route === null || target === undefined) continue;
       next.set(id, {
         id,
@@ -1149,15 +1140,9 @@ export class PeerRoutes {
         os: machine.os,
         upstream: target,
         via: route,
-        pinned,
       });
     }
     for (const [id, entry] of this.mounted) {
-      // Held to one link: nothing in flight through the mount stays on the other,
-      // also when the chosen link does not work and the mount goes.
-      const pinned = pins.get(id) ?? null;
-      if (pinned !== null)
-        for (const [exchange, via] of entry.open) if (via !== pinned) exchange.destroy();
       const peer = next.get(id);
       if (peer === undefined) {
         entry.dispose();
@@ -1196,7 +1181,7 @@ export class PeerRoutes {
 
   private mount(peer: Peer): void {
     const prefix = `${PEER_PREFIX}/${peer.id}`;
-    const entry: Mount = { peer, open: new Map(), dispose: (): void => {} };
+    const entry: Mount = { peer, dispose: (): void => {} };
     const disposeHttp = this.ctx.webServer.register({
       kind: "prefix",
       path: prefix,
@@ -1214,8 +1199,6 @@ export class PeerRoutes {
           return;
         }
         const rest = `${url.pathname.slice(prefix.length)}${url.search}`;
-        entry.open.set(res, entry.peer.via);
-        res.once("close", () => entry.open.delete(res));
         const base = {
           id: this.trace.id(),
           peer: peer.id,
@@ -1229,13 +1212,8 @@ export class PeerRoutes {
           html: (body) => mountPage(body, prefix, peer.id, this.compat),
           onDone: (stats) => {
             // No answer through the tailnet: look again now rather than at the next refresh,
-            // so the relay takes over within seconds. A machine held to Tailscale has no detour.
-            if (
-              stats.ttfbMs < 0 &&
-              stats.error !== undefined &&
-              entry.peer.via === "tailscale" &&
-              entry.peer.pinned === null
-            )
+            // so the relay takes over within seconds.
+            if (stats.ttfbMs < 0 && stats.error !== undefined && entry.peer.via === "tailscale")
               this.onTailnetFailure?.();
             if (this.trace.level !== "off")
               this.trace.record("peer.http", { ...base, ...roundStats(stats) });
@@ -1263,8 +1241,6 @@ export class PeerRoutes {
           path: REMOTE_MUX_PATH,
         };
         this.trace.record("peer.ws.open", base);
-        entry.open.set(socket, entry.peer.via);
-        socket.once("close", () => entry.open.delete(socket));
         forwardUpgrade(
           req,
           socket,
@@ -1325,7 +1301,7 @@ export class PeerRoutes {
           mode?: unknown;
         };
         if (typeof machine !== "string" || !isRouteMode(mode)) {
-          sendJson(res, 400, { error: "expected {machine, mode: auto | tailscale | relay}" });
+          sendJson(res, 400, { error: "expected {machine, mode: tailscale | relay}" });
           return;
         }
         if (!this.setMode(machine, mode)) {

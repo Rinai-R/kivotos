@@ -12,10 +12,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react";
 import {
   agoOf,
+  DEFAULT_ROUTE_MODE,
   downOf,
   isRouteMode,
   modeOptions,
-  pinnedVia,
   statusOf,
   type LinkDown,
   type LinkReason,
@@ -93,13 +93,10 @@ export const SETTINGS_ZH = {
   "col.mode": "连接方式",
   "via.tailscale": "Tailscale",
   "via.relay": "中继",
-  "mode.auto": "自动",
-  "mode.tailscale": "仅 Tailscale",
-  "mode.relay": "仅中继",
-  "mode.auto.desc": "不通时改走中继",
-  "mode.tailscale.desc": "不改道",
-  "mode.relay.desc": "不改道",
-  "mode.unavailable": "现在不可用：{reason}",
+  "mode.tailscale": "优先 Tailscale",
+  "mode.relay": "优先中继",
+  "mode.tailscale.desc": "不通时改走中继",
+  "mode.relay.desc": "不通时改走 Tailscale",
   "mode.only": "唯一方式",
   "mode.menu.label": "{name} 的连接方式",
   "mode.failed": "无法更改连接方式",
@@ -112,8 +109,7 @@ export const SETTINGS_ZH = {
   "tip.lastSeen": "最后在线 {ago}",
   "state.online": "在线",
   "state.unstable": "不稳定",
-  "state.unstable.tip": "最近的检查没有响应，仍在使用；连续 3 次失败后改走中继。",
-  "state.unstable-pinned.tip": "最近的检查没有响应，仍在使用；连续 3 次失败后算作无法连接。",
+  "state.unstable.tip": "最近的检查没有响应，仍在使用；连续 3 次失败后改走另一条链路。",
   "state.offline": "离线",
   "state.unreachable": "无法连接",
   "state.denied": "网络未登记",
@@ -221,13 +217,10 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "col.mode": "Route",
   "via.tailscale": "Tailscale",
   "via.relay": "Relay",
-  "mode.auto": "Auto",
-  "mode.tailscale": "Tailscale only",
-  "mode.relay": "Relay only",
-  "mode.auto.desc": "Falls back to the relay",
-  "mode.tailscale.desc": "No fallback",
-  "mode.relay.desc": "No fallback",
-  "mode.unavailable": "Unavailable now: {reason}",
+  "mode.tailscale": "Priority: Tailscale",
+  "mode.relay": "Priority: Relay",
+  "mode.tailscale.desc": "Falls back to the relay",
+  "mode.relay.desc": "Falls back to Tailscale",
   "mode.only": "Only link",
   "mode.menu.label": "How this computer reaches {name}",
   "mode.failed": "Couldn't change the route",
@@ -241,9 +234,7 @@ export const SETTINGS_EN: Record<keyof typeof SETTINGS_ZH, string> = {
   "state.online": "Online",
   "state.unstable": "Unstable",
   "state.unstable.tip":
-    "Missed its latest checks, still in use; after 3 failures in a row it switches to the relay.",
-  "state.unstable-pinned.tip":
-    "Missed its latest checks, still in use; after 3 failures in a row it counts as unreachable.",
+    "Missed its latest checks, still in use; after 3 failures in a row it falls back to the other link.",
   "state.offline": "Offline",
   "state.unreachable": "Unreachable",
   "state.denied": "Not registered",
@@ -512,7 +503,8 @@ export interface MachineList {
 /**
  * Read a `/kivotos/peers` body. A Host from before the machine model sends
  * only `peers`, its mounted machines: each becomes a machine online through
- * its one link. A Host from before modes reaches every machine in auto.
+ * its one link. A Host from before priorities reaches every machine with the
+ * default (Tailscale first).
  */
 export function machineListOf(body: unknown): MachineList {
   const value = (typeof body === "object" && body !== null ? body : {}) as {
@@ -522,14 +514,15 @@ export function machineListOf(body: unknown): MachineList {
   };
   const self = value.self ?? { name: "", os: "" };
   if (Array.isArray(value.machines)) {
-    for (const machine of value.machines) if (!isRouteMode(machine.mode)) machine.mode = "auto";
+    for (const machine of value.machines)
+      if (!isRouteMode(machine.mode)) machine.mode = DEFAULT_ROUTE_MODE;
     return { self, machines: value.machines as MachineInfo[] };
   }
   const machines = (value.peers ?? []).map(({ id, name, os, via = "tailscale" }) => ({
     id,
     name,
     os,
-    mode: "auto" as const,
+    mode: DEFAULT_ROUTE_MODE,
     route: via,
     links: [{ via, state: "online" as const }],
   }));
@@ -588,11 +581,7 @@ function cellOf(t: Translate, machine: MachineInfo, via: Via, host: string, now:
   if (link.state === "online" && link.unstable === true) {
     state = "unstable";
     word = t("state.unstable");
-    detail = t(
-      pinnedVia(machine, machine.mode) === null
-        ? "state.unstable.tip"
-        : "state.unstable-pinned.tip",
-    );
+    detail = t("state.unstable.tip");
   } else if (link.state === "online") {
     detail = link.address ?? null;
   } else if (link.state === "offline") {
@@ -618,20 +607,26 @@ export interface MachineSummary {
 
 /**
  * @returns a machine's summary (the switcher's rows): the route in use, else
- *   unstable; with no route, why its preferred link (the one its mode holds
- *   it to, else the first) does not work, or when it was last seen.
+ *   unstable; with no route, why its failed attempts say it does not work, or
+ *   when it was last seen.
  */
 export function machineSummary(t: Translate, machine: MachineInfo, now: number): MachineSummary {
   const status = statusOf(machine, machine.mode);
-  if (status.kind === "online") return { state: "online", text: t(`via.${status.via}`) };
-  if (status.kind === "unstable") return { state: "unstable", text: t("state.unstable") };
-  const pinned = pinnedVia(machine, machine.mode);
-  const link = machine.links.find((candidate) => pinned === null || candidate.via === pinned);
-  const down = link === undefined ? "offline" : (downOf(link) ?? "unreachable");
-  if (down !== "offline") return { state: "unreachable", text: downText(t, down) };
-  const lastSeen = link?.lastSeen ?? (status.kind === "offline" ? status.lastSeen : undefined);
-  const text = lastSeen === undefined ? t("state.offline") : agoText(t, lastSeen, now);
-  return { state: "offline", text };
+  switch (status.kind) {
+    case "online":
+      return { state: "online", text: t(`via.${status.via}`) };
+    case "unstable":
+      return { state: "unstable", text: t("state.unstable") };
+    case "unreachable":
+      return { state: "unreachable", text: downText(t, downOf(status.link) ?? "unreachable") };
+    case "denied":
+      return { state: "unreachable", text: t("state.denied") };
+    case "offline": {
+      const text =
+        status.lastSeen === undefined ? t("state.offline") : agoText(t, status.lastSeen, now);
+      return { state: "offline", text };
+    }
+  }
 }
 
 /** @returns a machine in full (the switcher's tooltip): every link's tooltip, one after the other. */
@@ -1543,9 +1538,9 @@ function LinkCell({ cell, label }: { cell: Cell; label: string }): ReactNode {
 }
 
 /**
- * How a machine reached both ways is reached, as a dropdown: Auto and each
- * link, a link that is down disabled with why unless it is the choice
- * (machines.ts `modeOptions`), so the control never changes shape.
+ * How a machine reached both ways is reached, as a dropdown: prefer Tailscale
+ * or prefer the relay, each falling back to the other link (machines.ts
+ * `modeOptions`). The control never changes shape.
  */
 function ModeMenu({
   machine,
@@ -1627,7 +1622,6 @@ function ModeMenu({
           </div>
           {options.map((option) => {
             const checked = option.mode === machine.mode;
-            const down = option.disabled;
             return (
               <button
                 key={option.mode}
@@ -1635,17 +1629,12 @@ function ModeMenu({
                 role="menuitemradio"
                 className="kivotos-menu-item"
                 aria-checked={checked}
-                disabled={down !== undefined && !checked}
                 data-mode={option.mode}
                 onClick={choose}
               >
                 <span className="kivotos-menu-text">
                   <span>{t(`mode.${option.mode}`)}</span>
-                  <span className="kivotos-menu-desc">
-                    {down === undefined
-                      ? t(`mode.${option.mode}.desc`)
-                      : t("mode.unavailable", { reason: downText(t, down) })}
-                  </span>
+                  <span className="kivotos-menu-desc">{t(`mode.${option.mode}.desc`)}</span>
                 </span>
                 {checked ? (
                   <svg className="kivotos-icon kivotos-menu-check" viewBox="0 0 16 16" aria-hidden>
