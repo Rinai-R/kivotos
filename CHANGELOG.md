@@ -4,10 +4,18 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- On a phone, Enter in the composer writes a line break instead of sending: dsh sends on a plain Enter and writes the line break for Shift+Enter, and a phone's keyboard has no Shift; the send button still sends.
+- On a phone, the welcome page no longer leaves a large blank at the top with the hero pushed down the screen: dsh centers that hero and a phone's tall screen turned the centering into blank space; a conversation with messages keeps dsh's layout.
+- In the Kivotos app the page no longer adds the system's safe-area insets on top of the app's own padding: a WebView that reports them (a phone with a display cutout) left a blank strip above the header, which an emulator without a cutout never showed.
+- A file dropped or picked on another machine's page in the desktop window now uploads to that machine: the desktop preload exposes this computer's file paths to the page as well, and dsh wrote them into the draft as references the other machine could not resolve. A dropped directory and files pasted from the clipboard keep dsh's behaviour.
 - Opening another machine from a machine's page in the phone app now goes through that machine when it is the faster way there: if the phone's own route to the target is not a direct Tailscale one (no row for it, its probe found no route, or only the relay reaches it) and the page's computer lists it with a route, the app opens it as that computer's mount (`/kivotos/peer/<id>/`), reusing the page's door and cache instead of dialling the target over the relay itself. A direct Tailscale route is still used directly, as the fastest way. The pages loaded ahead follow the same choice, so the warmed page is the one the switch shows.
 
 ### 中文
 
+- 手机输入框里的回车现在是换行，不再把消息发出去：dsh 对纯回车是发送、对 Shift+回车才是换行，而手机键盘没有 Shift；发送仍然用发送按钮。
+- 手机上的欢迎页不再在顶部留出一大片空白：dsh 会把欢迎页的标题和输入框垂直居中，手机屏幕更高，空白就被放大了；现在欢迎页靠上，有消息的会话维持 dsh 原样。
+- 在 Kivotos App 里，页面不再在 App 自己留出的安全区之上再叠一层系统安全区：会报告安全区的 WebView（有刘海/挖孔的真机）原来会在顶部多留一条空白，而没有 cutout 的模拟器复现不出来。
+- 在桌面窗口里打开另一台机器的页面时，拖入或选择文件现在会真正上传到那台机器：桌面端 preload 会把本机文件路径也暴露给该页面，dsh 原来只把路径写成引用，对端解析不到。拖入文件夹、从剪贴板粘贴文件维持 dsh 原有行为。
 - 手机 App 里从一台机器的页面打开另一台机器时，如果手机自己过去更慢（没有它的机器行、探测没有路由，或只有中继可达），而当前页面的电脑列出它有路由，App 现在会经这台电脑打开它（`/kivotos/peer/<id>/`），复用该页面的门和缓存，而不是让手机自己走中继。有 Tailscale 直达时仍然直连（最快）。预加载也按同样的选择，预热的就是切换时会显示的页面。
 
 ## v0.2.2

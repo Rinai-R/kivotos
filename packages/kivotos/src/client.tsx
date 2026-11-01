@@ -40,11 +40,14 @@ import {
 import { DESKTOP_SCHEME, desktopBridge, probeDesktopBridge } from "./dsh/desktop.ts";
 import { hidePeerOpenInApp } from "./dsh/open-in-app.ts";
 import { sessionFileAddress } from "./dsh/files.ts";
+import { peerFileIntake } from "./dsh/peer-files.ts";
 import {
+  APP_SAFE_AREA,
   dismissTopLayer,
   onSessionRowTap,
   PARTS,
   phoneStylesheet,
+  plainEnter,
   probePhoneConversation,
   probePhoneLayout,
   probePhoneSettings,
@@ -1312,18 +1315,57 @@ function usePhoneComposerFocus(active: boolean): void {
   }, [active]);
 }
 
+/**
+ * On a phone, Enter in the composer writes a line break instead of sending.
+ * dsh sends on a plain Enter and writes the line break for Shift+Enter, and a
+ * phone's keyboard has no Shift to ask with, so its labeled "line break" key
+ * sent the draft (frame.ts, `plainEnter`). The keydown dsh acts on is re-sent
+ * with Shift held, so dsh's own line-break path inserts the break; the
+ * composer's send button still sends.
+ * @param active - the drawer layout applies (phone width, frame as pinned).
+ */
+function usePhoneComposerLineBreak(active: boolean): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    const ours = new WeakSet<Event>();
+    const onKey = (event: KeyboardEvent): void => {
+      if (ours.has(event) || !plainEnter(event)) return;
+      const target = event.target;
+      if (!(target instanceof Element) || target.closest(PARTS.composer) === null) return;
+      const lineBreak = new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: event.code,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      });
+      ours.add(lineBreak);
+      event.preventDefault();
+      event.stopPropagation();
+      target.dispatchEvent(lineBreak);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [active]);
+}
+
 function PhoneShell({ t, toggleSidebar }: Injected): ReactNode {
   const phone = useMedia(PHONE);
   const collapsed = useSidebarCollapsed();
   const report = useCompat();
   const layout = usable(report, "phone-layout");
+  // The app's shell pads its WebView by the system insets already, so the page
+  // inside it pads 0; a phone's own browser pads the safe areas itself.
+  const safeArea = IN_APP ? APP_SAFE_AREA : undefined;
   useCloseDrawerOnSelect(layout && phone && !collapsed, toggleSidebar);
   usePhoneBack(layout && phone, collapsed, toggleSidebar);
   usePhoneComposerFocus(layout && phone);
+  usePhoneComposerLineBreak(layout && phone);
   return (
     <>
       <style>{BASE_CSS + SETTINGS_CSS + hidePeerOpenInApp()}</style>
-      <style>{phoneStylesheet(report, PHONE)}</style>
+      <style>{phoneStylesheet(report, PHONE, safeArea)}</style>
       {layout && phone && !collapsed ? (
         <button
           type="button"
@@ -1710,6 +1752,11 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => followAttention(t), "kivotos: attention");
   // What dsh still looks like: which Kivotos features stay on (compat.ts).
   ctx.effect(watchCompat, "kivotos: dsh compatibility probes");
+  // In the desktop window a peer page receives this computer's file paths, which
+  // dsh writes as references the other machine cannot resolve; the page makes
+  // those files upload to it instead (dsh/peer-files.ts).
+  if (currentPeer() !== null)
+    ctx.effect(() => peerFileIntake() ?? (() => undefined), "kivotos: peer file intake");
   // One stable function for every render, injected as a slot prop.
   const injected = { toggleSidebar: (): void => ctx.layout.toggleSidebar() };
   const props = (): typeof injected => injected;
