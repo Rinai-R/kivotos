@@ -126,6 +126,7 @@ async function host(file: string, dir: string, links: Links) {
     void route.handler(req, res);
   });
   const url = (target: string): string => `http://127.0.0.1:${server.port}${target}`;
+  let closed = false;
   return {
     fence,
     settled: () => peers.settled(),
@@ -160,14 +161,29 @@ async function host(file: string, dir: string, links: Links) {
     },
     /** Which of H's links a page load through the mount reached. */
     load: async (): Promise<string> => (await fetch(url(`/kivotos/peer/${ID_H}/`))).text(),
-    close: () => {
+    /**
+     * Stop everything, and wait for the Host's last `machines.json` write:
+     * the file lives in the test's directory, and removing it while that
+     * write lands fails with ENOTEMPTY on a loaded CI runner.
+     */
+    close: async (): Promise<void> => {
+      if (closed) return;
+      closed = true;
+      // The wrapper's close stops the server and drops its connections.
       server.close();
       disposeList();
       peers.dispose();
       hub.close();
       cache.close();
+      await peers.settled();
+      await trace.close();
     },
   };
+}
+
+/** @returns a test directory removed once every writer in it is done. */
+function removeDir(dir: string): Promise<void> {
+  return rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 }
 
 test(
@@ -222,7 +238,7 @@ test(
       await g.settled();
       const stored = JSON.parse(await readFile(file, "utf8")) as { modes: unknown };
       assert.deepEqual(stored.modes, { [ID_H]: "relay" });
-      g.close();
+      await g.close();
       const restarted = await host(file, dir, links);
       try {
         const restored = await restarted.machineH();
@@ -238,13 +254,13 @@ test(
         assert.deepEqual([tailscale?.mode, tailscale?.route], ["tailscale", "tailscale"]);
         assert.equal(await restarted.load(), "tailnet");
       } finally {
-        restarted.close();
+        await restarted.close();
       }
     } finally {
-      g.close();
+      await g.close();
       tailnet.close();
       relay.close();
-      await rm(dir, { recursive: true, force: true });
+      await removeDir(dir);
     }
   },
 );
@@ -282,10 +298,10 @@ test(
       assert.equal((await g.machineH())?.route, "tailscale");
       assert.equal(await g.load(), "tailnet");
     } finally {
-      g.close();
+      await g.close();
       tailnet.close();
       relay.close();
-      await rm(dir, { recursive: true, force: true });
+      await removeDir(dir);
     }
   },
 );
@@ -313,8 +329,8 @@ test("a machine with one link uses it whatever the mode says", { timeout: 10_000
     const stored = JSON.parse(await readFile(file, "utf8")) as { modes: unknown };
     assert.deepEqual(stored.modes, { [ID_H]: "relay" });
   } finally {
-    g.close();
+    await g.close();
     relay.close();
-    await rm(dir, { recursive: true, force: true });
+    await removeDir(dir);
   }
 });
