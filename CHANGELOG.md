@@ -2,7 +2,7 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
-## Unreleased
+## v0.3.0
 
 - How a machine is reached is now a priority with a fallback instead of an exclusive link: Tailscale first (the default, the relay when it fails) or the relay first (the tailnet listener when it fails). The computer's Remote access dropdown and the phone's long-press sheet offer exactly these two, a machine with one link shows no choice, and a saved `auto` from an older version reads as the default (Tailscale first). `POST /kivotos/mode` takes only the two values; `auto` is refused now.
 - The Android app's doors dial the machine's preferred link first and fall back to the other, so a relay-first machine reaches a computer whose relay is down over Tailscale and a Tailscale-first one still falls back to the relay; the notification stream follows the same choice.
