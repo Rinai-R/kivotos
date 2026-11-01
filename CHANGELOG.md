@@ -4,6 +4,8 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ## Unreleased
 
+- How a machine is reached is now a priority with a fallback instead of an exclusive link: Tailscale first (the default, the relay when it fails) or the relay first (the tailnet listener when it fails). The computer's Remote access dropdown and the phone's long-press sheet offer exactly these two, a machine with one link shows no choice, and a saved `auto` from an older version reads as the default (Tailscale first). `POST /kivotos/mode` takes only the two values; `auto` is refused now.
+- The Android app's doors dial the machine's preferred link first and fall back to the other, so a relay-first machine reaches a computer whose relay is down over Tailscale and a Tailscale-first one still falls back to the relay; the notification stream follows the same choice.
 - On a phone, Enter in the composer writes a line break instead of sending: dsh sends on a plain Enter and writes the line break for Shift+Enter, and a phone's keyboard has no Shift; the send button still sends.
 - On a phone, the welcome page no longer leaves a large blank at the top with the hero pushed down the screen: dsh centers that hero and a phone's tall screen turned the centering into blank space; a conversation with messages keeps dsh's layout.
 - In the Kivotos app the page no longer adds the system's safe-area insets on top of the app's own padding: a WebView that reports them (a phone with a display cutout) left a blank strip above the header, which an emulator without a cutout never showed.
@@ -11,6 +13,8 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ### 中文
 
+- 每台机器的连接方式不再固定走某一条链路，而是两个优先级、失败自动回落：优先 Tailscale（默认，不通时改走中继）或优先中继（不通时改走 Tailscale）。电脑的「远程连接」下拉框和手机的长按面板都只有这两项；只有一条链路的机器不显示选择；旧版本保存的 `auto` 读入后等于默认值（优先 Tailscale）。`POST /kivotos/mode` 只接受这两个值，`auto` 会被拒绝。
+- 安卓 App 的门先走机器首选的链路，失败再走另一条：优先中继的机器在中继不通时改走 Tailscale，优先 Tailscale 的机器仍会回落到中继；通知流也跟随同一选择。
 - 手机输入框里的回车现在是换行，不再把消息发出去：dsh 对纯回车是发送、对 Shift+回车才是换行，而手机键盘没有 Shift；发送仍然用发送按钮。
 - 手机上的欢迎页不再在顶部留出一大片空白：dsh 会把欢迎页的标题和输入框垂直居中，手机屏幕更高，空白就被放大了；现在欢迎页靠上，有消息的会话维持 dsh 原样。
 - 在 Kivotos App 里，页面不再在 App 自己留出的安全区之上再叠一层系统安全区：会报告安全区的 WebView（有刘海/挖孔的真机）原来会在顶部多留一条空白，而没有 cutout 的模拟器复现不出来。
