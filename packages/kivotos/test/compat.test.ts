@@ -14,6 +14,7 @@ import {
 } from "../src/dsh/compat.ts";
 import { guardDesktopBoot } from "../src/dsh/desktop.ts";
 import {
+  APP_SAFE_AREA,
   PARTS,
   phoneStylesheet,
   probePhoneConversation,
@@ -343,6 +344,17 @@ test("the phone stylesheet relies on no dsh markup its probes do not check, and 
   assert.ok(withoutLayout.includes(PARTS.settings));
   // Rules on plain elements stay whatever dsh looks like.
   assert.ok(withoutLayout.includes("touch-action:manipulation"));
+  // The welcome page's hero is pinned near the top on a phone (dsh centers it).
+  assert.ok(all.includes("justify-content:flex-start"));
+  assert.ok(all.includes(PARTS.viewArea));
+  const withoutConversation = phoneStylesheet({ "phone-conversation": failed }, phone);
+  assert.ok(!withoutConversation.includes("justify-content:flex-start"));
+  // A phone's own browser pads the safe areas; the app's shell pads its WebView.
+  assert.ok(all.includes("env(safe-area-inset-top,0px)"));
+  const inApp = phoneStylesheet({}, phone, APP_SAFE_AREA);
+  assert.ok(!inApp.includes("env(safe-area-inset-top"));
+  assert.ok(!inApp.includes("env(safe-area-inset-bottom"));
+  assert.ok(inApp.includes("env(safe-area-inset-left"));
 });
 
 test("the Session store passes while dsh writes what Kivotos reads", () => {

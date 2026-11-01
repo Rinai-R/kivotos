@@ -44,6 +44,8 @@ export const PARTS = {
   composerSeat: suffix("composerSeat"),
   content: "[data-conversation-content]",
   scroll: "[data-conversation-scroll]",
+  /** The Session's message view; the welcome page, with no Session open, has none. */
+  viewArea: suffix("viewArea"),
   settings: '[data-shortcut-modal="settings"]',
   navList: suffix("navList"),
   navCell: suffix("navCell"),
@@ -150,15 +152,41 @@ export function probePhoneSettings(page: FramePage): Probe | undefined {
   return ok("the Settings panel matches the pinned markup");
 }
 
-const LAYOUT_CSS = (phone: string): string => `
+/**
+ * The safe-area terms the phone stylesheet pads its edges with.
+ *
+ * A phone's own browser is the whole screen, so the page pads the display's
+ * safe areas itself. Inside the Kivotos app the shell already pads the WebView
+ * by the system insets (`MachineView`'s SafeAreaView), so the page inside it
+ * must not pad again: a device whose WebView reports the insets would otherwise
+ * get them twice, and the second copy is the blank strip above the header that
+ * a notched real phone shows and an emulator without a cutout does not.
+ */
+export interface SafeArea {
+  /** The top-edge padding: `env(safe-area-inset-top,0px)`, or 0 inside the app. */
+  readonly top: string;
+  /** The bottom-edge padding: `env(safe-area-inset-bottom,0px)`, or 0 inside the app. */
+  readonly bottom: string;
+}
+
+/** The page's own insets: a phone's browser, where nothing else pads. */
+export const SAFE_AREA: SafeArea = {
+  top: "env(safe-area-inset-top,0px)",
+  bottom: "env(safe-area-inset-bottom,0px)",
+};
+
+/** Inside the Kivotos app: the shell pads, the page leaves 0. */
+export const APP_SAFE_AREA: SafeArea = { top: "0px", bottom: "0px" };
+
+const LAYOUT_CSS = (phone: string, area: SafeArea): string => `
 @media ${phone}{
-  html{--dsh-frame-top-clearance:env(safe-area-inset-top,0px);--dsh-frame-overlay-top:calc(env(safe-area-inset-top,0px) + 12px);--dsh-frame-chrome-top:env(safe-area-inset-top,0px)}
+  html{--dsh-frame-top-clearance:${area.top};--dsh-frame-overlay-top:calc(${area.top} + 12px);--dsh-frame-chrome-top:${area.top}}
   html,body{overscroll-behavior:none}
-  ${FRAME}{grid-template-columns:0 minmax(0,1fr) 0!important;height:100dvh;box-sizing:border-box;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);transition:none!important}
+  ${FRAME}{grid-template-columns:0 minmax(0,1fr) 0!important;height:100dvh;box-sizing:border-box;padding:${area.top} env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);transition:none!important}
   ${FRAME} > ${P.handle}{display:none}
   ${FRAME} > ${P.centerCol}{grid-column:2;grid-row:1}
   ${FRAME} > ${P.rightbarCol}{grid-column:3;grid-row:1}
-  ${FRAME} > ${P.sidebarCol}{position:fixed;inset:0 auto 0 0;z-index:30;box-sizing:border-box;width:min(86vw,320px);padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);box-shadow:var(--dsw-shadow-lv3);transition:transform var(--ds-transition-duration-slow,240ms) var(--ds-ease-in-out,ease)}
+  ${FRAME} > ${P.sidebarCol}{position:fixed;inset:0 auto 0 0;z-index:30;box-sizing:border-box;width:min(86vw,320px);padding:${area.top} 0 ${area.bottom} env(safe-area-inset-left,0px);box-shadow:var(--dsw-shadow-lv3);transition:transform var(--ds-transition-duration-slow,240ms) var(--ds-ease-in-out,ease)}
   ${FRAME}[${P.collapsed}] > ${P.sidebarCol}{transform:translateX(calc(-100% - 24px));box-shadow:none}
   ${FRAME} > ${P.sidebarCol} > * > ${P.sidebarRoot}{width:100%!important}
   ${P.headerLeading} .kivotos-drawer-toggle{display:inline-flex}
@@ -167,22 +195,28 @@ const LAYOUT_CSS = (phone: string): string => `
   ${FRAME} > ${P.sidebarCol}{transition:none}
 }`;
 
-const CONVERSATION_CSS = (phone: string): string => `
+const CONVERSATION_CSS = (phone: string, area: SafeArea): string => `
 @media ${phone}{
   ${P.header}:has(> ${P.headerLeading}){padding-left:12px!important;padding-right:12px!important}
-  ${P.composerSeat}{padding-bottom:env(safe-area-inset-bottom,0px)}
+  ${P.composerSeat}{padding-bottom:${area.bottom}}
   ${P.scroll}{overscroll-behavior:contain}
+  /* dsh centers the welcome page's hero (its hero phase centers the scroll
+     body). A phone's screen is tall, so centering leaves a large blank above
+     it; on a phone the hero sits near the top. A conversation with messages
+     has the message view and is untouched. Marked important because the hero
+     phase's rule is more specific. */
+  ${P.scroll}:not(:has(${P.viewArea})){justify-content:flex-start!important;padding-top:clamp(16px,10vh,96px)}
 }`;
 
-const SETTINGS_CSS = (phone: string): string => `
+const SETTINGS_CSS = (phone: string, area: SafeArea): string => `
 @media ${phone}{
-  ${P.settings}{flex-direction:column;width:100vw;max-width:100vw;height:100dvh;box-sizing:border-box;border-radius:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+  ${P.settings}{flex-direction:column;width:100vw;max-width:100vw;height:100dvh;box-sizing:border-box;border-radius:0;padding:${area.top} env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
   ${P.settings} > nav{width:auto;gap:10px;padding:14px 12px 8px}
   ${P.settings} > nav > ${P.navList}{flex-direction:row;overflow:auto hidden;scrollbar-width:none}
   ${P.settings} > nav ${P.navCell},${P.settings} > nav ${P.navLabel}{flex:none}
   ${P.settings} > ${P.settingsContent}{min-height:0}
-  ${P.settings} > ${P.settingsContent} > ${P.header}{position:absolute;top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);height:auto;padding:12px 12px 0 0}
-  ${P.settings} > ${P.settingsContent} > ${P.options}{padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  ${P.settings} > ${P.settingsContent} > ${P.header}{position:absolute;top:${area.top};right:env(safe-area-inset-right,0px);height:auto;padding:12px 12px 0 0}
+  ${P.settings} > ${P.settingsContent} > ${P.options}{padding:8px 16px calc(16px + ${area.bottom})}
   ${P.settings} ${P.themeCube}{flex:1 1 0;min-width:0;padding:14px 8px}
   ${P.settings} .kivotos-mode-button{width:36px;height:36px}
   ${P.settings} .kivotos-mode-option{min-height:44px}
@@ -199,13 +233,18 @@ const TOUCH_CSS = (phone: string): string => `
  * The phone stylesheet, without the groups whose probe failed.
  * @param report - the page's compat report.
  * @param phone - the media query that means a phone.
+ * @param area - the safe-area terms the page pads with (see {@link SafeArea}).
  * @returns CSS text.
  */
-export function phoneStylesheet(report: CompatReport, phone: string): string {
+export function phoneStylesheet(
+  report: CompatReport,
+  phone: string,
+  area: SafeArea = SAFE_AREA,
+): string {
   let css = TOUCH_CSS(phone);
-  if (usable(report, "phone-layout")) css += LAYOUT_CSS(phone);
-  if (usable(report, "phone-conversation")) css += CONVERSATION_CSS(phone);
-  if (usable(report, "phone-settings")) css += SETTINGS_CSS(phone);
+  if (usable(report, "phone-layout")) css += LAYOUT_CSS(phone, area);
+  if (usable(report, "phone-conversation")) css += CONVERSATION_CSS(phone, area);
+  if (usable(report, "phone-settings")) css += SETTINGS_CSS(phone, area);
   return css;
 }
 
@@ -277,6 +316,37 @@ export function dismissTopLayer(page: Document): boolean {
       : modal.querySelector(`button${P.close}`);
   if (close instanceof HTMLElement) close.click();
   return modal !== null || close !== null;
+}
+
+/** The fields of a composer keydown the phone layout judges; `KeyboardEvent` satisfies it. */
+export interface ComposerKey {
+  readonly key: string;
+  readonly isComposing?: boolean;
+  readonly shiftKey?: boolean;
+  readonly ctrlKey?: boolean;
+  readonly altKey?: boolean;
+  readonly metaKey?: boolean;
+}
+
+/**
+ * Whether a phone's keydown in the composer asks for a line break instead of
+ * a send. dsh sends on a plain Enter and writes the line break for
+ * Shift+Enter; a phone's keyboard has no Shift to ask with, so the phone
+ * layout turns the send into the line break dsh already knows how to insert
+ * (`client.tsx`, `usePhoneComposerLineBreak`). A composition's Enter commits
+ * the composition and is dsh's to handle; the other chords keep their meaning.
+ * @param event - the composer's keydown.
+ * @returns whether the phone layout re-sends this keydown with Shift held.
+ */
+export function plainEnter(event: ComposerKey): boolean {
+  return (
+    event.key === "Enter" &&
+    event.isComposing !== true &&
+    event.shiftKey !== true &&
+    event.ctrlKey !== true &&
+    event.altKey !== true &&
+    event.metaKey !== true
+  );
 }
 
 /** Strings the nightly check expects in dsh's bundles (scripts/dsh-compat.mjs). */
