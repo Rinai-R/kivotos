@@ -25,11 +25,12 @@ import org.json.JSONObject
 
 /**
  * How the phone reaches each machine: one probe of every link at a time
- * ([probe], for the app's screens) and the route memory the doors use in
- * auto ([prefersRelay]). The vocabulary (states, reasons) is the shared
- * machine model of packages/kivotos/src/machines.ts, whose `routeOf` gives
- * each row its route by the machine's mode. Both links are probed whatever
- * the mode, so every choice can show what it gives now.
+ * ([probe], for the app's screens) and the route memory the doors use for a
+ * Tailscale-first machine ([relayFirst]). The vocabulary (states, reasons) is
+ * the shared machine model of packages/kivotos/src/machines.ts, whose
+ * `routeOf` gives each row its route by the machine's preferred link, the
+ * other being the fallback. Both links are probed whatever the mode, so every
+ * choice can show what it gives now.
  *
  * The phone holds no standing relay connection, so a relay network is
  * `online` when its relay answered this probe, and a machine of it is online
@@ -39,7 +40,7 @@ object Links {
   private const val PREFS = "kivotos.links"
   private const val HELLO_TIMEOUT_MS = 6_000
   private const val PROBE_TIMEOUT_MS = 12_000L
-  /** In auto, after a failed tailnet dial, a machine with a relay goes through the relay first this long. */
+  /** For a Tailscale-first machine: after a failed tailnet dial, go through the relay first this long. */
   private const val RELAY_FIRST_MS = 2 * 60_000L
 
   /** When each machine's tailnet listener last failed a door's dial (elapsed realtime). */
@@ -82,15 +83,19 @@ object Links {
     return true
   }
 
-  /** Whether a door in auto should dial the relay before the tailnet listener. */
-  fun prefersRelay(machine: Machine): Boolean {
+  /**
+   * Whether a Tailscale-first door should dial the relay before the tailnet
+   * listener: only after the listener failed a dial this recently, so a
+   * passing failure does not cost the fallback timeout on every request.
+   */
+  fun relayFirst(machine: Machine): Boolean {
     if (!machine.viaRelay) return false
     if (!machine.viaTailnet) return true
     val failed = tailnetFailed[machine.id] ?: return false
     return SystemClock.elapsedRealtime() - failed < RELAY_FIRST_MS
   }
 
-  /** A door in auto reached, or failed to reach, a machine over one link. */
+  /** A door reached, or failed to reach, a machine over one link. */
   fun dialed(machine: Machine, tailnet: Boolean, ok: Boolean) {
     if (!tailnet) return
     if (ok) tailnetFailed.remove(machine.id) else tailnetFailed[machine.id] = SystemClock.elapsedRealtime()

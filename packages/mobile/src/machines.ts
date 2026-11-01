@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocales } from "expo-localization";
-import { addPhoneMachines } from "../../kivotos/src/machines";
+import { addPhoneMachines, DEFAULT_ROUTE_MODE, storedMode } from "../../kivotos/src/machines";
 import {
   relayJoin,
   type Machine,
@@ -11,11 +11,23 @@ import { parsePairingUrl } from "./pairing";
 
 const KEY = "kivotos.machines";
 
+/**
+ * @returns a stored machine with its mode migrated: the legacy `auto` (and
+ *   anything else unreadable) is the default, which is stored as no mode.
+ */
+function readMachine(machine: Machine): Machine {
+  if (machine.mode === undefined) return machine;
+  const mode = storedMode(machine.mode);
+  if (mode !== DEFAULT_ROUTE_MODE) return { ...machine, mode };
+  const { mode: _legacy, ...rest } = machine;
+  return rest;
+}
+
 export async function loadMachines(): Promise<Machine[]> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
     const parsed: unknown = raw === null ? [] : JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Machine[]) : [];
+    return Array.isArray(parsed) ? (parsed as Machine[]).map(readMachine) : [];
   } catch {
     // A corrupt entry is treated as no machines; the user can add them again.
     return [];

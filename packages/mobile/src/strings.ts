@@ -1,7 +1,6 @@
 /** UI strings of the app's own screens (everything else is dsh's UI). */
 import {
   agoOf,
-  pinnedVia,
   statusOf,
   type LinkDown,
   type MachineLink,
@@ -70,13 +69,10 @@ const en = {
   "ago.days": "{count} d ago",
   sheetLinks: "Links",
   "mode.title": "How this phone reaches it",
-  "mode.auto": "Auto",
-  "mode.tailscale": "Tailscale only",
-  "mode.relay": "Relay only",
-  "modeDesc.auto": "Falls back to the relay",
-  "modeDesc.tailscale": "No fallback",
-  "modeDesc.relay": "No fallback",
-  "mode.unavailable": "Unavailable now: {reason}",
+  "mode.tailscale": "Priority: Tailscale",
+  "mode.relay": "Priority: Relay",
+  "modeDesc.tailscale": "Falls back to the relay",
+  "modeDesc.relay": "Falls back to Tailscale",
   sheetSource: "Relay network",
   sheetRemove: "Remove from this phone",
   removeTitle: "Remove {name}?",
@@ -185,13 +181,10 @@ const zhText: typeof en = {
   "ago.days": "{count}\u00a0天前",
   sheetLinks: "连接",
   "mode.title": "这台手机如何连接它",
-  "mode.auto": "自动",
-  "mode.tailscale": "仅 Tailscale",
-  "mode.relay": "仅中继",
-  "modeDesc.auto": "不通时改走中继",
-  "modeDesc.tailscale": "不改道",
-  "modeDesc.relay": "不改道",
-  "mode.unavailable": "现在不可用：{reason}",
+  "mode.tailscale": "优先 Tailscale",
+  "mode.relay": "优先中继",
+  "modeDesc.tailscale": "不通时改走中继",
+  "modeDesc.relay": "不通时改走 Tailscale",
   sheetSource: "中继网络",
   sheetRemove: "从这台手机移除",
   removeTitle: "移除 {name}？",
@@ -304,9 +297,8 @@ export function linkText(link: MachineLink, now: number): string {
 
 /**
  * A machine row's dot and word, as the computer's machine switcher says it
- * (machines.ts `statusOf`): the route, or the mode when it holds the machine
- * to one link; Unstable; how long ago it was seen when it is offline; else
- * the short reason it is unreachable.
+ * (machines.ts `statusOf`): the route; Unstable; how long ago it was seen when
+ * it is offline; else the short reason it is unreachable.
  * @param probe - what the last probe found; undefined before the first one.
  */
 export function summaryOf(
@@ -317,10 +309,8 @@ export function summaryOf(
   if (probe === undefined) return { dot: "checking", text: t("state.checking") };
   const status = statusOf(probe, mode);
   switch (status.kind) {
-    case "online": {
-      const pinned = pinnedVia(probe, mode);
-      return { dot: "online", text: t(pinned === null ? `via.${status.via}` : `mode.${pinned}`) };
-    }
+    case "online":
+      return { dot: "online", text: t(`via.${status.via}`) };
     case "unstable":
       return { dot: "unstable", text: t("state.unstable") };
     case "offline":

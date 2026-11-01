@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  DEFAULT_ROUTE_MODE,
   routeOf,
   type PhoneMachineProbe,
   type PhoneProbe,
@@ -68,7 +69,7 @@ function MachineRow({ machine, probe, last, onOpen, onActions }: RowProps) {
     ],
     [last, styles],
   );
-  const mode = machine.mode ?? "auto";
+  const mode = machine.mode ?? DEFAULT_ROUTE_MODE;
   const summary = summaryOf(probe, mode, Date.now());
   // A machine no link reaches is dimmed; its word says why.
   const reachable = probe === undefined || routeOf(probe, mode) !== null;

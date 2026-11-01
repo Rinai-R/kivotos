@@ -39,9 +39,9 @@ import org.json.JSONObject
  * Local doors to the machines. Each machine gets a loopback HTTP address the
  * WebView loads it from; every connection to it gets its own connection to the
  * machine: TCP (TLS for an `https` listener) to its tailnet listener, or a
- * secured relay session. A machine with both links goes the way its mode
- * says: in auto over the tailnet first and through the relay when the
- * listener cannot be reached ([Links]); held to one link, only over that one.
+ * secured relay session. A machine with both links tries its preferred one
+ * first and the other when that fails ([Links]): Tailscale first for a
+ * `tailscale` mode (the default), the relay first for a `relay` mode.
  * Either way it is behind the same door, so the page keeps its origin
  * whichever link carries it. Requests are read one by one so
  * the immutable ones can be answered from [HttpCache]; everything else, and
@@ -231,21 +231,21 @@ object MachineProxy {
     }
   }
 
-  /** Connect to the machine over the link its mode allows; in auto the preferred one, then the other. */
+  /**
+   * Connect to the machine over its preferred link, then the other: the
+   * tailnet listener first for a `tailscale` mode, the relay first for a
+   * `relay` mode. Both are tried; only whether one works decides.
+   */
   private fun dial(door: Door): Upstream {
     val machine = door.machine
-    val auto = machine.pinned == null
-    val order = when (machine.pinned) {
-      Machine.TAILSCALE -> listOf(true)
-      Machine.RELAY -> listOf(false)
-      else -> if (Links.prefersRelay(machine)) listOf(false, true) else listOf(true, false)
-    }
+    val relayFirst = machine.mode == Machine.RELAY || Links.relayFirst(machine)
+    val order = if (relayFirst) listOf(false, true) else listOf(true, false)
     val failures = mutableListOf<LinkFailure>()
     for (tailnet in order) {
       if (if (tailnet) door.uri == null else door.network == null) continue
       try {
         val upstream = if (tailnet) dialTailnet(door) else dialRelay(door)
-        if (auto) Links.dialed(machine, tailnet, ok = true)
+        Links.dialed(machine, tailnet, ok = true)
         unreached.remove(machine.id)
         upstream.owner = door.upstreams
         door.upstreams.add(upstream)
@@ -253,7 +253,7 @@ object MachineProxy {
         if (door.server.isClosed) upstream.close()
         return upstream
       } catch (error: Exception) {
-        if (auto) Links.dialed(machine, tailnet, ok = false)
+        Links.dialed(machine, tailnet, ok = false)
         failures.add(linkFailure(tailnet, error))
       }
     }
@@ -299,8 +299,8 @@ object MachineProxy {
   private fun dialTailnet(door: Door): Upstream {
     val plain = Socket()
     try {
-      // Give up early only when the relay can take over.
-      val timeout = if (door.machine.pinned == null && door.network != null) FALLBACK_CONNECT_TIMEOUT_MS else CONNECT_TIMEOUT_MS
+      // Give up early when the relay can take over.
+      val timeout = if (door.network != null) FALLBACK_CONNECT_TIMEOUT_MS else CONNECT_TIMEOUT_MS
       plain.connect(InetSocketAddress(door.host, door.port), timeout)
       plain.tcpNoDelay = true
       val socket = if (door.tls) {

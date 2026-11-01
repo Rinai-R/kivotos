@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  DEFAULT_ROUTE_MODE,
   modeOptions,
   routeOf,
   type MachineLink,
@@ -21,7 +22,7 @@ import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionM
 import { ChevronGlyph, RelayGlyph } from "./icons";
 import { relayHost } from "./machines";
 import { StateDot } from "./StateDot";
-import { dotOf, downText, linkText, t } from "./strings";
+import { dotOf, linkText, t } from "./strings";
 import { radius, useColors, useStyles, type Palette } from "./theme";
 
 interface Props {
@@ -70,31 +71,24 @@ interface OptionProps {
   onChoose: (mode: RouteMode) => void;
 }
 
-/** One mode on one line: its radio, its name, and what it does or why it is unavailable now. */
+/** One mode on one line: its radio, its priority, and the other link it falls back to. */
 function ModeRow({ option, checked, last, onChoose }: OptionProps) {
   const styles = useStyles(createStyles);
-  const { mode, disabled } = option;
+  const { mode } = option;
   const choose = useCallback(() => onChoose(mode), [mode, onChoose]);
-  // A link that is down cannot be chosen; the current choice stays, and says why.
-  const off = disabled !== undefined && !checked;
   const rowStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => [
       last ? styles.option : styles.optionDivided,
-      off && styles.optionOff,
       pressed && styles.pressed,
     ],
-    [last, off, styles],
+    [last, styles],
   );
-  const a11y = useMemo(() => ({ checked, disabled: off }), [checked, off]);
+  const a11y = useMemo(() => ({ checked }), [checked]);
   const name = t(`mode.${mode}`);
-  const detail =
-    disabled === undefined
-      ? t(`modeDesc.${mode}`)
-      : t("mode.unavailable", { reason: downText(disabled) });
+  const detail = t(`modeDesc.${mode}`);
   return (
     <Pressable
       onPress={choose}
-      disabled={off}
       style={rowStyle}
       accessibilityRole="radio"
       accessibilityState={a11y}
@@ -106,10 +100,7 @@ function ModeRow({ option, checked, last, onChoose }: OptionProps) {
       <Text style={styles.optionName} numberOfLines={1}>
         {name}
       </Text>
-      <Text
-        style={disabled !== undefined && checked ? styles.optionDown : styles.optionDetail}
-        numberOfLines={1}
-      >
+      <Text style={styles.optionDetail} numberOfLines={1}>
         {detail}
       </Text>
     </Pressable>
@@ -158,7 +149,7 @@ export function MachineSheet({ machine, probe, onMode, onRemove, onLinks, onClos
   );
   let body = null;
   if (machine !== null) {
-    const mode = machine.mode ?? "auto";
+    const mode = machine.mode ?? DEFAULT_ROUTE_MODE;
     const route = probe === undefined ? null : routeOf(probe, mode);
     // Before the first probe: the links the machine was added with, still being checked.
     const vias: Via[] = [];
@@ -325,13 +316,11 @@ function createStyles(c: Palette) {
     linkUsed: { ...linkState, fontWeight: "600", color: c.text },
     option,
     optionDivided: { ...option, ...divider },
-    optionOff: { opacity: 0.45 },
     radio: { ...radio, borderColor: c.textTertiary },
     radioOn: { ...radio, borderColor: c.link },
     radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.link },
     optionName: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: "500", color: c.text },
     optionDetail: { ...detail, color: c.textTertiary },
-    optionDown: { ...detail, color: c.danger },
     sourceGroup: {
       marginTop: 12,
       borderRadius: radius.lg,

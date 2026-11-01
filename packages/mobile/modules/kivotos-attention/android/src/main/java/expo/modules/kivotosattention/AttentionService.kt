@@ -165,9 +165,9 @@ class AttentionService : Service() {
     val (epoch, after) = AttentionState.cursor(this, machine.id)
     val query = "after=$after&epoch=" + java.net.URLEncoder.encode(epoch, "UTF-8")
     // A machine that may go over the relay is reached through its local door, which
-    // wants the door's cookie and dials as the mode says (auto falls back from the
-    // tailnet to the relay). A machine reached only over the tailnet is followed
-    // directly: the stream needs nothing the door adds.
+    // wants the door's cookie and dials the preferred link first, falling back to the
+    // other. A machine reached only over the tailnet is followed directly: the stream
+    // needs nothing the door adds.
     val door = machine.usesRelay
     val base = if (door) MachineProxy.url(this, machine) else machine.url.trimEnd('/')
     val connection = URL("$base/kivotos/events?$query").openConnection() as HttpURLConnection

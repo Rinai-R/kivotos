@@ -1,4 +1,4 @@
-import { routeOf, type PhoneProbe } from "../../kivotos/src/machines";
+import { DEFAULT_ROUTE_MODE, routeOf, type PhoneProbe } from "../../kivotos/src/machines";
 import type { Machine } from "../modules/kivotos-attention/src/KivotosAttentionModule";
 import type { ListedMachine, SwitchTarget } from "./bridge";
 
@@ -177,7 +177,8 @@ export function machineForTarget(
       : machines.find((row) => authorityOf(row.url) === target.address));
   if (machine === undefined) return null;
   const links = probe?.machines.find((entry) => entry.id === machine.id);
-  if (links !== undefined && routeOf(links, machine.mode ?? "auto") === null) return null;
+  if (links !== undefined && routeOf(links, machine.mode ?? DEFAULT_ROUTE_MODE) === null)
+    return null;
   return machine;
 }
 
@@ -237,7 +238,7 @@ export function preloadTargets(
     if (to.peer === null) {
       const row = to.machine;
       const links = probe?.machines.find((entry) => entry.id === row.id);
-      if (links === undefined || routeOf(links, row.mode ?? "auto") === null)
+      if (links === undefined || routeOf(links, row.mode ?? DEFAULT_ROUTE_MODE) === null)
         to = { machine: parent, peer: { id: target.id, name: target.name } };
     }
     const key = keyOf(to.machine.id, to.peer);

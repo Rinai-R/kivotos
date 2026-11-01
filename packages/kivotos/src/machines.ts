@@ -12,24 +12,42 @@
 /** A way of reaching a machine. */
 export type Via = "tailscale" | "relay";
 
-/** Route preference in auto: Tailscale is direct; the relay is the detour when it fails. */
+/** The links, in the order a Tailscale-first machine tries them: the direct one first, the relay as the detour. */
 export const VIAS: readonly Via[] = ["tailscale", "relay"];
 
+/** What a machine prefers until one is chosen: Tailscale first, the relay when it fails. */
+export const DEFAULT_ROUTE_MODE: RouteMode = "tailscale";
+
 /**
- * How a machine is reached, chosen per machine on the device that dials it:
- * - `auto`: Tailscale when it works, else the relay (the default).
- * - `tailscale`, `relay`: only that link. When it fails the machine is
- *   unreachable with that link's reason; it is never rerouted.
+ * Which link a machine should use first, chosen per machine on the device
+ * that dials it:
+ * - `tailscale`: the direct tailnet listener, and the relay when it fails (the default).
+ * - `relay`: the relay first, and the tailnet listener when it fails.
  *
- * A machine with one link has nothing to choose: that link is used, and the
- * mode is kept for when the other appears.
+ * Neither is exclusive: the other link takes over when the preferred one does
+ * not work. A machine with one link has nothing to choose: that link is used,
+ * and the mode is kept for when the other appears.
  */
-export type RouteMode = "auto" | Via;
+export type RouteMode = Via;
 
-export const ROUTE_MODES: readonly RouteMode[] = ["auto", "tailscale", "relay"];
+export const ROUTE_MODES: readonly RouteMode[] = VIAS;
 
+/** @returns whether `value` is one of the two priorities. */
 export function isRouteMode(value: unknown): value is RouteMode {
-  return value === "auto" || value === "tailscale" || value === "relay";
+  return value === "tailscale" || value === "relay";
+}
+
+/**
+ * @returns the mode a stored value names: the legacy `auto`, and anything
+ *   else this version does not know, is the default (Tailscale first).
+ */
+export function storedMode(value: unknown): RouteMode {
+  return value === "relay" ? "relay" : DEFAULT_ROUTE_MODE;
+}
+
+/** @returns the links in the order `mode` tries them: its preferred one, then the other. */
+export function routeOrder(mode: RouteMode): readonly Via[] {
+  return mode === "relay" ? ["relay", "tailscale"] : VIAS;
 }
 
 /**
@@ -88,7 +106,7 @@ export interface MachineInfo {
   os: string;
   /** Kivotos node id (SHA-256 of its certificate), when known. */
   node?: string;
-  /** How this computer reaches it. */
+  /** Which link it prefers; the other one is the fallback. */
   mode: RouteMode;
   /** The link requests go through now ({@link routeOf}); null when none works. */
   route: Via | null;
@@ -97,24 +115,11 @@ export interface MachineInfo {
 }
 
 /**
- * @returns the one link `mode` holds the machine to: null in auto, and for a
- *   machine with one link, which has nothing to choose.
- */
-export function pinnedVia(machine: Pick<MachineInfo, "links">, mode: RouteMode): Via | null {
-  if (mode === "auto") return null;
-  const { links } = machine;
-  return links.some((link) => link.via === mode) && links.some((link) => link.via !== mode)
-    ? mode
-    : null;
-}
-
-/**
- * @returns the link requests go through: the pinned link when it works, else
- *   (auto, or one link) the preferred link that works; null when none does.
+ * @returns the link requests go through: the first online link in the mode's
+ *   order (its preferred one, else the fallback); null when none works.
  */
 export function routeOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): Via | null {
-  const pinned = pinnedVia(machine, mode);
-  for (const via of pinned === null ? VIAS : [pinned]) {
+  for (const via of routeOrder(mode)) {
     if (machine.links.some((link) => link.via === via && link.state === "online")) return via;
   }
   return null;
@@ -129,34 +134,26 @@ export function downOf(link: MachineLink): LinkDown | undefined {
   return link.state === "unreachable" ? (link.reason ?? "unreachable") : link.state;
 }
 
-/** One choice of a machine's mode control. */
+/** One choice of a machine's mode control: a link to prefer. */
 export interface ModeOption {
   mode: RouteMode;
-  /** The link a Tailscale or Relay choice holds the machine to. */
-  link?: MachineLink;
-  /**
-   * Why its link does not work now: it cannot be chosen, since a machine is
-   * never held to a link that is down. The current choice may be one; it
-   * stays the choice and shows why it does not work.
-   */
-  disabled?: LinkDown;
+  /** The link this choice prefers; the other link is its fallback. */
+  link: MachineLink;
 }
 
 /**
- * The choices a machine's mode control offers: Auto and each link, those
- * that are down disabled with why, so the control never changes shape. None
- * for a machine with one link, which has nothing to choose.
+ * The choices a machine's mode control offers: prefer Tailscale, or prefer the
+ * relay, each falling back to the other link. None for a machine with one
+ * link, which has nothing to choose.
  */
 export function modeOptions(machine: Pick<MachineInfo, "links">): ModeOption[] {
-  const options: ModeOption[] = [{ mode: "auto" }];
-  for (const via of VIAS) {
-    const link = machine.links.find((candidate) => candidate.via === via);
-    // One link per way: a machine reached one way only has nothing to choose.
-    if (link === undefined) return [];
-    const disabled = downOf(link);
-    options.push(disabled === undefined ? { mode: via, link } : { mode: via, link, disabled });
-  }
-  return options;
+  const tailscale = machine.links.find((link) => link.via === "tailscale");
+  const relay = machine.links.find((link) => link.via === "relay");
+  if (tailscale === undefined || relay === undefined) return [];
+  return [
+    { mode: "tailscale", link: tailscale },
+    { mode: "relay", link: relay },
+  ];
 }
 
 /** @returns the latest time any link reached the machine. */
@@ -181,22 +178,22 @@ export type MachineStatus =
 
 /**
  * One status per machine: the route when a link works (unstable when that
- * link missed its latest checks); otherwise "offline" when a link says the
- * machine is away (the plainest explanation), else the first failed
- * attempt's reason. A machine held to one link shows that link's state alone.
+ * link missed its latest checks; `down` when it is the fallback, the preferred
+ * link having failed); otherwise "offline" when a link says the machine is
+ * away (the plainest explanation), else the first failed attempt's reason, in
+ * the mode's order.
  */
 export function statusOf(machine: Pick<MachineInfo, "links">, mode: RouteMode): MachineStatus {
-  const pinned = pinnedVia(machine, mode);
-  const links =
-    pinned === null ? machine.links : machine.links.filter((link) => link.via === pinned);
+  const order = routeOrder(mode);
   const route = routeOf(machine, mode);
   if (route !== null) {
-    const rank = VIAS.indexOf(route);
-    const down = links.find((link) => VIAS.indexOf(link.via) < rank);
-    const used = links.find((link) => link.via === route && link.state === "online");
+    const used = machine.links.find((link) => link.via === route && link.state === "online");
     const kind = used?.unstable === true ? "unstable" : "online";
+    const preferred = machine.links.find((link) => link.via === order[0]);
+    const down = preferred !== undefined && preferred.state !== "online" ? preferred : undefined;
     return down === undefined ? { kind, via: route } : { kind, via: route, down };
   }
+  const links = order.flatMap((via) => machine.links.filter((link) => link.via === via));
   const lastSeen = lastSeenOf(links);
   const unreachable = links.find((link) => link.state === "unreachable");
   if (links.length === 0 || links.some((link) => link.state === "offline"))
@@ -235,8 +232,8 @@ export interface PhoneMachine {
   node?: string;
   /** Set when a relay network the phone joined reaches the machine. */
   relay?: { endpoint: string; key: string; node: string };
-  /** How the phone reaches it; absent means auto. */
-  mode?: Via;
+  /** How the phone reaches it; absent means the default (Tailscale first). */
+  mode?: RouteMode;
 }
 
 /** A machine's links as one native probe found them (`Links.kt`). */
@@ -356,7 +353,10 @@ export function leavePhoneNetwork(list: readonly PhoneMachine[], key: string): P
   return out;
 }
 
-/** @returns the list with one machine's mode set; auto is stored as no mode. */
+/**
+ * @returns the list with one machine's mode set; the default (Tailscale
+ *   first) is stored as no mode.
+ */
 export function setPhoneMode(
   list: readonly PhoneMachine[],
   id: string,
@@ -366,7 +366,7 @@ export function setPhoneMode(
   if (index < 0) return [...list];
   const next = [...list];
   const { mode: _old, ...rest } = list[index];
-  next[index] = mode === "auto" ? rest : { ...rest, mode };
+  next[index] = mode === DEFAULT_ROUTE_MODE ? rest : { ...rest, mode };
   return next;
 }
 

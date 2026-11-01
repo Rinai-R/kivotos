@@ -10,8 +10,9 @@
  * probes, stores and mounts.
  */
 import {
-  isRouteMode,
+  DEFAULT_ROUTE_MODE,
   routeOf,
+  storedMode,
   VIAS,
   type LinkReason,
   type LinkState,
@@ -156,8 +157,8 @@ export class MachineBook<T> {
   private readonly absent = new Map<Via, Absent>();
   /** Transient failures in a row of a link's entries that were working, by slot. */
   private readonly failures = new Map<string, number>();
-  /** Modes other than auto, by machine id. */
-  private readonly modes = new Map<string, Via>();
+  /** Modes other than the default (Tailscale first), by machine id. */
+  private readonly modes = new Map<string, RouteMode>();
   private readonly retentionMs: number;
 
   /** @param retentionMs - how long a machine no link reports stays listed after it was last seen. */
@@ -167,6 +168,8 @@ export class MachineBook<T> {
 
   /**
    * Load what an earlier run kept; malformed entries and ones seen since are skipped.
+   * A stored mode the model does not know (the legacy `auto` included) is
+   * the default, and the default is not kept.
    * @param modes - `{ <machine id>: mode }`, as {@link storedModes} gave it.
    */
   restore(entries: unknown, modes?: unknown): void {
@@ -180,7 +183,8 @@ export class MachineBook<T> {
     }
     if (typeof modes !== "object" || modes === null) return;
     for (const [id, mode] of Object.entries(modes)) {
-      if (isRouteMode(mode) && mode !== "auto" && !this.modes.has(id)) this.modes.set(id, mode);
+      const read = storedMode(mode);
+      if (read !== DEFAULT_ROUTE_MODE && !this.modes.has(id)) this.modes.set(id, read);
     }
   }
 
@@ -189,7 +193,7 @@ export class MachineBook<T> {
     return [...this.memory.values()];
   }
 
-  /** The modes to keep for the next run, by machine id in id order; auto is left out. */
+  /** The modes to keep for the next run, by machine id in id order; the default is left out. */
   storedModes(): Record<string, RouteMode> {
     return Object.fromEntries([...this.modes].sort(([a], [b]) => a.localeCompare(b)));
   }
@@ -201,7 +205,7 @@ export class MachineBook<T> {
    */
   setMode(id: string, mode: RouteMode): boolean {
     if (![...this.memory.values()].some((entry) => idOf(entry) === id)) return false;
-    if (mode === "auto") this.modes.delete(id);
+    if (mode === DEFAULT_ROUTE_MODE) this.modes.delete(id);
     else this.modes.set(id, mode);
     return true;
   }
@@ -361,7 +365,7 @@ export class MachineBook<T> {
       else group.push({ entry, sighting, link });
     }
     const machines = [...groups].map(([id, group]) =>
-      machineOf(id, group, this.modes.get(id) ?? "auto"),
+      machineOf(id, group, this.modes.get(id) ?? DEFAULT_ROUTE_MODE),
     );
     return machines.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }

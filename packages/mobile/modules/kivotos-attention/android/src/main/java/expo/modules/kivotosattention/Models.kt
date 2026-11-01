@@ -35,8 +35,9 @@ data class AttentionFrame(
  * A machine whose events the service follows. It is reached directly at
  * [url] (its tailnet listener), through a relay as node [node] of the network
  * with federation key [key] when [relay] is set, or both: one computer the
- * phone knows by both links (packages/kivotos/src/machines.ts). [mode] is
- * how the phone reaches it: `auto`, `tailscale` or `relay`.
+ * phone knows by both links (packages/kivotos/src/machines.ts). [mode] is the
+ * link the phone prefers: `tailscale` (the default, the relay when it fails)
+ * or `relay` (the tailnet listener when it fails).
  */
 data class Machine(
   val id: String,
@@ -45,34 +46,28 @@ data class Machine(
   val relay: String = "",
   val key: String = "",
   val node: String = "",
-  val mode: String = AUTO,
+  val mode: String = TAILSCALE,
 ) {
   val viaRelay: Boolean get() = relay.isNotEmpty()
   val viaTailnet: Boolean get() = url.isNotEmpty()
 
-  /**
-   * The one link the mode holds the machine to (`pinnedVia` in machines.ts):
-   * null in auto, and for a machine with one link, which has nothing to choose.
-   */
-  val pinned: String? get() = mode.takeIf { viaRelay && viaTailnet && (it == TAILSCALE || it == RELAY) }
-
-  /** Whether any request may go over the relay: it has a relay link and is not held to Tailscale. */
-  val usesRelay: Boolean get() = viaRelay && pinned != TAILSCALE
+  /** Whether any request may go over the relay: the machine has a relay link. */
+  val usesRelay: Boolean get() = viaRelay
 
   fun toJson(): JSONObject {
     val json = JSONObject().put("id", id).put("name", name).put("url", url)
     if (viaRelay) json.put("relay", JSONObject().put("endpoint", relay).put("key", key).put("node", node))
-    if (mode != AUTO) json.put("mode", mode)
+    if (mode != TAILSCALE) json.put("mode", mode)
     return json
   }
 
   companion object {
-    const val AUTO = "auto"
     const val TAILSCALE = "tailscale"
     const val RELAY = "relay"
 
     fun fromJson(json: JSONObject): Machine {
       val relay = json.optJSONObject("relay")
+      // A mode written by an older app (`auto`) or unreadable is the default.
       return Machine(
         id = json.getString("id"),
         name = json.getString("name"),
@@ -80,7 +75,7 @@ data class Machine(
         relay = relay?.optString("endpoint").orEmpty(),
         key = relay?.optString("key").orEmpty(),
         node = relay?.optString("node").orEmpty(),
-        mode = json.optString("mode").takeIf { it == TAILSCALE || it == RELAY } ?: AUTO,
+        mode = if (json.optString("mode") == RELAY) RELAY else TAILSCALE,
       )
     }
   }
