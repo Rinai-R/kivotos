@@ -2,6 +2,32 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## v0.4.0
+
+### Highlights
+
+- Safe restart: restart dsh from **Machines → Restart dsh…** (computer and phone) or `/kivotos restart [now|idle|status|cancel]`, even when you are only connected remotely. A detached helper outlives dsh, asks it to quit cleanly, starts it again, and checks that Kivotos answers again, retrying the launch up to three times; the page shows a "restarting" cover, reconnects by itself, and then shows "back online" with the dsh version and the plugins that changed. Log: `$DSH_HOME/kivotos/restart/restart.log`.
+- The dialog lists the running sessions and jobs and offers **Restart when idle** (waits until nothing runs, cancellable) or **Restart now**.
+
+### Breaking changes
+
+- None.
+
+### Fixes
+
+- None.
+
+### Compatibility
+
+- DeepSeek Harness `>=0.2.1-rc.5 <0.3.0-0`. Restart is supported for the macOS desktop app (relaunched through LaunchServices) and for `dsh web` started from a terminal (same command line again); it is refused, with the reason, on Windows, under systemd, and for a desktop app started with extra arguments.
+- When the desktop app would ask for quit confirmation (running tasks or armed reminders), nobody can answer it remotely: Kivotos waits 15 s and then force-quits the window process. The Host still shuts down cleanly and finishes its session logs. The log and the state file record that this happened.
+
+### 中文
+
+- 安全重启：可在「机器 → 重启 dsh…」（电脑和手机）或 `/kivotos restart [now|idle|status|cancel]` 重启 dsh，仅远程连接时也可用。独立的辅助进程比 dsh 活得久：让 dsh 正常退出、再启动、确认 Kivotos 重新可用，启动失败最多重试三次；页面显示「正在重启」，自动重连，恢复后提示 dsh 版本和有变化的插件。日志：`$DSH_HOME/kivotos/restart/restart.log`。
+- 对话框列出运行中的会话和任务，可选「空闲时重启」（等待全部结束，可取消）或「立即重启」。
+- 支持 macOS 桌面端（通过 LaunchServices 重新打开）和终端启动的 `dsh web`；Windows、systemd 下及带额外参数启动的桌面端会拒绝并说明原因。桌面端需要退出确认时（有运行中的任务或已设定的提醒），远程无法点击，Kivotos 等待 15 秒后强制结束窗口进程，Host 仍会正常关闭并写完会话日志。
+
 ## v0.3.1
 
 ### Highlights

@@ -788,7 +788,7 @@ function Copyable({ text, wrap, t }: { text: string; wrap?: boolean; t: Translat
  * A modal on dsh's Modal geometry. A native modal keeps keyboard focus and
  * Escape inside the dialog, in the phone drawer and in the Settings panel alike.
  */
-function Dialog({
+export function Dialog({
   title,
   wide,
   t,
@@ -845,7 +845,7 @@ function Dialog({
 }
 
 /** Closes the dialog the button is in; its `close` event reaches the dialog's `onClose`. */
-function closeDialog(event: React.MouseEvent<HTMLElement>): void {
+export function closeDialog(event: React.MouseEvent<HTMLElement>): void {
   event.currentTarget.closest("dialog")?.close();
 }
 

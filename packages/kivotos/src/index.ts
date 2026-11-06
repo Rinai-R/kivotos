@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { AttentionHub } from "./attention-hub.ts";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
 import { markImmutable, MountCache } from "./cache.ts";
@@ -63,6 +64,13 @@ import {
 } from "./proxy.ts";
 import { PieceManifests } from "./pieces.ts";
 import { RelayHost } from "./relay-host.ts";
+import {
+  RESTART_PATH,
+  RestartService,
+  runRestartCommand,
+  serveRestart,
+  waitListening,
+} from "./restart.ts";
 import { issueCert, readStatus, whois, type TailnetNode, type TailnetStatus } from "./tailscale.ts";
 import { tracePath } from "./trace-path.ts";
 import { TraceLog, type TraceLevel } from "./trace.ts";
@@ -1616,6 +1624,84 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     trace,
   });
 
+  const restart = new RestartService({
+    home: dshHome(),
+    helper: fileURLToPath(new URL("./restart-helper.js", import.meta.url)),
+    moduleFile: fileURLToPath(import.meta.url),
+    profileDir: ctx.get("profileContext")?.dir,
+    services: () => {
+      const titles = ctx.get("sessionTitle");
+      const waterfall = ctx.waterfall?.bind(ctx);
+      return {
+        agents: ctx.get("agents"),
+        jobs: ctx.get("jobs"),
+        activity:
+          waterfall === undefined
+            ? undefined
+            : (sessionId: string) =>
+                Promise.resolve(
+                  waterfall("workspace/session-activity", { sessionId }, () => Promise.resolve([])),
+                ) as Promise<readonly { kind?: string }[]>,
+        title: (agent: { session?: unknown }) =>
+          agent.session === undefined || titles === undefined
+            ? undefined
+            : titles.get(agent.session as { id: string })?.title,
+      };
+    },
+    listenerUrl: () => routes.self.url,
+    warn: (message, error) => ctx.logger.warn(message, error),
+  });
+  ctx.effect(() => {
+    const dispose = ctx.webServer.register({
+      kind: "exact",
+      path: RESTART_PATH,
+      handler: async (req, res) => {
+        if (rejected(ctx, req, res)) return;
+        await serveRestart(restart, req, res, () => readJsonBody(req, 1024));
+      },
+    });
+    return () => {
+      dispose();
+      restart.dispose();
+    };
+  }, "kivotos: safe restart");
+  // `/kivotos restart [now|idle|status|cancel]`, where dsh has slash commands.
+  ctx.inject?.(["commands"], (scoped) => {
+    scoped.effect(
+      () =>
+        scoped.get("commands")?.register({
+          name: "kivotos",
+          description: "Kivotos: restart dsh safely (restart [now|idle|status|cancel])",
+          input: { hint: "restart [now|idle|status|cancel]" },
+          handler: async ({ rawInput }) => {
+            const { ok, text } = await runRestartCommand(restart, rawInput);
+            return ok ? { kind: "success", text } : { kind: "error", text };
+          },
+        }) ?? (() => undefined),
+      "kivotos: /kivotos command",
+    );
+  });
+  // Up once the relay link has started and the first tailnet refresh (and its
+  // listener) settled: a restart that brought this Host up is marked back.
+  const relayStart = Promise.withResolvers<void>();
+  const tailnetStart = Promise.withResolvers<void>();
+  let relayStarted = false;
+  let tailnetSettled = false;
+  const markServing = async (): Promise<void> => {
+    await Promise.all([relayStart.promise, tailnetStart.promise]);
+    if (!(await waitListening(() => ctx.webServer.port))) {
+      ctx.logger.warn("kivotos: dsh's webServer does not answer; a restart is not marked back");
+      return;
+    }
+    const back = restart.markBack();
+    if (back !== undefined) {
+      ctx.logger.info(
+        `kivotos: back after restart ${back.id}${back.changes?.length ? `: ${back.changes.map((c) => `${c.name} ${c.from ?? "-"} -> ${c.to ?? "-"}`).join(", ")}` : ""}`,
+      );
+    }
+  };
+  void markServing();
+
   ctx.effect(() => {
     routes.load();
     const disposeList = routes.registerList();
@@ -1641,6 +1727,9 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
         routes.self.node = relay.view().node;
       } catch (error) {
         ctx.logger.warn("kivotos: relay link failed to start", error);
+      } finally {
+        if (!relayStarted) relayStart.resolve();
+        relayStarted = true;
       }
     })();
     return () => relay.dispose();
@@ -1691,6 +1780,9 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
       } catch (error) {
         ctx.logger.warn("kivotos: tailnet refresh failed", error);
       } finally {
+        await listener?.catch(() => undefined);
+        if (!tailnetSettled) tailnetStart.resolve();
+        tailnetSettled = true;
         running = false;
         lastRun = performance.now();
         if (!stopped) timer = setTimeout(() => void refresh(), config.refreshSeconds * 1000);
