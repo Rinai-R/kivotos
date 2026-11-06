@@ -22,7 +22,7 @@ const BUNDLES: Record<string, string> = {
 const REV: Record<string, string> = { a: "0a0a0a0a0a0a", b: "0b0b0b0b0b0b", c: "0c0c0c0c0c0c" };
 const BATCH = "/plugins/??b/client.js,c/client.js&rev=4d15464a3e7f";
 
-/** A batch body the way dsh 0.2.1-rc.5 writes it (`buildComboScript`); `join` between rows is a deviation. */
+/** A batch body the way dsh 0.2.2-rc.1 writes it (`buildComboScript`); `join` between rows is a deviation. */
 function script(ids: string[], rev: string, join = ""): Buffer {
   const rows = ids.map((id) => {
     let source = BUNDLES[id].replace(/(?:\r?\n)?\/\/# sourceMappingURL=[^\r\n]*(?:\r?\n)?$/, "");

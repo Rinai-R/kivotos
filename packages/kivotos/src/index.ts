@@ -177,7 +177,7 @@ const DEFAULTS: KivotosConfig = {
   refreshSeconds: 30,
   offlineDays: 7,
   trace: "requests",
-  // One dsh 0.2.1-rc.5 page load stores about 11 MB (about 9 MB of it the
+  // One dsh 0.2.2-rc.1 page load stores about 11 MB (about 9 MB of it the
   // plugin batch); every launch of a peer's dsh revisions its plugin batches
   // anew. 256 MB holds some 20 such sets, a few launches of every peer in a
   // household tailnet, before the least recently used go.
@@ -1580,9 +1580,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
 
   // Every Session's appends, browser-opened or not: the source of the phone's notifications.
   // ctx.on owns its listener's lifetime: it is removed when the plugin unloads.
-  const attention = new AttentionTracker((session) =>
-    ctx.get("sessionProjections")?.stateOf(session, "title"),
-  );
+  const attention = new AttentionTracker((session) => ctx.get("sessionTitle")?.get(session)?.title);
   ctx.on("session/event", (session, event) => attention.observe(session, event));
   ctx.on("session/disposed", (session) => attention.forget(session.id));
 

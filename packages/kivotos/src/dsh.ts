@@ -1,5 +1,5 @@
 /**
- * The slice of the dsh 0.2.1-rc.5 Host API that Kivotos uses.
+ * The slice of the dsh 0.2.2-rc.1 Host API that Kivotos uses.
  *
  * Declared locally, the way dsh's own open-in-app plugin types `connection`:
  * the real declarations live in packages whose type graphs pull in most of
@@ -69,15 +69,19 @@ export interface HostEvents {
   "session/disposed": (session: Session) => void;
 }
 
-/** `ctx.sessionProjections` (`@deepseek-ai/dsh-session-projection`), read for the `title` unit. */
-export interface SessionProjections {
-  /** @returns the unit's current state, or undefined when the key is not registered. */
-  stateOf(session: Session, key: "title"): string | null | undefined;
+/**
+ * `ctx.sessionTitle` (`@deepseek-ai/dsh-session-title`), read for a Session's
+ * current title. Kivotos reads the title service rather than the deprecated
+ * `sessionProjections.stateOf(session, "title")`, which dsh 0.2.2 warns on.
+ */
+export interface SessionTitles {
+  /** @returns the latest accepted title, or undefined before any is accepted. */
+  get(session: Session): { readonly title: string } | undefined;
 }
 
 /** Services read optionally, through `ctx.get`, so Kivotos does not require them. */
 export interface OptionalServices {
-  sessionProjections: SessionProjections;
+  sessionTitle: SessionTitles;
 }
 
 /** The plugin Context with the services Kivotos injects. */
