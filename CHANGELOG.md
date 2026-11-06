@@ -2,13 +2,30 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
-## Unreleased
+## v0.3.1
 
-- Support DeepSeek Harness 0.2.1-rc.5: the page probes, the pinned index fixture and the adapter markers were re-verified against the new release; the index rewrite and the client bundles still match.
+### Highlights
+
+- Support DeepSeek Harness 0.2.2-rc.1, the release the desktop app ships now. The index rewrites, the page probes, the desktop boot guard and every adapter marker were re-verified against it, and the pinned index fixture is re-captured from it. 0.2.1-rc.5 keeps working.
+
+### Breaking changes
+
+- None.
+
+### Fixes
+
+- Session titles in the phone's notifications and the switcher's attention badges are read from dsh's `sessionTitle` service instead of `sessionProjections.stateOf(session, "title")`, which dsh 0.2.2 deprecates and logs a warning for on first use.
+- The plugin manifest now declares `engines.dsh` (`>=0.2.1-rc.5 <0.3.0-0`), so dsh's plugin manager checks the supported range itself instead of loading Kivotos into a release it was never verified on.
+
+### Compatibility
+
+- DeepSeek Harness `>=0.2.1-rc.5 <0.3.0-0` (verified on 0.2.1-rc.5 and 0.2.2-rc.1). The Android app and the relay are unchanged; an existing 0.3.0 app and relay keep working with this plugin.
 
 ### 中文
 
-- 支持 DeepSeek Harness 0.2.1-rc.5：页面探测、固定 index 夹具和适配器标记已在新版本上重新验证，index 改写和客户端 bundle 仍然匹配。
+- 支持 DeepSeek Harness 0.2.2-rc.1（桌面端当前随附的版本）：index 改写、页面探测、桌面启动保护和所有适配器标记都已在新版本上重新验证，固定 index 夹具改为从 0.2.2-rc.1 采集；0.2.1-rc.5 仍可用。
+- 会话标题改从 dsh 的 `sessionTitle` 服务读取，不再用 0.2.2 已弃用、首次调用会打警告的 `sessionProjections.stateOf(session, "title")`。
+- 插件清单声明 `engines.dsh`（`>=0.2.1-rc.5 <0.3.0-0`），由 dsh 插件管理器自行检查支持范围。
 
 ## v0.3.0
 

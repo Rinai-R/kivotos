@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.1-rc.5's rendered frame, as the phone stylesheet repositions it.
+ * dsh 0.2.2-rc.1's rendered frame, as the phone stylesheet repositions it.
  *
  * dsh ships no phone layout and no slot owns the frame grid, so the phone
  * stylesheet reads dsh internals: CSS-module class suffixes (`_sidebarCol`,

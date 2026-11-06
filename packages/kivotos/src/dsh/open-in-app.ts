@@ -1,5 +1,5 @@
 /**
- * dsh 0.2.1-rc.5's host-local "Open In" controls, as a peer page hides them.
+ * dsh 0.2.2-rc.1's host-local "Open In" controls, as a peer page hides them.
  *
  * The controls launch an application (Finder, an editor, a terminal) on the
  * machine that serves the page. On a page served through a Kivotos peer mount

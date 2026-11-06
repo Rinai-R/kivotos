@@ -30,8 +30,8 @@ import {
   selectSession,
 } from "../src/dsh/sessions.ts";
 
-/** The index dsh 0.2.1-rc.5 serves, byte for byte (`dsh --profile web`, fetched signed in). */
-const PINNED = readFileSync(new URL("fixtures/dsh-0.2.1-rc.5.index.html", import.meta.url), "utf8");
+/** The index dsh 0.2.2-rc.1 serves, byte for byte (`dsh --profile web`, fetched signed in). */
+const PINNED = readFileSync(new URL("fixtures/dsh-0.2.2-rc.1.index.html", import.meta.url), "utf8");
 
 /** The pinned index with one string replaced, the way an upstream change would. */
 function altered(from: string, to: string): string {
@@ -43,7 +43,7 @@ const VIEWPORT = '<meta name="viewport" content="width=device-width, initial-sca
 const MANIFEST = '<link rel="manifest" href="./manifest.webmanifest" />';
 const GATE = "(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()";
 
-test("every index rewrite applies to the index dsh 0.2.1-rc.5 serves", () => {
+test("every index rewrite applies to the index dsh 0.2.2-rc.1 serves", () => {
   const viewport = coverViewport(PINNED);
   assert.equal(viewport.probe.state, "ok");
   assert.match(viewport.html, /viewport-fit=cover/);
@@ -58,7 +58,7 @@ test("every index rewrite applies to the index dsh 0.2.1-rc.5 serves", () => {
   const graph = bootGraphOf(PINNED).graph;
   assert.deepEqual(
     graph?.urls.map((url) => graph.rows.get(url)?.length),
-    [1, 57, 12],
+    [1, 57, 15],
   );
   assert.ok(
     [...(graph?.rows.values() ?? [])]
@@ -223,7 +223,7 @@ function pageOf(...roots: Node[]): { querySelector(selectors: string): TestNode 
 const cls = (value: string): Record<string, string> => ({ class: value });
 
 /**
- * dsh 0.2.1-rc.5's AppFrame with a conversation, as rendered (ui-layout
+ * dsh 0.2.2-rc.1's AppFrame with a conversation, as rendered (ui-layout
  * AppFrame.module.css `pI_x6G_`, ui-sidebar `hHd-Xa_`, ui-conversation `wSkVaW_`).
  */
 function frame(overrides: { column?: string; header?: string; composer?: string } = {}): Node {
@@ -266,7 +266,7 @@ function frame(overrides: { column?: string; header?: string; composer?: string 
   };
 }
 
-/** dsh 0.2.1-rc.5's Settings panel (ui-settings-general `VOzbGW_`). */
+/** dsh 0.2.2-rc.1's Settings panel (ui-settings-general `VOzbGW_`). */
 function settings(overrides: { navList?: string; options?: string } = {}): Node {
   return {
     attrs: { ...cls("VOzbGW_panel"), "data-shortcut-modal": "settings" },
@@ -295,7 +295,7 @@ function settings(overrides: { navList?: string; options?: string } = {}): Node 
   };
 }
 
-test("the phone probes pass on dsh 0.2.1-rc.5's frame, conversation and Settings panel", () => {
+test("the phone probes pass on dsh 0.2.2-rc.1's frame, conversation and Settings panel", () => {
   const page = pageOf(frame(), settings());
   assert.equal(probePhoneLayout(page)?.state, "ok");
   assert.equal(probePhoneConversation(page)?.state, "ok");
