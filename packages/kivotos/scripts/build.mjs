@@ -27,6 +27,19 @@ await build({
   legalComments: "none",
 });
 
+// The restart helper runs detached from dsh, as its own Node program (restart.ts).
+await build({
+  absWorkingDir: here.pathname,
+  entryPoints: ["src/restart-helper.ts"],
+  outfile: "dist/restart-helper.js",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  packages: "external",
+  legalComments: "none",
+});
+
 // The Client bundle runs inside the loader's factory: `require` is the
 // loader's, so react and react-dom (dsh seeds both into its module table)
 // resolve to the instances dsh renders with.

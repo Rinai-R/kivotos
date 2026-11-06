@@ -75,6 +75,13 @@ import {
   type MachineList,
   type Translate,
 } from "./settings.tsx";
+import {
+  RESTART_EN,
+  RESTART_ZH,
+  RestartDialog,
+  RestartNotice,
+  RestartOverlay,
+} from "./restart-ui.tsx";
 import { SseReader } from "./sse.ts";
 import { tracePath } from "./trace-path.ts";
 
@@ -947,6 +954,41 @@ function PeerRow({
   );
 }
 
+/** "Restart dsh" row: restarts the machine whose page this is. */
+function RestartEntry({
+  name,
+  t,
+  onRestart,
+}: {
+  name: string;
+  t: Translate;
+  onRestart: () => void;
+}): ReactNode {
+  return (
+    <li className="kivotos-machines-separator">
+      <button type="button" className="kivotos-machines-item" title={name} onClick={onRestart}>
+        <RestartGlyph />
+        <span className="kivotos-machines-name">{t("restart.action")}</span>
+      </button>
+    </li>
+  );
+}
+
+/** Circular arrow (original artwork, currentColor). */
+function RestartGlyph(): ReactNode {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M13 8a5 5 0 1 1-1.46-3.54M13 3v2.5h-2.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** "Pair phone" row at the foot of the machine list. */
 function PairEntry({
   ready,
@@ -1096,6 +1138,7 @@ function SwitcherTrigger({
 function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNode {
   const [open, setOpen] = useState(false);
   const [pairUrl, setPairUrl] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const machines = useMachines(open);
@@ -1124,6 +1167,14 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
   }, []);
   const closePair = useCallback(() => {
     setPairUrl(null);
+    trigger.current?.focus();
+  }, []);
+  const showRestart = useCallback(() => {
+    setOpen(false);
+    setRestarting(true);
+  }, []);
+  const closeRestart = useCallback(() => {
+    setRestarting(false);
     trigger.current?.focus();
   }, []);
   const showPair = useCallback(() => {
@@ -1234,10 +1285,14 @@ function MachineSwitcher({ wide, t }: { wide: boolean; t: Translate }): ReactNod
             />
           ))}
           {note === null ? null : <li className="kivotos-machines-note">{note}</li>}
+          <RestartEntry name={currentName} t={t} onRestart={showRestart} />
           {phone ? null : <PairEntry ready={pairReady} t={t} onPair={showPair} />}
         </ul>
       ) : null}
       {pairUrl !== null ? <PairDialog url={pairUrl} t={t} onClose={closePair} /> : null}
+      {restarting ? (
+        <RestartDialog peer={peer} name={currentName} t={t} onClose={closeRestart} />
+      ) : null}
     </div>
   );
 }
@@ -1738,8 +1793,8 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () =>
       ctx.locale.register(NS, {
-        zh: { ...ZH, ...SETTINGS_ZH },
-        en: { ...EN, ...SETTINGS_EN },
+        zh: { ...ZH, ...SETTINGS_ZH, ...RESTART_ZH },
+        en: { ...EN, ...SETTINGS_EN, ...RESTART_EN },
       }),
     "kivotos: dictionaries",
   );
@@ -1796,6 +1851,19 @@ export function apply(ctx: ClientContext): void {
   );
   ctx.slots.inject("shell.overlay", () =>
     ctx.slots.register({ name: "shell.overlay", id: "kivotos-compat", locale: NS }, CompatNotice),
+  );
+  ctx.slots.inject("shell.overlay", () =>
+    ctx.slots.register(
+      { name: "shell.overlay", id: "kivotos-restart", locale: NS },
+      RestartOverlay,
+    ),
+  );
+  const notice = { peer: currentPeer() };
+  ctx.slots.inject("shell.overlay", () =>
+    ctx.slots.register(
+      { name: "shell.overlay", id: "kivotos-restart-notice", locale: NS, inject: () => notice },
+      RestartNotice,
+    ),
   );
 
   // The audio renderer and the Files path action extend dsh's own Sidebar:

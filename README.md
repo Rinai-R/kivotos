@@ -20,6 +20,7 @@ Kivotos is an open source plugin for DeepSeek Harness (dsh). Open any of your ma
 - **Untrusted relay:** The relay only forwards end-to-end encrypted data. It cannot read it or join your network.
 - **Phone layout:** Drawer sidebar, composer at the bottom, safe areas, light and dark.
 - **Android app:** The full dsh UI, with notifications for approvals, questions, and finished tasks.
+- **Safe restart:** Restart dsh from anywhere, even when you are only connected remotely: it quits cleanly, starts again by itself, and the page reconnects.
 - **Self-hosted:** No account, no telemetry, no push service.
 
 ## Getting Started
@@ -55,6 +56,10 @@ docker compose up -d
 On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay by running the command the page shows after `docker compose exec relay`. Other computers and phones join with the invite link or its QR code.
 
 Anyone with the invite link, or signed in to your Tailscale account, has full control of your machines.
+
+### Restarting dsh remotely
+
+Quitting dsh would also end the connection you are using, so Kivotos restarts it for you: **Machines → Restart dsh…** (on a computer and on the phone), or type `/kivotos restart` in a conversation (`now`, `idle` (the default), `status`, `cancel`). The dialog lists what is running and offers **Restart when idle** or **Restart now**. dsh quits cleanly, a helper process starts it again and checks that Kivotos answers (retrying the launch up to three times), and the page reconnects by itself and shows which plugins changed. If something goes wrong, the helper's log is at `$DSH_HOME/kivotos/restart/restart.log`. Supported for the macOS desktop app and for `dsh web` started from a terminal; not on Windows or under systemd.
 
 ## Development
 

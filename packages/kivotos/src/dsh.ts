@@ -79,9 +79,58 @@ export interface SessionTitles {
   get(session: Session): { readonly title: string } | undefined;
 }
 
+/** `ctx.agents` (`@deepseek-ai/dsh-agent`), read for what a restart would interrupt. */
+export interface Agents {
+  list(): readonly {
+    readonly id: string;
+    readonly status: string;
+    readonly session?: Session;
+    readonly inbox?: {
+      readonly nextTurn?: readonly unknown[];
+      readonly nextStep?: readonly unknown[];
+    };
+  }[];
+}
+
+/** `ctx.jobs` (`@deepseek-ai/dsh-jobs`). */
+export interface Jobs {
+  list(caller?: string): readonly {
+    readonly id: string;
+    readonly label?: string;
+    readonly owner?: string;
+    readonly status: string;
+  }[];
+}
+
+/** `ctx.profileContext`, provided by dsh's profile boot. */
+export interface ProfileContext {
+  readonly name: string;
+  readonly dir: string;
+}
+
+/** `ctx.commands` (`@deepseek-ai/dsh-commands`): slash commands. */
+export interface Commands {
+  register(definition: {
+    name: string;
+    description: string;
+    input?: { hint: string };
+    recordInput?: boolean;
+    handler: (invocation: {
+      rawInput: string;
+    }) =>
+      | { kind: "success"; text?: string }
+      | { kind: "error"; text: string }
+      | Promise<{ kind: "success"; text?: string } | { kind: "error"; text: string }>;
+  }): () => void;
+}
+
 /** Services read optionally, through `ctx.get`, so Kivotos does not require them. */
 export interface OptionalServices {
   sessionTitle: SessionTitles;
+  agents: Agents;
+  jobs: Jobs;
+  profileContext: ProfileContext;
+  commands: Commands;
 }
 
 /** The plugin Context with the services Kivotos injects. */
@@ -94,4 +143,8 @@ export interface HostContext {
   get<K extends keyof OptionalServices>(name: K): OptionalServices[K] | undefined;
   /** @returns the listener's disposer. */
   on<K extends keyof HostEvents>(event: K, listener: HostEvents[K]): () => void;
+  /** cordis `waterfall`, read for `workspace/session-activity`. */
+  waterfall?(name: string, ...args: unknown[]): unknown;
+  /** cordis `inject`: run `callback` in a child context while the services are provided. */
+  inject?(deps: string[], callback: (ctx: HostContext) => void): unknown;
 }
