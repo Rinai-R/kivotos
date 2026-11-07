@@ -6,7 +6,7 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ### Highlights
 
-- The session stream now compresses. `/api/remote.mux` — the WebSocket that carries events, session history and RPC — runs `permessage-deflate` end to end when dsh and the browser both support it (dsh 0.2.2-rc.1 does; Kivotos forwards the handshake and frames unchanged), and Kivotos compresses the hop to the browser itself when the Host is an older dsh that has no compression. Measured on the study's throttled profiles with a 600 KB history snapshot and 300 streaming deltas: 876 KB → 258 KB at 60 ms/10 Mbps (first byte 1.02 s → 0.37 s) and 878 KB → 259 KB at 300 ms/1 Mbps (6.87 s → 0.65 s). The real history frames of the study compress 19–31×, so those links gain proportionally.
+- The session stream now compresses. `/api/remote.mux` — the WebSocket that carries events, session history and RPC — runs `permessage-deflate` end to end when dsh and the browser both support it (dsh 0.2.2-rc.1 does; Kivotos forwards the handshake and frames unchanged), and Kivotos compresses the hop to the browser itself when the Host is an older dsh that has no compression. The mux is uncompressed today on such a Host: one 600 KB history snapshot plus a few hundred streaming deltas cost 876–878 KB. Measured on a rate-limited link with a 600 KB history snapshot and 300 streaming deltas: 876 KB → 258 KB at 60 ms/10 Mbps (first byte 1.02 s → 0.37 s) and 878 KB → 259 KB at 300 ms/1 Mbps (6.87 s → 0.65 s). Real history frames are mostly repetitive JSON, so they compress better still.
 - Nothing is compressed twice: a Host that negotiates the extension keeps the end-to-end path. Messages under 1 KB and context takeover are left out, so a small RPC round trip is unchanged and no stream has to be buffered.
 
 ### Fixes
@@ -20,7 +20,7 @@ CI publishes the section that matches a pushed `v<version>` tag as the descripti
 
 ### 中文
 
-- 会话流现在会压缩。`/api/remote.mux`（承载事件、会话历史和 RPC 的 WebSocket）在 dsh 与浏览器都支持时端到端启用 `permessage-deflate`（dsh 0.2.2-rc.1 支持；Kivotos 原样转发握手与帧），对没有压缩能力的旧版 dsh，则由 Kivotos 自己压缩到浏览器这一段。按研究的限速条件实测（600 KB 历史快照 + 300 条流式增量）：60 ms/10 Mbps 下 876 KB → 258 KB（首字节 1.02 s → 0.37 s）；300 ms/1 Mbps 下 878 KB → 259 KB（6.87 s → 0.65 s）。研究里真实历史帧可压 19–31 倍，慢链路收益按比例更大。
+- 会话流现在会压缩。`/api/remote.mux`（承载事件、会话历史和 RPC 的 WebSocket）在 dsh 与浏览器都支持时端到端启用 `permessage-deflate`（dsh 0.2.2-rc.1 支持；Kivotos 原样转发握手与帧），对没有压缩能力的旧版 dsh，则由 Kivotos 自己压缩到浏览器这一段。在限速链路下实测（600 KB 历史快照 + 300 条流式增量）：60 ms/10 Mbps 下 876 KB → 258 KB（首字节 1.02 s → 0.37 s）；300 ms/1 Mbps 下 878 KB → 259 KB（6.87 s → 0.65 s）。真实历史帧是高度重复的 JSON，压缩率还会更高。
 - 不会重复压缩：Host 自己协商成功时保持端到端直通。小于 1 KB 的消息、以及上下文接管都不启用，小 RPC 往返不变，也不需要缓冲整条流。
 
 ## v0.4.1
