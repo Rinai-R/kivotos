@@ -429,10 +429,16 @@ test("the tailnet frontend serves content-hashed assets immutable", async () => 
     on: () => () => undefined,
   };
   const dir = await mkdtemp(path.join(os.tmpdir(), "kivotos-frontend-"));
-  const frontend = new Frontend(ctx, new AttentionTracker(), new TraceLog(dir, "off"), () => ({
-    name: "lab",
-    os: "test",
-  }));
+  const frontend = new Frontend(
+    ctx,
+    new AttentionTracker(),
+    new TraceLog(dir, "off"),
+    () => ({
+      name: "lab",
+      os: "test",
+    }),
+    { mode: "auto" },
+  );
   const listener = await serve((req, res) => {
     void frontend.request(req, res, { ip: "100.64.0.2", node: "", admitMs: 0, cached: false });
   });
