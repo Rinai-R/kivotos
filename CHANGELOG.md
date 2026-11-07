@@ -2,6 +2,29 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## v0.4.1
+
+### Highlights
+
+- Relay failures no longer kill dsh. A relay peer that disappears, stalls past the ping timeout, or answers a WebSocket after the member gave up used to surface as an uncaught `error` event and exit the whole dsh process — one dropped link and a remote user's dsh was gone. Each failure now closes only that relay session, the link reconnects with backoff, and the reason is recorded in the log and the link's status.
+
+### Fixes
+
+- Relay streams carry a guard that handles an unobserved `error` (between two reads, an idle pooled HTTP socket, a WebSocket the relay answers after its caller gave up), on the stream itself and on the TLS sockets a secured session returns; `relayAgent` reports a refused connection through its callback instead of a rejection.
+- The control connection's silence deadline is configurable: `relaySilenceSeconds` (30..600, default 70 — the protocol's own 20 s ping with three misses). Raise it on a link whose queue (bufferbloat, a saturated uplink) can run longer than that.
+- Regression tests (`test/relay-crash.test.ts`) run each failure mode in a child process and fail if the process exits.
+
+### Compatibility
+
+- DeepSeek Harness `>=0.2.1-rc.5 <0.3.0-0`, unchanged. The relay protocol and the Android app are unchanged; no relay image rebuild is needed.
+
+### 中文
+
+- relay 断链不再拖垮 dsh。对端异常断开、卡过 ping 超时、或 relay 在成员放弃之后才接下 WebSocket，原来会变成未捕获的 `error` 事件让整个 dsh 进程退出——断一条链路，远控用户就失联了。现在每次失败只关闭那一个 relay 会话，链路按退避重连，原因写进日志和链路状态。
+- relay 流现在自带保护：两次读之间、HTTP 连接池里闲置的、以及成员已放弃后才建立的 WebSocket，它们的 `error` 由流自己处理；`relayAgent` 用回调返回失败，不再产生未处理的 rejection。
+- 控制连接的静默超时可配置：`relaySilenceSeconds`（30..600，默认 70，即协议 20 秒 ping 的三次未应答）。链路排队时间（bufferbloat、上行拥塞）更长时可以调大。
+- 回归测试（`test/relay-crash.test.ts`）把每种失败放进独立子进程运行，进程退出即测试失败。
+
 ## v0.4.0
 
 ### Highlights
