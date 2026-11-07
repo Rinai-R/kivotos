@@ -84,7 +84,9 @@ test("an ask the phone never answers expires fail-closed, and unload settles it"
 });
 
 test("only an approval that maps to a call carries the action in its frame", async () => {
-  const desk = new ApprovalDesk();
+  // A short deadline: the held ask is never answered here, and the test must
+  // not keep the process (or the runner) waiting for the default 10 minutes.
+  const desk = new ApprovalDesk(100);
   const tracker = new AttentionTracker(
     () => "Session",
     (callId) => desk.approvable(callId),
@@ -126,6 +128,7 @@ test("only an approval that maps to a call carries the action in its frame", asy
   for (const frame of frames.slice(1)) {
     assert.equal((frame as { approval?: unknown }).approval, undefined);
   }
+  desk.dispose();
 });
 
 /** A fake response that collects the JSON body it was sent. */
