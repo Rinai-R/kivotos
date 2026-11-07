@@ -62,8 +62,26 @@ export interface SessionEvent {
   data: unknown;
 }
 
+/** An approval outcome dsh's `approval/request` answerers return (`@deepseek-ai/dsh-user-approval`). */
+export type ApprovalOutcome = "allowed-once" | "rejected" | "cancelled" | "unavailable";
+
+/** One `approval/request` as the answerer chain passes it. */
+export interface ApprovalRequest {
+  readonly id: string;
+  readonly toolName: string;
+  readonly callId?: string;
+  readonly reason?: string;
+  /** Withdrawn by the asker: the request settles `cancelled` at once. */
+  readonly signal?: AbortSignal;
+}
+
 /** Root Context events Kivotos listens to. */
 export interface HostEvents {
+  /** Waterfall of answerers; the last one decides an approval the UI did not. */
+  "approval/request": (
+    request: ApprovalRequest,
+    next: () => Promise<ApprovalOutcome>,
+  ) => Promise<ApprovalOutcome>;
   /** Post-commit append feed of every Session in the store. */
   "session/event": (session: Session, event: SessionEvent) => void;
   "session/disposed": (session: Session) => void;

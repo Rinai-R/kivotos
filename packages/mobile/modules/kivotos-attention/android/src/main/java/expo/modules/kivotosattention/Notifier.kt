@@ -23,6 +23,11 @@ object Notifier {
   const val CHANNEL_SERVICE = "service"
   const val EXTRA_MACHINE = "kivotos.machine"
   const val EXTRA_SESSION = "kivotos.session"
+  /** The approval ask a notification's buttons decide (#notification-approval). */
+  const val EXTRA_APPROVAL = "kivotos.approval"
+  const val EXTRA_DECISION = "kivotos.decision"
+  const val EXTRA_KEY = "kivotos.key"
+  const val ACTION_APPROVE = "kivotos.APPROVE"
   /** Logo blue (#3478DB), the accent of expanded notifications. */
   private const val BRAND_BLUE = 0xFF3478DB.toInt()
 
@@ -70,7 +75,13 @@ object Notifier {
       .setPriority(NotificationCompat.PRIORITY_MIN)
       .build()
 
-  /** Post (or replace) the notification for one frame. */
+  /**
+   * Post (or replace) the notification for one frame.
+   *
+   * Buttons are added only when the frame carries an approvable ask: one held
+   * for the phone that maps to an exact tool call. Anything else stays a
+   * reminder and is answered in the session's page.
+   */
   fun post(context: Context, machine: Machine, frame: AttentionFrame) {
     if (!canPost(context)) return
     val title = frame.title.ifEmpty { text("Session", "会话") }
@@ -97,6 +108,20 @@ object Notifier {
         if (channel == CHANNEL_ATTENTION) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_STATUS,
       )
       .setGroup("kivotos.${machine.id}.${frame.sessionId}")
+    val approval = frame.approval
+    if (approval != null && frame.kind == "approval") {
+      val base = "$machine.id|${frame.sessionId}|${frame.key}|${approval.token}"
+      builder.addAction(
+        0,
+        text("Deny", "拒绝"),
+        approvalIntent(context, base, 1, machine.id, frame.sessionId, frame.key, approval.token, "deny"),
+      )
+      builder.addAction(
+        0,
+        text("Allow once", "允许本次"),
+        approvalIntent(context, base, 2, machine.id, frame.sessionId, frame.key, approval.token, "allow"),
+      )
+    }
     @Suppress("MissingPermission")
     NotificationManagerCompat.from(context).notify(id, builder.build())
   }
@@ -117,6 +142,34 @@ object Notifier {
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
       ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
       PackageManager.PERMISSION_GRANTED
+
+  /** A broadcast the app turns into one decision through the machine's door. */
+  private fun approvalIntent(
+    context: Context,
+    base: String,
+    slot: Int,
+    machineId: String,
+    sessionId: String,
+    key: String,
+    token: String,
+    decision: String,
+  ): PendingIntent {
+    val intent = Intent(context, ApprovalReceiver::class.java).apply {
+      action = ACTION_APPROVE
+      putExtra(EXTRA_MACHINE, machineId)
+      putExtra(EXTRA_SESSION, sessionId)
+      putExtra(EXTRA_KEY, key)
+      putExtra(EXTRA_APPROVAL, token)
+      putExtra(EXTRA_DECISION, decision)
+    }
+    // One request code per ask and button: two asks never share an intent.
+    return PendingIntent.getBroadcast(
+      context,
+      "$base|$slot".hashCode(),
+      intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+  }
 
   private fun notificationId(machineId: String, sessionId: String, key: String) =
     "$machineId|$sessionId|$key".hashCode()

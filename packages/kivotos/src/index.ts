@@ -21,6 +21,7 @@ import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { AttentionHub } from "./attention-hub.ts";
 import { AttentionTracker, type AttentionFrame } from "./attention.ts";
+import { ApprovalDesk } from "./approvals.ts";
 import { markImmutable, MountCache } from "./cache.ts";
 import { CompatWatch, injectCompatReport, injectHead, type CompatReport } from "./dsh/compat.ts";
 import { guardDesktopBoot } from "./dsh/desktop.ts";
@@ -101,6 +102,8 @@ const RELAY_BODY_MAX_BYTES = 4096;
 const ATTENTION_PATH = "/kivotos/attention";
 /** A page says it opened a machine: its finished turns are no longer news. */
 const ATTENTION_SEEN_PATH = "/kivotos/attention/seen";
+/** The phone's answer to a held approval (#notification-approval). */
+const APPROVE_PATH = "/kivotos/approve";
 const PEER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Re-login interval for the loopback cookie, far inside dsh's 30-day cookie lifetime. */
 const LOGIN_TTL_MS = 12 * 60 * 60 * 1000;
@@ -1574,7 +1577,43 @@ function registerTraceClientRoute(ctx: HostContext, trace: TraceLog): () => void
  * Host's board, never one through the mount, so nothing chains.
  * @returns the routes' disposer.
  */
-function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => void {
+/**
+ * The phone's answer to a held approval: `POST {token, decision: allow | deny}`.
+ * The token names exactly one ask, so a stale notification only gets a 404.
+ */
+export async function serveApprove(
+  desk: ApprovalDesk,
+  req: IncomingMessage,
+  res: ServerResponse,
+  readBody: () => Promise<unknown>,
+): Promise<void> {
+  if (req.method !== "POST") {
+    res.writeHead(405, { allow: "POST" });
+    res.end();
+    return;
+  }
+  const body = await readBody();
+  const token: unknown =
+    typeof body === "object" && body !== null ? Reflect.get(body, "token") : undefined;
+  const decision: unknown =
+    typeof body === "object" && body !== null ? Reflect.get(body, "decision") : undefined;
+  if (typeof token !== "string" || (decision !== "allow" && decision !== "deny")) {
+    sendJson(res, 400, { error: "expected {token, decision: allow | deny}" });
+    return;
+  }
+  const outcome = desk.decide(token, decision);
+  if (outcome === "unknown") {
+    sendJson(res, 404, { error: "no such approval" });
+    return;
+  }
+  sendJson(res, 200, { outcome });
+}
+
+function registerAttentionRoutes(
+  ctx: HostContext,
+  hub: AttentionHub,
+  desk: ApprovalDesk,
+): () => void {
   const disposeStream = ctx.webServer.register({
     kind: "exact",
     path: ATTENTION_PATH,
@@ -1601,7 +1640,23 @@ function registerAttentionRoutes(ctx: HostContext, hub: AttentionHub): () => voi
       res.end();
     },
   });
+  // The notification button's answer: the token names the exact held ask, and
+  // the request comes through the same admission as every other dsh-side route.
+  const disposeApprove = ctx.webServer.register({
+    kind: "exact",
+    path: APPROVE_PATH,
+    handler: async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== "POST") {
+        res.writeHead(405, { allow: "POST" });
+        res.end();
+        return;
+      }
+      await serveApprove(desk, req, res, () => readJsonBody(req, 1024));
+    },
+  });
   return () => {
+    disposeApprove();
     disposeSeen();
     disposeStream();
   };
@@ -1631,7 +1686,20 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
 
   // Every Session's appends, browser-opened or not: the source of the phone's notifications.
   // ctx.on owns its listener's lifetime: it is removed when the plugin unloads.
-  const attention = new AttentionTracker((session) => ctx.get("sessionTitle")?.get(session)?.title);
+  const desk = new ApprovalDesk();
+  const attention = new AttentionTracker(
+    (session) => ctx.get("sessionTitle")?.get(session)?.title,
+    (callId) => desk.approvable(callId),
+  );
+  // Last in dsh's answerer chain: the page's own UI answers first, and only
+  // when none did does a phone's notification get the exact tool call.
+  ctx.effect(() => {
+    const dispose = ctx.on("approval/request", (request, next) => desk.ask(request, next));
+    return () => {
+      dispose();
+      desk.dispose();
+    };
+  }, "kivotos: approval answerer");
   ctx.on("session/event", (session, event) => attention.observe(session, event));
   ctx.on("session/disposed", (session) => attention.forget(session.id));
 
@@ -1756,7 +1824,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     const disposeList = routes.registerList();
     const disposeLinks = registerLinkRoutes(ctx, config, routes, relay);
     const disposeTrace = registerTraceClientRoute(ctx, trace);
-    const disposeAttention = registerAttentionRoutes(ctx, hub);
+    const disposeAttention = registerAttentionRoutes(ctx, hub, desk);
     return () => {
       disposeAttention();
       disposeTrace();

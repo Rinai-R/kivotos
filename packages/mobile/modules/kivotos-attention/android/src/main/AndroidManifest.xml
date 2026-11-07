@@ -22,6 +22,10 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="Holds one event stream open per machine to deliver session notifications while the app is in the background." />
     </service>
+    <!-- A notification's 允许本次 / 拒绝 button: one decision through the machine's door. -->
+    <receiver
+      android:name="expo.modules.kivotosattention.ApprovalReceiver"
+      android:exported="false" />
     <!-- Restarts the stream after a reboot when the user had it enabled. -->
     <receiver
       android:name="expo.modules.kivotosattention.BootReceiver"

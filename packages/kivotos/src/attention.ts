@@ -29,6 +29,12 @@ export interface AttentionFrame {
   key: string;
   /** Human text: the approval reason or tool, the question, or the failure. */
   detail: string;
+  /**
+   * The exact tool call a notification may decide, when this approval is
+   * held for the phone (#notification-approval); absent means the notification
+   * is a reminder only.
+   */
+  approval?: { token: string; callId: string; toolName: string };
   time: number;
 }
 
@@ -46,8 +52,8 @@ export interface SessionLike {
 
 interface SessionState {
   title: string;
-  /** Open approvals by request id. */
-  approvals: Map<string, string>;
+  /** Open approvals by request id, with the exact tool call when the ask names one. */
+  approvals: Map<string, { detail: string; callId?: string; toolName: string }>;
   /** Open questions by tool call id. */
   questions: Map<string, string>;
 }
@@ -84,9 +90,13 @@ export function firstQuestion(argumentsText: string): string {
 /** Reads a Session's current title; returns undefined when unknown. */
 export type TitleOf = (session: SessionLike) => string | null | undefined;
 
+/** An approval held for the phone, as a frame carries it. */
+export type ApprovableOf = (callId: string | undefined) => AttentionFrame["approval"];
+
 /** Derives attention frames from Session events and fans them out. */
 export class AttentionTracker {
   private readonly titleOf: TitleOf;
+  private readonly approvableOf: ApprovableOf;
   private readonly sessions = new Map<string, SessionState>();
   private readonly subscribers = new Set<(frame: AttentionFrame) => void>();
   private readonly history: AttentionFrame[] = [];
@@ -98,8 +108,9 @@ export class AttentionTracker {
    * @param titleOf - current title of a session the tracker joined mid-log
    *   (its earlier `session/title` events happened before the plugin started).
    */
-  constructor(titleOf: TitleOf = () => undefined) {
+  constructor(titleOf: TitleOf = () => undefined, approvableOf: ApprovableOf = () => undefined) {
     this.titleOf = titleOf;
+    this.approvableOf = approvableOf;
   }
 
   /** Frames still waiting for a decision or answer, across all sessions. */
@@ -142,9 +153,11 @@ export class AttentionTracker {
         return;
       case "approval/asked": {
         const id = text(data.id);
-        const detail = text(data.reason) || text(data.toolName);
-        state.approvals.set(id, detail);
-        this.emit("approval", session.id, id, detail, event.time);
+        const toolName = text(data.toolName);
+        const detail = text(data.reason) || toolName;
+        const callId = text(data.callId) || undefined;
+        state.approvals.set(id, { detail, ...(callId === undefined ? {} : { callId }), toolName });
+        this.emit("approval", session.id, id, detail, event.time, callId);
         return;
       }
       case "approval/decided": {
@@ -215,7 +228,9 @@ export class AttentionTracker {
     key: string,
     detail: string,
     time: number,
+    callId?: string,
   ): void {
+    const approval = kind === "approval" ? this.approvableOf(callId) : undefined;
     const frame: AttentionFrame = {
       id: this.next++,
       epoch: this.epoch,
@@ -224,6 +239,7 @@ export class AttentionTracker {
       title: this.sessions.get(sessionId)?.title ?? "",
       key,
       detail,
+      ...(approval === undefined ? {} : { approval }),
       time,
     };
     this.history.push(frame);

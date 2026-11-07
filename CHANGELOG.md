@@ -2,6 +2,26 @@
 
 CI publishes the section that matches a pushed `v<version>` tag as the description of its GitHub Release. Write the section before tagging.
 
+## v0.6.0
+
+### Highlights
+
+- Approve or deny from the notification, when — and only when — the notification maps to an exact tool call. The phone shows 允许本次 / 拒绝 on an approval notification whose request carries the tool call it decides; a question, an approval without a call, or one another answerer already took stays a reminder and is answered in the session's own page.
+- The answer travels through the same admission as everything else: `POST /kivotos/approve {token, decision}` behind the listener's or the relay session's fence, and the token names exactly one held ask, so a stale notification only gets `404`. The Host's own page keeps working: its answerers run first, and only an ask they left `unavailable` is held for the phone (for up to 10 minutes, cancelled at once if the turn withdraws it).
+
+### Fixes
+
+- None.
+
+### Compatibility
+
+- DeepSeek Harness `>=0.2.1-rc.5 <0.3.0-0`. Notification buttons need Kivotos 0.6.0 on both the phone and the machine; an older Host sends no approval action and the notification stays a reminder. The relay and its protocol are unchanged.
+
+### 中文
+
+- 通知栏可直接「允许本次 / 拒绝」——仅当这条通知精确对应某一次工具调用时。审批请求带上了它所决定的工具调用，才会出现两个按钮；提问、没有工具调用的审批、以及已被页面上答过的请求，仍然只是提醒，需要进会话页面处理。
+- 回答走与其他请求相同的准入路径：`POST /kivotos/approve {token, decision}` 位于监听器或 relay 会话的准入检查之后，token 只对应一个待决请求，过期通知只会得到 `404`。页面本身的审批不受影响：页面内的回答者先运行，只有它们都答不了（`unavailable`）时才交给手机，最多保留 10 分钟；对应回合撤回时立即取消。
+
 ## v0.5.0
 
 ### Highlights
