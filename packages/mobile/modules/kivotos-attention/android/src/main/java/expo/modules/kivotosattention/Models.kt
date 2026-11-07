@@ -3,6 +3,13 @@ package expo.modules.kivotosattention
 import org.json.JSONObject
 
 /** One frame of a machine's `/kivotos/events` stream. */
+/** The exact tool call a notification's buttons may decide (#notification-approval). */
+data class ApprovalAction(
+  val token: String,
+  val callId: String,
+  val toolName: String,
+)
+
 data class AttentionFrame(
   val id: Long,
   val epoch: String,
@@ -11,6 +18,8 @@ data class AttentionFrame(
   val title: String,
   val key: String,
   val detail: String,
+  /** Present only when the Host holds this ask for the phone; absent = reminder only. */
+  val approval: ApprovalAction? = null,
 ) {
   companion object {
     /** @return the frame, or null for malformed data (never thrown into the stream loop). */
@@ -24,6 +33,13 @@ data class AttentionFrame(
         title = json.optString("title"),
         key = json.getString("key"),
         detail = json.optString("detail"),
+        approval = json.optJSONObject("approval")?.let { action ->
+          ApprovalAction(
+            token = action.getString("token"),
+            callId = action.getString("callId"),
+            toolName = action.optString("toolName"),
+          )
+        },
       )
     } catch (_: Exception) {
       null

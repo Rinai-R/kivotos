@@ -209,6 +209,15 @@ Restarting dsh from the machine menu or `/kivotos restart [now|idle|status|cance
 - Versions: each Host reads its profile's plugin versions (`profileContext.dir`, else the first `node_modules` above Kivotos) and the dsh version at start; `back` records `from`, `to` and `changes`.
 - Client: a "Restart dsh…" row in the switcher (desktop and phone) restarts the machine the page is served from (`/kivotos/restart`, or `/kivotos/peer/<id>/kivotos/restart` on a mounted peer page). The dialog lists what runs and offers Restart when idle / Restart now. `RestartOverlay` (`shell.overlay`) shows a banner while waiting for idle and a cover while restarting, polls the status (1, 2, 3, then every 5 s, over whatever link carries the page) and reloads once another Host pid answers. `RestartNotice` shows "back online · dsh X" with the changes once per origin (`localStorage` `kivotos:restart-seen:<peer>`) within 30 minutes.
 
+## Notification approvals (#notification-approval)
+
+Answering an approval from the phone's notification. Files: `src/approvals.ts` (`ApprovalDesk`), `src/attention.ts` (the frame's `approval` action), `src/index.ts` (`serveApprove`, the `approval/request` answerer), the app's `Approvals.kt` and `ApprovalReceiver.kt`. Tests: `test/approvals.test.ts`.
+
+- Conservative rule: a notification may decide only an ask that names an exact tool call. `approvals.ts` holds an ask only when the answerer chain before it answered `unavailable` (the page's own UI answers first) and `callId` is present; the frame carries `approval: {token, callId, toolName}` only for that held ask, and the app adds 允许本次 / 拒绝 only for `kind: "approval"` with that field. Questions, uncalled approvals and taken asks stay reminders.
+- The desk is the last `approval/request` answerer (`ctx.on`, registered inside `ctx.effect`; `dispose` settles every held ask as `cancelled`). A held ask settles `allowed-once` / `rejected` from the phone, `cancelled` when the asker's signal aborts, `unavailable` after `APPROVAL_TTL_MS` (10 min).
+- `POST /kivotos/approve {token, decision: allow | deny}` sits behind the same fence as every dsh-side route (`rejected()`), through the tailnet listener or a relay session; the token is a random UUID per held ask, so a stale notification gets `404` and the desk never answers an ask it does not hold.
+- The app sends the decision through the machine's door (`Approvals.post` → `POST <door>/kivotos/approve` with the door cookie), so either link carries it; a refused decision leaves the notification in place. `ApprovalReceiver` does it on a background thread and withdraws the notification only when the Host took it.
+
 ## Mux compression (#mux-deflate)
 
 `/api/remote.mux` carries dsh's event and RPC stream to the page. Files: `src/ws-mux.ts` (frame codec, permessage-deflate, `MuxBridge`), `src/proxy.ts` (`forwardUpgrade` decides per hop), config `muxCompression` (`auto` default, `off`). Tests: `test/mux-deflate.test.ts`.
