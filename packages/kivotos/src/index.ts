@@ -61,7 +61,9 @@ import {
   type HttpStats,
   type Upstream,
   type UpgradeTrace,
+  type MuxCompression,
 } from "./proxy.ts";
+import type { MuxStats } from "./ws-mux.ts";
 import { PieceManifests } from "./pieces.ts";
 import { RelayHost } from "./relay-host.ts";
 import {
@@ -168,6 +170,12 @@ export interface KivotosConfig {
   cacheMegabytes: number;
   /** Prefill the mount cache with a peer's boot resources when it is mounted. */
   cacheWarm: boolean;
+  /**
+   * Compress `/api/remote.mux` on the client hop when the Host does not do it
+   * itself (#mux-deflate). `auto` also leaves a Host that negotiates
+   * permessage-deflate end to end alone, so nothing is compressed twice.
+   */
+  muxCompression: "auto" | "off";
   /** System notifications on this Host's pages for other machines' approvals and questions. */
   notify: boolean;
   /** Also notify finished and failed turns of other machines. */
@@ -198,6 +206,7 @@ const DEFAULTS: KivotosConfig = {
   // household tailnet, before the least recently used go.
   cacheMegabytes: 256,
   cacheWarm: true,
+  muxCompression: "auto",
   notify: true,
   notifyFinished: true,
 };
@@ -276,6 +285,13 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
     else issue(`must be an integer in ${min}..${max}`, key);
   }
   out.tls = choiceOf(input, "tls", ["auto", "on", "off"], out.tls, issue);
+  out.muxCompression = choiceOf(
+    input,
+    "muxCompression",
+    ["auto", "off"],
+    out.muxCompression,
+    issue,
+  );
   out.trace = choiceOf(input, "trace", ["off", "requests", "frames"], out.trace, issue);
   out.staticPeers = staticPeersOf(input, issue);
   if (issues.length > 0) return { issues };
@@ -597,17 +613,20 @@ export class Frontend {
   private readonly trace: TraceLog;
   private readonly self: () => SelfView;
   private readonly pieces: PieceManifests;
+  private readonly mux: MuxCompression;
 
   constructor(
     ctx: HostContext,
     attention: AttentionTracker,
     trace: TraceLog,
     self: () => SelfView,
+    mux: MuxCompression,
   ) {
     this.ctx = ctx;
     this.attention = attention;
     this.trace = trace;
     this.self = self;
+    this.mux = mux;
     this.session = new LoopbackSession(ctx, trace);
     this.pieces = new PieceManifests((target, headers) => this.local(target, headers));
   }
@@ -737,7 +756,14 @@ export class Frontend {
     };
     this.trace.record("ws.open", base);
     const upstream = this.upstream(await this.session.get());
-    forwardUpgrade(req, socket, head, upstream, url, socketTrace(this.trace, base));
+    const mux =
+      new URL(url, "http://x").pathname === REMOTE_MUX_PATH
+        ? {
+            ...this.mux,
+            onDone: (muxStats: MuxStats) => this.trace.record("ws.mux", { ...base, ...muxStats }),
+          }
+        : undefined;
+    forwardUpgrade(req, socket, head, upstream, url, socketTrace(this.trace, base), mux);
   }
 }
 
@@ -1036,6 +1062,8 @@ export class PeerRoutes {
   private readonly attention: AttentionHub;
   /** Reports each coupling point once per state change (compat.ts). */
   private readonly compat: CompatWatch;
+  /** Mux compression for mount upgrades (#mux-deflate). */
+  private readonly mux: MuxCompression | undefined;
   private readonly book: MachineBook<Upstream>;
   /** `machines.json`: the book, kept across restarts. */
   private readonly file: string;
@@ -1054,7 +1082,7 @@ export class PeerRoutes {
     cache: MountCache,
     attention: AttentionHub,
     compat: CompatWatch,
-    options: { file: string; retentionMs: number },
+    options: { file: string; retentionMs: number; mux?: MuxCompression },
   ) {
     this.ctx = ctx;
     this.trace = trace;
@@ -1257,6 +1285,7 @@ export class PeerRoutes {
           path: REMOTE_MUX_PATH,
         };
         this.trace.record("peer.ws.open", base);
+        const mux = this.mux;
         forwardUpgrade(
           req,
           socket,
@@ -1264,6 +1293,12 @@ export class PeerRoutes {
           entry.peer.upstream,
           `${REMOTE_MUX_PATH}${search}`,
           socketTrace(this.trace, base),
+          mux === undefined
+            ? undefined
+            : {
+                ...mux,
+                onDone: (muxStats) => this.trace.record("peer.mux", { ...base, ...muxStats }),
+              },
         );
       },
     });
@@ -1617,11 +1652,16 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     waiting: config.notify,
     finished: config.notify && config.notifyFinished,
   });
+  const mux: MuxCompression = {
+    mode: config.muxCompression,
+    note: (message, error) => ctx.logger.warn(message, error),
+  };
   const routes: PeerRoutes = new PeerRoutes(ctx, trace, cache, hub, compat, {
+    mux,
     file: path.join(dshHome(), "kivotos", "machines.json"),
     retentionMs: config.offlineDays * DAY_MS,
   });
-  const frontend = new Frontend(ctx, attention, trace, () => routes.self);
+  const frontend = new Frontend(ctx, attention, trace, () => routes.self, mux);
   const relay = new RelayHost({
     dir: path.join(dshHome(), "kivotos"),
     name: () => routes.self.name,

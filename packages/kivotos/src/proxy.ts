@@ -16,6 +16,7 @@ import https from "node:https";
 import { performance } from "node:perf_hooks";
 import type { Duplex } from "node:stream";
 import { WsFrameReader, type WsFrame } from "./trace.ts";
+import { MuxBridge, offersDeflate, SERVER_EXTENSION, type MuxStats } from "./ws-mux.ts";
 
 /** Request headers that describe the browser's origin, not the forwarded hop. */
 const ORIGIN_HEADERS = new Set(["origin", "referer", "cookie", "host", "connection"]);
@@ -380,6 +381,52 @@ export function forwardHttp(
   else req.pipe(up);
 }
 
+/** What the mux upgrade does about permessage-deflate (#mux-deflate). */
+export interface MuxCompression {
+  /** `off` sends no offer and strips one; `auto` compresses an older Host's client hop. */
+  mode: "auto" | "off";
+  /** Receives a bridge failure (never thrown). */
+  note?: (message: string, error: unknown) => void;
+  /** Receives the bridge's counters when it ends. */
+  onDone?: (stats: MuxStats) => void;
+}
+
+/**
+ * Whether Kivotos answers the mux extension for the client itself.
+ * An older dsh Host has no compression of its own (the gateway option arrived
+ * in 0.2.2): when the client offered permessage-deflate and the Host did not
+ * accept it, Kivotos terminates that hop and compresses it.
+ */
+function compressesClientHop(
+  mux: MuxCompression | undefined,
+  offered: boolean,
+  accepted: string | string[] | undefined,
+): boolean {
+  return mux?.mode === "auto" && offered && !offersDeflate(accepted);
+}
+
+/** The 101 Kivotos answers the client with: the Host's headers, its extension replaced. */
+function upgradeReply(
+  ur: IncomingMessage,
+  mux: MuxCompression | undefined,
+  clientHop: boolean,
+): string {
+  let reply = `HTTP/1.1 ${ur.statusCode} ${ur.statusMessage}\r\n`;
+  for (let i = 0; i < ur.rawHeaders.length; i += 2) {
+    const name = ur.rawHeaders[i].toLowerCase();
+    if (name === "set-cookie") continue;
+    if (
+      name === "sec-websocket-extensions" &&
+      (mux === undefined || mux.mode === "off" || clientHop)
+    ) {
+      continue;
+    }
+    reply += `${ur.rawHeaders[i]}: ${ur.rawHeaders[i + 1]}\r\n`;
+  }
+  if (clientHop) reply += `Sec-WebSocket-Extensions: ${SERVER_EXTENSION}\r\n`;
+  return reply;
+}
+
 /**
  * Forward one HTTP upgrade (the dsh gateway WebSocket) and splice the sockets.
  * @param req - incoming upgrade request.
@@ -396,6 +443,7 @@ export function forwardUpgrade(
   upstream: Upstream,
   path: string,
   trace?: UpgradeTrace,
+  mux?: MuxCompression,
 ): void {
   const start = performance.now();
   const stats: UpgradeStats = {
@@ -414,15 +462,15 @@ export function forwardUpgrade(
   };
   const headers = forwardHeaders(req.headers, upstream);
   headers.connection = "Upgrade";
+  const offered = offersDeflate(req.headers["sec-websocket-extensions"]);
+  if (mux?.mode === "off") delete headers["sec-websocket-extensions"];
   const up = upstreamRequest(upstream, { method: req.method, path, headers });
   up.on("upgrade", (ur, us, uhead) => {
+    // Kept out of `stats`'s way: the bridge reports its own counters.
     stats.status = ur.statusCode ?? 101;
     stats.handshakeMs = performance.now() - start;
-    let reply = `HTTP/1.1 ${ur.statusCode} ${ur.statusMessage}\r\n`;
-    for (let i = 0; i < ur.rawHeaders.length; i += 2) {
-      if (ur.rawHeaders[i].toLowerCase() === "set-cookie") continue;
-      reply += `${ur.rawHeaders[i]}: ${ur.rawHeaders[i + 1]}\r\n`;
-    }
+    const clientHop = compressesClientHop(mux, offered, ur.headers["sec-websocket-extensions"]);
+    const reply = upgradeReply(ur, mux, clientHop);
     if (trace !== undefined) {
       const onFrame = trace.frame;
       const upFrames = onFrame && new WsFrameReader((frame) => onFrame("up", frame));
@@ -456,7 +504,18 @@ export function forwardUpgrade(
       us.destroy();
       finish();
     });
-    us.pipe(socket).pipe(us);
+    if (clientHop && mux !== undefined) {
+      // Frame-aware: inflate what the client deflated, deflate what leaves for it.
+      new MuxBridge(socket, us, "client-hop", {
+        note: mux.note ?? (() => undefined),
+        done: (muxStats) => {
+          mux.onDone?.(muxStats);
+          finish();
+        },
+      }).start();
+    } else {
+      us.pipe(socket).pipe(us);
+    }
   });
   up.on("response", (ur) => {
     stats.status = ur.statusCode ?? 502;

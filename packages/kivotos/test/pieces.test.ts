@@ -155,10 +155,16 @@ async function lab(join = ""): Promise<Lab> {
     on: () => () => undefined,
   };
   const dir = await mkdtemp(path.join(os.tmpdir(), "kivotos-pieces-"));
-  const frontend = new Frontend(ctx, new AttentionTracker(), new TraceLog(dir, "off"), () => ({
-    name: "lab",
-    os: "test",
-  }));
+  const frontend = new Frontend(
+    ctx,
+    new AttentionTracker(),
+    new TraceLog(dir, "off"),
+    () => ({
+      name: "lab",
+      os: "test",
+    }),
+    { mode: "auto" },
+  );
   const listener = await listen((req, res) => {
     void frontend.request(req, res, { ip: "100.64.0.2", node: "", admitMs: 0, cached: false });
   });
