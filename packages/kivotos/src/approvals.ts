@@ -94,8 +94,9 @@ export class ApprovalDesk {
       once(outcome);
     };
     const abort = (): void => settle("cancelled");
+    // Not unref'd: the deadline must be able to fire even when nothing else
+    // holds the event loop (the ask would otherwise wait forever).
     const timer = setTimeout(() => settle("unavailable"), this.ttlMs);
-    timer.unref?.();
     signal?.addEventListener("abort", abort, { once: true });
     this.held.set(token, {
       callId,
