@@ -88,6 +88,8 @@ export interface RelayHostOptions {
   /** This computer's display name. */
   name: () => string;
   refreshSeconds: number;
+  /** A control connection silent this long is dead (RelayTimings.controlSilenceMs). */
+  silenceMs?: number;
   /** Serves dsh to an admitted caller (the Frontend). */
   serve: {
     request(req: IncomingMessage, res: ServerResponse, who: Caller): Promise<void>;
@@ -201,6 +203,7 @@ export class RelayHost {
       this.options.name(),
       (socket, from) => this.serveSession(socket, from),
       this.options.warn,
+      this.options.silenceMs === undefined ? {} : { controlSilenceMs: this.options.silenceMs },
     );
     this.link = link;
     link.start();
