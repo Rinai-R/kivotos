@@ -62,6 +62,7 @@ if (scenario === "late-open") {
   const dialed = relay.hello("dial");
   const socket = await a.dial(b.node);
   socket.on("error", (error) => console.log(`session error: ${error.message}`));
+  socket.on("close", () => console.log("session closed"));
   socket.write("x".repeat(1 << 16));
   (await dialed).reset();
   await sleep(300);

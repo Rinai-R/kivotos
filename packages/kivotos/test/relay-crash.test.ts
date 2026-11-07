@@ -71,8 +71,11 @@ test("a dropped session nobody is watching any more does not exit dsh", async ()
 test("a session cut mid-stream keeps the link usable and does not exit dsh", async () => {
   const { code, output } = await runChild("session-reset");
   assert.equal(code, 0, output);
-  assert.match(output, /session error: relay connection failed/);
+  // Whether the cut surfaces as an error or as a close depends on the platform;
+  // what matters is that the session ends, the link still dials, and dsh lives.
+  assert.match(output, /session (error|closed)/);
   assert.match(output, /second dial ok/);
+  assert.doesNotMatch(output, /Unhandled 'error' event/);
 });
 
 test("a reset control connection reconnects instead of ending the process", async () => {
