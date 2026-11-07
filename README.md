@@ -55,6 +55,8 @@ docker compose up -d
 
 On the first computer, open **Settings → Remote access → Own relay**, enter the relay's address, and create a network. Register it on the relay by running the command the page shows after `docker compose exec relay`. Other computers and phones join with the invite link or its QR code.
 
+A relay connection that drops only takes that connection down: the computer reconnects with backoff, and a dropped session closes by itself. On a link whose network queue can run longer than the relay's 20 s ping (`relaySilenceSeconds`, default 70 s) the control connection can be declared dead late; the plugin config key `relaySilenceSeconds` (30..600) raises it.
+
 Anyone with the invite link, or signed in to your Tailscale account, has full control of your machines.
 
 ### Restarting dsh remotely

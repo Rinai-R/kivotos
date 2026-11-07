@@ -151,6 +151,12 @@ export interface KivotosConfig {
   /** Peer discovery interval. */
   refreshSeconds: number;
   /**
+   * A relay control connection silent this long is dead, in seconds. The relay
+   * sends a control ping every 20 s (`ping-interval`, three missed drop a
+   * computer); raise it on a link whose queue can run longer than that.
+   */
+  relaySilenceSeconds: number;
+  /**
    * Days a machine stays listed (as offline) after no link reports it any
    * more: it left the relay network's online list, or the tailnet dropped it.
    * Static peers stay while configured; the tailnet lists its own offline nodes.
@@ -183,6 +189,7 @@ const DEFAULTS: KivotosConfig = {
   allowSelf: false,
   tailscale: "tailscale",
   refreshSeconds: 30,
+  relaySilenceSeconds: 70,
   offlineDays: 7,
   trace: "requests",
   // One dsh 0.2.2-rc.1 page load stores about 11 MB (about 9 MB of it the
@@ -257,6 +264,7 @@ function validate(value: unknown): { value: KivotosConfig } | { issues: ConfigIs
   const ranges = [
     ["port", 1, 65535],
     ["refreshSeconds", 5, 3600],
+    ["relaySilenceSeconds", 30, 600],
     ["offlineDays", 1, 365],
     ["cacheMegabytes", 0, 10240],
   ] as const;
@@ -1618,6 +1626,7 @@ export function apply(ctx: HostContext, config: KivotosConfig): void {
     dir: path.join(dshHome(), "kivotos"),
     name: () => routes.self.name,
     refreshSeconds: config.refreshSeconds,
+    silenceMs: config.relaySilenceSeconds * 1000,
     serve: frontend,
     publish: (sightings, absent) => routes.update("relay", sightings, absent),
     warn: (message, error) => ctx.logger.warn(message, error),

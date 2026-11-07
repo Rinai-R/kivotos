@@ -16,10 +16,18 @@ import type { Identity } from "./x509.ts";
 
 /** Protocol version of packages/relay/wire. */
 const WIRE_VERSION = 2;
-/** Longest time to reach the relay, or to finish TLS and proofs on a stream. */
-const HANDSHAKE_MS = 20_000;
-/** The relay pings every 20 s; a control connection silent this long is dead. */
-const CONTROL_SILENCE_MS = 70_000;
+/** How long the relay protocol waits; injectable so tests need not wait for real. */
+export interface RelayTimings {
+  /** Longest time to reach the relay, or to finish TLS and proofs on a stream. */
+  handshakeMs: number;
+  /**
+   * A control connection silent this long is dead. The relay sends a control
+   * ping every 20 s (`ping-interval`); three missed drop a computer.
+   */
+  controlSilenceMs: number;
+}
+
+export const DEFAULT_TIMINGS: RelayTimings = { handshakeMs: 20_000, controlSilenceMs: 70_000 };
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 /** Pause writing while the WebSocket holds more than this unsent. */
@@ -73,7 +81,7 @@ function handshakeReset(url: string): Promise<boolean> {
     socket.destroy();
     resolve(reset);
   };
-  socket.setTimeout(HANDSHAKE_MS, () => done(false));
+  socket.setTimeout(DEFAULT_TIMINGS.handshakeMs, () => done(false));
   socket.once("connect", () => {
     connected = true;
   });
@@ -96,11 +104,43 @@ interface Reply {
   peers?: { node?: unknown; name?: unknown }[];
 }
 
+/** Receives what went wrong on a relay stream; it must not throw. */
+export type RelayNote = (message: string, error: unknown) => void;
+
+/**
+ * Keep an error on a relay stream from becoming an uncaught exception.
+ *
+ * A relay stream is often held by nobody when the relay drops it: between two
+ * reads, while an idle pooled HTTP socket waits for its next request, or on a
+ * WebSocket the relay answers after the caller gave up. `destroy(error)` then
+ * emits `error` with no listener, which Node turns into an uncaught exception
+ * and exits the whole dsh process (#relay-crash). The guard is the stream's
+ * own listener: every other listener still sees the error, and the stream
+ * closes itself; observers note it.
+ */
+function guardErrors(stream: Duplex, note: RelayNote): void {
+  const emit = stream.emit.bind(stream);
+  // A listener alone is not enough: a consumer that hands the stream on (an
+  // HTTP agent's idle pool, a server that attaches its own listener a tick
+  // later) may leave it unobserved, and destroying a derived TLS socket emits
+  // on that socket, not on this stream. With nobody listening, the event is
+  // handled here.
+  const self = stream;
+  stream.emit = function guarded(event: string, ...args: unknown[]): boolean {
+    if (event === "error" && self.listenerCount("error") === 0) {
+      note("kivotos: relay connection lost", args[0]);
+      if (!self.destroyed) self.destroy();
+      return true;
+    }
+    return emit(event, ...args);
+  } as typeof stream.emit;
+}
+
 /**
  * Open a WebSocket as one byte stream: binary messages in both directions,
  * boundaries ignored.
  */
-function webSocketStream(url: string): Promise<Duplex> {
+function webSocketStream(url: string, note: RelayNote): Promise<Duplex> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
@@ -149,8 +189,11 @@ function webSocketStream(url: string): Promise<Duplex> {
       if (opened) stream.push(null);
       else unreachable();
     });
+    // Before any caller can hold it: a stream left unobserved must still close
+    // only itself, never exit the process.
+    guardErrors(stream, note);
     ws.addEventListener("error", () => {
-      if (opened) stream.destroy(new Error("relay connection failed"));
+      if (opened) stream.destroy(failure("relay connection failed", "ECONNRESET"));
       else unreachable();
     });
   });
@@ -250,17 +293,24 @@ function asReply(value: unknown): Reply {
 async function hello(
   network: Network,
   fields: Record<string, string>,
+  timings: RelayTimings,
+  note: RelayNote,
 ): Promise<{ stream: Duplex; reply: Reply }> {
   const stream = await within(
-    HANDSHAKE_MS,
+    timings.handshakeMs,
     "connecting to the relay",
     () => {},
-    webSocketStream(network.relay),
+    webSocketStream(network.relay, note),
   );
   try {
     writeLine(stream, { v: WIRE_VERSION, network: network.id, token: network.token, ...fields });
     const reply = asReply(
-      await within(HANDSHAKE_MS, "the relay's reply", () => stream.destroy(), readLine(stream)),
+      await within(
+        timings.handshakeMs,
+        "the relay's reply",
+        () => stream.destroy(),
+        readLine(stream),
+      ),
     );
     if (reply.ok !== true) throw new RelayRefused(reply.error ?? "unknown");
     return { stream, reply };
@@ -299,6 +349,8 @@ export async function secureDial(
   network: Network,
   identity: Identity,
   target: string,
+  timings: RelayTimings = DEFAULT_TIMINGS,
+  note: RelayNote = () => undefined,
 ): Promise<tls.TLSSocket> {
   const socket = tls.connect({
     socket: stream,
@@ -318,10 +370,13 @@ export async function secureDial(
     if (!proofMatches(proof, proofOf(network.proofKey, "server", serverNode, clientNode))) {
       throw new Error("the node is not a member of this network");
     }
+    // Handed to a caller that may not watch it yet (an idle pooled socket, an
+    // HTTP server that attaches its own listener a tick later).
+    guardErrors(socket, note);
     return socket;
   };
   try {
-    return await within(HANDSHAKE_MS, "securing the stream", () => socket.destroy(), run());
+    return await within(timings.handshakeMs, "securing the stream", () => socket.destroy(), run());
   } catch (error) {
     socket.destroy();
     throw error;
@@ -336,6 +391,8 @@ export async function secureAccept(
   stream: Duplex,
   network: Network,
   identity: Identity,
+  timings: RelayTimings = DEFAULT_TIMINGS,
+  note: RelayNote = () => undefined,
 ): Promise<{ socket: tls.TLSSocket; from: string }> {
   const socket = new tls.TLSSocket(stream, {
     isServer: true,
@@ -357,10 +414,11 @@ export async function secureAccept(
       throw new Error("the dialing side is not a member of this network");
     }
     socket.write(proofOf(network.proofKey, "server", serverNode, clientNode));
+    guardErrors(socket, note);
     return { socket, from: clientNode };
   };
   try {
-    return await within(HANDSHAKE_MS, "securing the stream", () => socket.destroy(), run());
+    return await within(timings.handshakeMs, "securing the stream", () => socket.destroy(), run());
   } catch (error) {
     socket.destroy();
     throw error;
@@ -395,6 +453,9 @@ export class RelayLink {
   private readonly name: string;
   private readonly onSession: (socket: tls.TLSSocket, from: string) => void;
   private readonly warn: (message: string, error: unknown) => void;
+  private readonly timings: RelayTimings;
+  /** Errors on this link's streams; they never escape the link. */
+  private readonly note: RelayNote;
   private stopped = false;
   private control: Duplex | undefined;
   private wake: (() => void) | undefined;
@@ -405,7 +466,10 @@ export class RelayLink {
     name: string,
     onSession: (socket: tls.TLSSocket, from: string) => void,
     warn: (message: string, error: unknown) => void,
+    timings: Partial<RelayTimings> = {},
   ) {
+    this.timings = { ...DEFAULT_TIMINGS, ...timings };
+    this.note = (message, error) => warn(message, error);
     this.network = network;
     this.identity = identity;
     this.name = name;
@@ -450,11 +514,12 @@ export class RelayLink {
 
   /** One control connection, from hello to its end; always ends by throwing. */
   private async serve(onOnline: () => void): Promise<never> {
-    const { stream } = await hello(this.network, {
-      role: "node",
-      node: this.node,
-      name: this.name.slice(0, 64),
-    });
+    const { stream } = await hello(
+      this.network,
+      { role: "node", node: this.node, name: this.name.slice(0, 64) },
+      this.timings,
+      this.note,
+    );
     if (this.stopped) {
       stream.destroy();
       throw new Error("stopped");
@@ -462,12 +527,12 @@ export class RelayLink {
     this.control = stream;
     this.status = { state: "online" };
     onOnline();
-    let silence = setTimeout(() => stream.destroy(), CONTROL_SILENCE_MS);
+    let silence = setTimeout(() => stream.destroy(), this.timings.controlSilenceMs);
     try {
       for (;;) {
         const message = asControl(await readLine(stream));
         clearTimeout(silence);
-        silence = setTimeout(() => stream.destroy(), CONTROL_SILENCE_MS);
+        silence = setTimeout(() => stream.destroy(), this.timings.controlSilenceMs);
         if (message.type === "ping") writeLine(stream, { type: "pong" });
         else if (message.type === "open" && message.conn !== undefined)
           void this.accept(message.conn);
@@ -481,8 +546,19 @@ export class RelayLink {
 
   private async accept(conn: string): Promise<void> {
     try {
-      const { stream } = await hello(this.network, { role: "accept", node: this.node, conn });
-      const { socket, from } = await secureAccept(stream, this.network, this.identity);
+      const { stream } = await hello(
+        this.network,
+        { role: "accept", node: this.node, conn },
+        this.timings,
+        this.note,
+      );
+      const { socket, from } = await secureAccept(
+        stream,
+        this.network,
+        this.identity,
+        this.timings,
+        this.note,
+      );
       this.onSession(socket, from);
     } catch (error) {
       // A non-member that reached the relay ends here, as does a dropped stream.
@@ -490,9 +566,19 @@ export class RelayLink {
     }
   }
 
+  /** Note a failure that belongs to this link only (its streams call it). */
+  noteRelay(message: string, error: unknown): void {
+    this.note(message, error);
+  }
+
   /** @returns the other nodes of the network that are online. */
   async peers(): Promise<RelayPeer[]> {
-    const { stream, reply } = await hello(this.network, { role: "peers", node: this.node });
+    const { stream, reply } = await hello(
+      this.network,
+      { role: "peers", node: this.node },
+      this.timings,
+      this.note,
+    );
     stream.destroy();
     const peers: RelayPeer[] = [];
     for (const peer of reply.peers ?? []) {
@@ -504,8 +590,13 @@ export class RelayLink {
 
   /** @returns a secured session to another node of the network. */
   async dial(target: string): Promise<tls.TLSSocket> {
-    const { stream } = await hello(this.network, { role: "dial", node: this.node, target });
-    return secureDial(stream, this.network, this.identity, target);
+    const { stream } = await hello(
+      this.network,
+      { role: "dial", node: this.node, target },
+      this.timings,
+      this.note,
+    );
+    return secureDial(stream, this.network, this.identity, target, this.timings, this.note);
   }
 }
 
@@ -537,10 +628,20 @@ export function relayAgent(link: RelayLink, target: string): http.Agent {
       try {
         socket = await link.dial(target);
       } catch (error) {
-        callback(error instanceof Error ? error : new Error(String(error)));
+        try {
+          callback(error instanceof Error ? error : new Error(String(error)));
+        } catch (thrown) {
+          // The agent refused the error itself; nothing left to report it to.
+          link.noteRelay("kivotos: relay agent callback failed", thrown);
+        }
         return;
       }
-      callback(null, socket);
+      try {
+        callback(null, socket);
+      } catch (thrown) {
+        socket.destroy();
+        link.noteRelay("kivotos: relay agent callback failed", thrown);
+      }
     })();
   };
   Reflect.set(agent, "createConnection", connect);
